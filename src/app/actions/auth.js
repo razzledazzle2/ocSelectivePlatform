@@ -1,0 +1,77 @@
+'use server'
+
+import { redirect } from 'next/navigation'
+
+import { getRoleRedirectPath } from '@/lib/auth/role-redirect'
+import { createClient } from '@/lib/supabase/server'
+
+function createRedirectPath(pathname, messageType, message) {
+  const params = new URLSearchParams({
+    [messageType]: message,
+  })
+
+  return `${pathname}?${params.toString()}`
+}
+
+export async function signInAction(formData) {
+  const supabase = createClient()
+  const email = String(formData.get('email') ?? '').trim()
+  const password = String(formData.get('password') ?? '')
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
+
+  if (error) {
+    redirect(createRedirectPath('/login', 'error', error.message))
+  }
+
+  const role = data.user?.user_metadata?.role ?? 'student'
+  redirect(getRoleRedirectPath(role))
+}
+
+export async function signUpAction(formData) {
+  const supabase = createClient()
+  const fullName = String(formData.get('full_name') ?? '').trim()
+  const email = String(formData.get('email') ?? '').trim()
+  const password = String(formData.get('password') ?? '')
+  const targetExam = String(formData.get('target_exam') ?? '').trim()
+  const yearLevelValue = String(formData.get('year_level') ?? '').trim()
+  const yearLevel = yearLevelValue ? Number(yearLevelValue) : null
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        full_name: fullName,
+        target_exam: targetExam || null,
+        year_level: Number.isNaN(yearLevel) ? null : yearLevel,
+        role: 'student',
+      },
+    },
+  })
+
+  if (error) {
+    redirect(createRedirectPath('/signup', 'error', error.message))
+  }
+
+  if (!data.session) {
+    redirect(
+      createRedirectPath(
+        '/login',
+        'message',
+        'Account created. If email confirmation is enabled, confirm your email before signing in.'
+      )
+    )
+  }
+
+  redirect('/student/dashboard')
+}
+
+export async function signOutAction() {
+  const supabase = createClient()
+  await supabase.auth.signOut()
+  redirect('/login')
+}
