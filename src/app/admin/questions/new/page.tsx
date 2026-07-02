@@ -1,4 +1,4 @@
-import { QuestionForm } from '@/components/questions/question-form'
+import { QuestionForm } from '@/components/admin/question-form'
 import { createEmptyQuestionFormValues } from '@/lib/questions/form-values'
 import {
   getQuestionTypes,

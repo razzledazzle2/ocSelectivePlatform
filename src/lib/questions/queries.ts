@@ -210,6 +210,41 @@ export async function getAdminQuestions(filters: AdminQuestionFilters = {}): Pro
   }))
 }
 
+export async function validateQuestionTaxonomy(
+  subjectId: string,
+  topicId: string,
+  questionTypeId: string | null
+): Promise<Record<string, string>> {
+  const supabase = await createClient()
+  const errors: Record<string, string> = {}
+
+  const { data: topic } = await supabase
+    .from('topics')
+    .select('id, subject_id')
+    .eq('id', topicId)
+    .maybeSingle()
+
+  if (!topic) {
+    errors.topicId = 'Choose a valid topic.'
+  } else if (topic.subject_id !== subjectId) {
+    errors.topicId = 'Topic must belong to the selected subject.'
+  }
+
+  if (questionTypeId) {
+    const { data: questionType } = await supabase
+      .from('question_types')
+      .select('id, subject_id')
+      .eq('id', questionTypeId)
+      .maybeSingle()
+
+    if (!questionType || questionType.subject_id !== subjectId) {
+      errors.questionTypeId = 'Question type must belong to the selected subject.'
+    }
+  }
+
+  return errors
+}
+
 export async function getQuestionById(id: string): Promise<QuestionDetail | null> {
   const supabase = await createClient()
   const { data, error } = await supabase
