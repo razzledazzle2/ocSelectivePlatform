@@ -1,4 +1,4 @@
-import { PracticePlayer } from '@/components/practice/practice-player'
+import { PracticeSession } from '@/components/student/practice-session'
 import { getSubjects, getTopicsBySubject } from '@/lib/questions/queries'
 
 export default async function StudentPracticePage() {
@@ -14,7 +14,7 @@ export default async function StudentPracticePage() {
         </p>
       </div>
 
-      <PracticePlayer subjects={subjects} topics={topics} />
+      <PracticeSession subjects={subjects} topics={topics} />
     </div>
   )
 }

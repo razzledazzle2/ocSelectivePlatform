@@ -82,6 +82,23 @@ export function QuestionForm({
     return questionTypes.filter((questionType) => questionType.subject_id === values.subjectId)
   }, [questionTypes, values.subjectId, values.topicId])
 
+  // base-ui Select needs value->label maps so triggers show names, not raw ids/values.
+  const subjectItems = useMemo(
+    () => Object.fromEntries(subjects.map((subject) => [subject.id, subject.name])),
+    [subjects]
+  )
+  const topicItems = useMemo(
+    () => Object.fromEntries(filteredTopics.map((topic) => [topic.id, topic.name])),
+    [filteredTopics]
+  )
+  const questionTypeItems = useMemo(
+    () => Object.fromEntries(filteredQuestionTypes.map((questionType) => [questionType.id, questionType.name])),
+    [filteredQuestionTypes]
+  )
+  const difficultyItems = Object.fromEntries(difficultyValues.map((value) => [value, `Difficulty ${value}`]))
+  const statusItems = { draft: 'Draft', published: 'Published' }
+  const correctOptionItems = Object.fromEntries(QUESTION_OPTION_LABELS.map((label) => [label, `Option ${label}`]))
+
   function updateValue<Key extends keyof QuestionFormValues>(key: Key, value: QuestionFormValues[Key]) {
     setValues((current) => ({ ...current, [key]: value }))
   }
@@ -192,7 +209,7 @@ export function QuestionForm({
 
             <div className="space-y-2">
               <Label>Subject</Label>
-              <Select value={values.subjectId} onValueChange={handleSubjectChange}>
+              <Select value={values.subjectId} onValueChange={handleSubjectChange} items={subjectItems}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Choose a subject" />
                 </SelectTrigger>
@@ -209,7 +226,12 @@ export function QuestionForm({
 
             <div className="space-y-2">
               <Label>Topic</Label>
-              <Select value={values.topicId} onValueChange={handleTopicChange} disabled={!values.subjectId}>
+              <Select
+                value={values.topicId}
+                onValueChange={handleTopicChange}
+                disabled={!values.subjectId}
+                items={topicItems}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Choose a topic" />
                 </SelectTrigger>
@@ -230,6 +252,7 @@ export function QuestionForm({
                 value={values.questionTypeId}
                 onValueChange={(value) => updateValue('questionTypeId', value)}
                 disabled={!values.subjectId}
+                items={questionTypeItems}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Optional" />
@@ -266,7 +289,11 @@ export function QuestionForm({
 
             <div className="space-y-2">
               <Label>Difficulty</Label>
-              <Select value={values.difficulty} onValueChange={(value) => updateValue('difficulty', value)}>
+              <Select
+                value={values.difficulty}
+                onValueChange={(value) => updateValue('difficulty', value)}
+                items={difficultyItems}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Choose difficulty" />
                 </SelectTrigger>
@@ -286,6 +313,7 @@ export function QuestionForm({
               <Select
                 value={values.status}
                 onValueChange={(value) => updateValue('status', value as QuestionFormValues['status'])}
+                items={statusItems}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Choose status" />
@@ -356,6 +384,7 @@ export function QuestionForm({
                 onValueChange={(value) =>
                   updateValue('correctOptionLabel', value as QuestionFormValues['correctOptionLabel'])
                 }
+                items={correctOptionItems}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Choose the correct option" />

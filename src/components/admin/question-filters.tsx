@@ -46,6 +46,22 @@ export function QuestionFilters({ filters, subjects, topics }: QuestionFiltersPr
     [topics, subjectId]
   )
 
+  // base-ui Select needs value->label maps so triggers show names, not raw ids/values.
+  const examItems = { [ALL]: 'All exam types', ...Object.fromEntries(EXAM_TYPES.map((v) => [v, v])) }
+  const statusItems = { [ALL]: 'All statuses', ...Object.fromEntries(QUESTION_STATUSES.map((v) => [v, v])) }
+  const difficultyItems = {
+    [ALL]: 'All difficulties',
+    ...Object.fromEntries(difficultyValues.map((v) => [v, `Difficulty ${v}`])),
+  }
+  const subjectItems = useMemo(
+    () => ({ [ALL]: 'All subjects', ...Object.fromEntries(subjects.map((s) => [s.id, s.name])) }),
+    [subjects]
+  )
+  const topicItems = useMemo(
+    () => ({ [ALL]: 'All topics', ...Object.fromEntries(filteredTopics.map((t) => [t.id, t.name])) }),
+    [filteredTopics]
+  )
+
   function handleSubjectChange(nextSubjectId: string) {
     setSubjectId(nextSubjectId)
     setTopicId(ALL)
@@ -105,7 +121,7 @@ export function QuestionFilters({ filters, subjects, topics }: QuestionFiltersPr
 
           <div className="space-y-2">
             <Label>Exam type</Label>
-            <Select value={examType} onValueChange={setExamType}>
+            <Select value={examType} onValueChange={setExamType} items={examItems}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="All exam types" />
               </SelectTrigger>
@@ -122,7 +138,7 @@ export function QuestionFilters({ filters, subjects, topics }: QuestionFiltersPr
 
           <div className="space-y-2">
             <Label>Subject</Label>
-            <Select value={subjectId} onValueChange={handleSubjectChange}>
+            <Select value={subjectId} onValueChange={handleSubjectChange} items={subjectItems}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="All subjects" />
               </SelectTrigger>
@@ -139,7 +155,7 @@ export function QuestionFilters({ filters, subjects, topics }: QuestionFiltersPr
 
           <div className="space-y-2">
             <Label>Topic</Label>
-            <Select value={topicId} onValueChange={setTopicId}>
+            <Select value={topicId} onValueChange={setTopicId} items={topicItems}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="All topics" />
               </SelectTrigger>
@@ -156,7 +172,7 @@ export function QuestionFilters({ filters, subjects, topics }: QuestionFiltersPr
 
           <div className="space-y-2">
             <Label>Difficulty</Label>
-            <Select value={difficulty} onValueChange={setDifficulty}>
+            <Select value={difficulty} onValueChange={setDifficulty} items={difficultyItems}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="All difficulties" />
               </SelectTrigger>
@@ -173,7 +189,7 @@ export function QuestionFilters({ filters, subjects, topics }: QuestionFiltersPr
 
           <div className="space-y-2">
             <Label>Status</Label>
-            <Select value={status} onValueChange={setStatus}>
+            <Select value={status} onValueChange={setStatus} items={statusItems}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>

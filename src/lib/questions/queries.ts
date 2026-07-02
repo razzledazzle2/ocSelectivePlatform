@@ -5,6 +5,7 @@ import type {
   PracticeQuestionFilters,
   PracticeQuestionItem,
   QuestionDetail,
+  QuestionOptionLabel,
   QuestionOptionRecord,
   QuestionRecord,
   QuestionTypeRecord,
@@ -310,6 +311,39 @@ function shuffleArray<T>(items: T[]): T[] {
   }
 
   return clone
+}
+
+/**
+ * Reveals the answer, short explanation and worked solution for a single PUBLISHED question.
+ * Used when a student submits an answer so the correct answer is never shipped to the client
+ * alongside the question itself. Returns null for non-published or missing questions.
+ */
+export async function getPublishedQuestionFeedback(questionId: string): Promise<{
+  correctOptionLabel: QuestionOptionLabel
+  shortExplanation: string | null
+  workedSolution: string
+} | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('questions')
+    .select('correct_option_label, short_explanation, worked_solution')
+    .eq('id', questionId)
+    .eq('status', 'published')
+    .maybeSingle()
+
+  if (error) {
+    throw new Error('Unable to check this answer.')
+  }
+
+  if (!data) {
+    return null
+  }
+
+  return {
+    correctOptionLabel: data.correct_option_label as QuestionOptionLabel,
+    shortExplanation: data.short_explanation,
+    workedSolution: data.worked_solution,
+  }
 }
 
 export async function getPracticeQuestions(filters: PracticeQuestionFilters): Promise<PracticeQuestionItem[]> {
