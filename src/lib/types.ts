@@ -1,0 +1,302 @@
+import type { LucideIcon } from 'lucide-react'
+
+export const APP_ROLES = ['student', 'admin', 'tutor', 'parent', 'external_customer', 'super_admin'] as const
+export const EXAM_TYPES = ['OC', 'Selective'] as const
+export const QUESTION_STATUSES = ['draft', 'published', 'archived'] as const
+export const QUESTION_OPTION_LABELS = ['A', 'B', 'C', 'D'] as const
+export const PRACTICE_MODES = ['practice'] as const
+export const MISTAKE_STATUSES = ['needs_review', 'reviewing', 'improved', 'mastered'] as const
+
+export type AppRole = (typeof APP_ROLES)[number]
+export type ExamType = (typeof EXAM_TYPES)[number]
+export type QuestionStatus = (typeof QUESTION_STATUSES)[number]
+export type QuestionOptionLabel = (typeof QUESTION_OPTION_LABELS)[number]
+export type PracticeMode = (typeof PRACTICE_MODES)[number]
+export type MistakeStatus = (typeof MISTAKE_STATUSES)[number]
+
+export interface AppProfile {
+  id: string
+  email: string | null
+  full_name: string | null
+  role: AppRole
+  year_level: number | null
+  target_exam: string | null
+  school: string | null
+  avatar_url: string | null
+  is_active: boolean
+}
+
+export type NavigationIconName =
+  | 'gauge'
+  | 'book-open'
+  | 'revision'
+  | 'clipboard-list'
+  | 'users'
+
+export interface NavigationItem {
+  href: string
+  label: string
+  icon: NavigationIconName
+}
+
+export type DashboardCardIcon = LucideIcon
+
+export interface AuthPageSearchParams {
+  error?: string | string[]
+  message?: string | string[]
+}
+
+export interface SubjectRecord {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  sort_order: number
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface TopicRecord {
+  id: string
+  subject_id: string
+  name: string
+  slug: string
+  description: string | null
+  sort_order: number
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface QuestionTypeRecord {
+  id: string
+  subject_id: string
+  topic_id: string | null
+  name: string
+  slug: string
+  description: string | null
+  sort_order: number
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface QuestionOptionRecord {
+  id?: string
+  question_id?: string
+  label: QuestionOptionLabel
+  option_text: string
+  sort_order: number
+  created_at?: string
+}
+
+export interface QuestionRecord {
+  id: string
+  subject_id: string
+  topic_id: string
+  question_type_id: string | null
+  exam_type: ExamType
+  year_level: number | null
+  difficulty: number
+  question_text: string
+  passage_text: string | null
+  short_explanation: string | null
+  worked_solution: string
+  correct_option_label: QuestionOptionLabel
+  status: QuestionStatus
+  created_by: string | null
+  updated_by: string | null
+  published_at: string | null
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface QuestionDetail extends QuestionRecord {
+  subject: SubjectRecord
+  topic: TopicRecord
+  questionType: QuestionTypeRecord | null
+  options: QuestionOptionRecord[]
+}
+
+export interface AdminQuestionFilters {
+  examType?: string
+  subjectId?: string
+  topicId?: string
+  difficulty?: string
+  status?: string
+  query?: string
+}
+
+export interface AdminQuestionListItem {
+  id: string
+  questionTextPreview: string
+  subjectName: string
+  topicName: string
+  questionTypeName: string | null
+  examType: ExamType
+  difficulty: number
+  status: QuestionStatus
+  createdAt: string
+  updatedAt: string
+  publishedAt: string | null
+  archivedAt: string | null
+}
+
+export interface QuestionFormValues {
+  examType: ExamType
+  subjectId: string
+  topicId: string
+  questionTypeId: string
+  yearLevel: string
+  difficulty: string
+  questionText: string
+  passageText: string
+  optionA: string
+  optionB: string
+  optionC: string
+  optionD: string
+  correctOptionLabel: QuestionOptionLabel
+  shortExplanation: string
+  workedSolution: string
+  status: Extract<QuestionStatus, 'draft' | 'published'>
+}
+
+export interface QuestionWriteInput {
+  examType: ExamType
+  subjectId: string
+  topicId: string
+  questionTypeId: string | null
+  yearLevel: number | null
+  difficulty: number
+  questionText: string
+  passageText: string | null
+  options: QuestionOptionRecord[]
+  correctOptionLabel: QuestionOptionLabel
+  shortExplanation: string | null
+  workedSolution: string
+  status: Extract<QuestionStatus, 'draft' | 'published'>
+}
+
+export interface ActionResult<T = undefined> {
+  success: boolean
+  message?: string
+  data?: T
+  fieldErrors?: Record<string, string>
+}
+
+export interface PracticeQuestionFilters {
+  examType: ExamType
+  subjectId: string
+  topicId?: string
+  difficulty?: number
+  limit: number
+}
+
+export interface PracticeQuestionItem {
+  id: string
+  subjectId: string
+  subjectName: string
+  topicId: string
+  topicName: string
+  questionTypeId: string | null
+  questionTypeName: string | null
+  examType: ExamType
+  difficulty: number
+  questionText: string
+  passageText: string | null
+  options: QuestionOptionRecord[]
+}
+
+export interface PracticeStartResult {
+  sessionId: string
+  startedAt: string
+  questions: PracticeQuestionItem[]
+}
+
+export interface AttemptFeedback {
+  attemptId: string
+  isCorrect: boolean
+  correctOptionLabel: QuestionOptionLabel
+  shortExplanation: string | null
+  workedSolution: string
+}
+
+export interface PracticeSessionSummary {
+  sessionId: string
+  totalQuestions: number
+  correctCount: number
+  incorrectCount: number
+  accuracy: number
+  totalTimeSeconds: number
+}
+
+export interface PracticeSessionRecord {
+  id: string
+  student_id: string
+  mode: PracticeMode
+  exam_type: ExamType | null
+  subject_id: string | null
+  topic_id: string | null
+  difficulty: number | null
+  total_questions: number
+  correct_count: number
+  incorrect_count: number
+  accuracy: number | null
+  total_time_seconds: number
+  started_at: string
+  completed_at: string | null
+  created_at: string
+}
+
+export interface RecentPracticeSession {
+  id: string
+  examType: ExamType | null
+  subjectName: string | null
+  topicName: string | null
+  difficulty: number | null
+  totalQuestions: number
+  correctCount: number
+  incorrectCount: number
+  accuracy: number | null
+  totalTimeSeconds: number
+  completedAt: string | null
+  createdAt: string
+}
+
+export interface StudentMistakeQuestion {
+  id: string
+  studentId: string
+  questionId: string
+  subjectName: string | null
+  topicName: string | null
+  questionTypeName: string | null
+  examType: ExamType | null
+  difficulty: number | null
+  timesIncorrect: number
+  timesCorrectAfterMistake: number
+  lastIncorrectAt: string
+  lastAttemptedAt: string
+  status: MistakeStatus
+  questionText: string
+}
+
+export interface MistakeQuestionDetail extends StudentMistakeQuestion {
+  passageText: string | null
+  shortExplanation: string | null
+  workedSolution: string
+  correctOptionLabel: QuestionOptionLabel
+  options: QuestionOptionRecord[]
+}
+
+export interface StudentDashboardStats {
+  questionsCompleted: number
+  correctAnswers: number
+  incorrectAnswers: number
+  overallAccuracy: number | null
+  recentSessions: RecentPracticeSession[]
+  recentMistakes: StudentMistakeQuestion[]
+  weakestSubject: string | null
+  weakestTopic: string | null
+}
