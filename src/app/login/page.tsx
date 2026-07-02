@@ -12,7 +12,9 @@ import { Label } from '@/components/ui/label'
 import type { AuthPageSearchParams } from '@/lib/types'
 
 interface LoginPageProps {
-  searchParams?: AuthPageSearchParams
+  searchParams?: AuthPageSearchParams & {
+    next?: string | string[]
+  }
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
@@ -24,6 +26,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   const error = typeof searchParams?.error === 'string' ? searchParams.error : undefined
   const message = typeof searchParams?.message === 'string' ? searchParams.message : undefined
+  const next = typeof searchParams?.next === 'string' ? searchParams.next : undefined
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
@@ -61,6 +64,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 Sign in with your Supabase email and password to access the correct dashboard.
               </CardDescription>
             </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              Admins, tutors, and students all use this same login page. Staff accounts are routed from
+              `profiles.role`, so once an account is promoted in Supabase it will land in the admin area
+              automatically after sign-in.
+            </div>
             {error ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
             ) : null}
@@ -72,6 +80,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </CardHeader>
           <CardContent>
             <form action={signInAction} className="space-y-5">
+              <input type="hidden" name="next" value={next ?? ''} />
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" name="email" type="email" placeholder="student@minerva.edu" required />
@@ -90,6 +99,19 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 Create a student account
               </Link>
             </p>
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+              <p className="font-medium text-slate-950">Create an admin account</p>
+              <p className="mt-2">
+                1. Create the user in Supabase Auth.
+                <br />
+                2. Run this SQL in Supabase:
+              </p>
+              <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">
+                <code>{`update public.profiles
+set role = 'admin'
+where email = 'admin@example.com';`}</code>
+              </pre>
+            </div>
           </CardContent>
         </Card>
       </div>

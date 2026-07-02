@@ -5,6 +5,7 @@ import { QuestionPreview } from '@/components/questions/question-preview'
 import { buttonVariants } from '@/components/ui/button'
 import { requireProfile } from '@/lib/auth/require-profile'
 import { getMistakeQuestionById } from '@/lib/practice/queries'
+import { STUDENT_PORTAL_ROLES } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 interface StudentRevisionDetailPageProps {
@@ -15,7 +16,7 @@ interface StudentRevisionDetailPageProps {
 
 export default async function StudentRevisionDetailPage({ params }: StudentRevisionDetailPageProps) {
   const profile = await requireProfile({
-    allowedRoles: ['student', 'admin', 'super_admin'],
+    allowedRoles: [...STUDENT_PORTAL_ROLES],
   })
   const mistakeQuestion = await getMistakeQuestionById(profile.id, params.id)
 

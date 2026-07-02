@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 
-import { AppShell } from '@/components/app-shell'
+import { AppShell } from '@/components/layout/app-shell'
 import { requireProfile } from '@/lib/auth/require-profile'
-import type { NavigationItem } from '@/lib/types'
+import { STUDENT_PORTAL_ROLES, type NavigationItem } from '@/lib/types'
 
 const navigation: NavigationItem[] = [
   { href: '/student/dashboard', label: 'Dashboard', icon: 'gauge' },
@@ -16,7 +16,7 @@ interface StudentLayoutProps {
 
 export default async function StudentLayout({ children }: StudentLayoutProps) {
   const profile = await requireProfile({
-    allowedRoles: ['student', 'admin', 'super_admin'],
+    allowedRoles: [...STUDENT_PORTAL_ROLES],
   })
 
   return (

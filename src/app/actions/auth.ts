@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 
-import { getRoleRedirectPath } from '@/lib/auth/role-redirect'
+import { canAccessPath, getRoleRedirectPath, normalizeRole } from '@/lib/auth/access'
 import { createClient } from '@/lib/supabase/server'
 
 function createRedirectPath(
@@ -21,6 +21,7 @@ export async function signInAction(formData: FormData): Promise<never> {
   const supabase = createClient()
   const email = String(formData.get('email') ?? '').trim()
   const password = String(formData.get('password') ?? '')
+  const nextPath = String(formData.get('next') ?? '').trim()
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -31,7 +32,18 @@ export async function signInAction(formData: FormData): Promise<never> {
     redirect(createRedirectPath('/login', 'error', error.message))
   }
 
-  const role = data.user?.user_metadata?.role ?? 'student'
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', data.user.id)
+    .maybeSingle()
+
+  const role = normalizeRole(profile?.role ?? data.user.user_metadata?.role)
+
+  if (nextPath && nextPath.startsWith('/') && canAccessPath(role, nextPath)) {
+    redirect(nextPath)
+  }
+
   redirect(getRoleRedirectPath(role))
 }
 

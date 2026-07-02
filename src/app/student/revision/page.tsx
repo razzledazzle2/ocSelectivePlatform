@@ -1,10 +1,11 @@
 import { MistakeList } from '@/components/revision/mistake-list'
 import { requireProfile } from '@/lib/auth/require-profile'
 import { getStudentMistakeQuestions } from '@/lib/practice/queries'
+import { STUDENT_PORTAL_ROLES } from '@/lib/types'
 
 export default async function StudentRevisionPage() {
   const profile = await requireProfile({
-    allowedRoles: ['student', 'admin', 'super_admin'],
+    allowedRoles: [...STUDENT_PORTAL_ROLES],
   })
   const mistakes = await getStudentMistakeQuestions(profile.id)
 

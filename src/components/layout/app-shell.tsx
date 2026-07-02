@@ -15,8 +15,8 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-import { SignOutButton } from '@/components/sign-out-button'
-import { UserNav } from '@/components/user-nav'
+import { SignOutButton } from '@/components/layout/sign-out-button'
+import { UserNav } from '@/components/layout/user-nav'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {

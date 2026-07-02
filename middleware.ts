@@ -1,12 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { AUTH_PAGES, canAccessPath, getRoleRedirectPath, PROTECTED_PREFIXES } from '@/lib/auth/access'
 import { updateSession } from '@/lib/supabase/middleware'
 
-const AUTH_PAGES = ['/login', '/signup']
-const PROTECTED_PREFIXES = ['/student', '/admin', '/tutor']
-
 export async function middleware(request: NextRequest) {
-  const { response, user } = await updateSession(request)
+  const { response, supabase, user } = await updateSession(request)
   const { pathname } = request.nextUrl
   const isProtectedRoute = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 
@@ -17,7 +15,22 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && AUTH_PAGES.includes(pathname)) {
-    return NextResponse.redirect(new URL('/', request.url))
+    const { data: profile } = supabase
+      ? await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      : { data: null }
+
+    return NextResponse.redirect(new URL(getRoleRedirectPath(profile?.role ?? user.user_metadata?.role), request.url))
+  }
+
+  if (user && isProtectedRoute) {
+    const { data: profile } = supabase
+      ? await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      : { data: null }
+    const role = profile?.role ?? user.user_metadata?.role
+
+    if (!canAccessPath(role, pathname)) {
+      return NextResponse.redirect(new URL(getRoleRedirectPath(role), request.url))
+    }
   }
 
   return response

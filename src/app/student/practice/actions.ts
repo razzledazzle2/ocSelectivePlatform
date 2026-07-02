@@ -12,6 +12,7 @@ import {
 import {
   EXAM_TYPES,
   QUESTION_OPTION_LABELS,
+  STUDENT_PORTAL_ROLES,
   type AttemptFeedback,
   type ActionResult,
   type PracticeSessionSummary,
@@ -25,7 +26,7 @@ function parsePositiveNumber(value: string): number | null {
 
 export async function startPracticeAction(formData: FormData): Promise<ActionResult<PracticeStartResult>> {
   const profile = await requireProfile({
-    allowedRoles: ['student', 'admin', 'super_admin'],
+    allowedRoles: [...STUDENT_PORTAL_ROLES],
   })
   const examType = String(formData.get('examType') ?? '').trim()
   const subjectId = String(formData.get('subjectId') ?? '').trim()
@@ -106,7 +107,7 @@ export async function savePracticeAttemptAction(
   formData: FormData
 ): Promise<ActionResult<AttemptFeedback>> {
   const profile = await requireProfile({
-    allowedRoles: ['student', 'admin', 'super_admin'],
+    allowedRoles: [...STUDENT_PORTAL_ROLES],
   })
   const sessionId = String(formData.get('sessionId') ?? '').trim()
   const questionId = String(formData.get('questionId') ?? '').trim()
@@ -149,7 +150,7 @@ export async function completePracticeSessionAction(
   summary: PracticeSessionSummary
 ): Promise<ActionResult<{ sessionId: string }>> {
   await requireProfile({
-    allowedRoles: ['student', 'admin', 'super_admin'],
+    allowedRoles: [...STUDENT_PORTAL_ROLES],
   })
 
   if (!summary.sessionId || summary.totalQuestions < 0) {

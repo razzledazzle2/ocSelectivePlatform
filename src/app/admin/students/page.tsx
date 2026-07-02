@@ -1,17 +1,20 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { AdminStudentTable } from '@/components/admin/admin-student-table'
+import { getAdminStudentRows } from '@/lib/admin/queries'
 
-export default function AdminStudentsPage() {
+export default async function AdminStudentsPage() {
+  const students = await getAdminStudentRows()
+
   return (
-    <Card className="border-white/70 bg-white/92 shadow-lg shadow-slate-200/50">
-      <CardHeader>
-        <CardTitle>Student management</CardTitle>
-        <CardDescription>
-          Role-aware profile infrastructure is now in place, ready for richer admin tooling later.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="text-sm text-muted-foreground">
-        Student management will be expanded in a later phase.
-      </CardContent>
-    </Card>
+    <div className="space-y-6">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-700">Student operations</p>
+        <h2 className="mt-2 text-3xl font-semibold text-slate-950">Students</h2>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          Monitor enrolment, recent practice activity, and revision pressure without leaving the admin area.
+        </p>
+      </div>
+
+      <AdminStudentTable students={students} />
+    </div>
   )
 }

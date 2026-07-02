@@ -6,6 +6,8 @@ export const QUESTION_STATUSES = ['draft', 'published', 'archived'] as const
 export const QUESTION_OPTION_LABELS = ['A', 'B', 'C', 'D'] as const
 export const PRACTICE_MODES = ['practice'] as const
 export const MISTAKE_STATUSES = ['needs_review', 'reviewing', 'improved', 'mastered'] as const
+export const ADMIN_PORTAL_ROLES = ['tutor', 'admin', 'super_admin'] as const
+export const STUDENT_PORTAL_ROLES = ['student', 'parent', 'external_customer'] as const
 
 export type AppRole = (typeof APP_ROLES)[number]
 export type ExamType = (typeof EXAM_TYPES)[number]
@@ -13,6 +15,8 @@ export type QuestionStatus = (typeof QUESTION_STATUSES)[number]
 export type QuestionOptionLabel = (typeof QUESTION_OPTION_LABELS)[number]
 export type PracticeMode = (typeof PRACTICE_MODES)[number]
 export type MistakeStatus = (typeof MISTAKE_STATUSES)[number]
+export type AdminPortalRole = (typeof ADMIN_PORTAL_ROLES)[number]
+export type StudentPortalRole = (typeof STUDENT_PORTAL_ROLES)[number]
 
 export interface AppProfile {
   id: string
@@ -299,4 +303,100 @@ export interface StudentDashboardStats {
   recentMistakes: StudentMistakeQuestion[]
   weakestSubject: string | null
   weakestTopic: string | null
+}
+
+export interface AdminDashboardStats {
+  totalStudents: number
+  totalStaff: number
+  totalQuestions: number
+  publishedQuestions: number
+  draftQuestions: number
+  archivedQuestions: number
+  attemptsLast7Days: number
+  activeMistakes: number
+  recentStudents: AdminStudentRow[]
+}
+
+export interface AdminStudentRow {
+  id: string
+  fullName: string | null
+  email: string | null
+  role: AppRole
+  yearLevel: number | null
+  targetExam: string | null
+  school: string | null
+  createdAt: string
+  questionsCompleted: number
+  correctAnswers: number
+  incorrectAnswers: number
+  accuracy: number | null
+  activeMistakes: number
+  latestAttemptAt: string | null
+}
+
+export interface CsvRowError {
+  field: string
+  message: string
+}
+
+export interface CsvQuestionRowPreview {
+  rowNumber: number
+  examType: string
+  yearLevel: string
+  subjectSlug: string
+  topicSlug: string
+  questionTypeSlug: string
+  difficulty: string
+  questionText: string
+  passageText: string
+  optionA: string
+  optionB: string
+  optionC: string
+  optionD: string
+  correctOptionLabel: string
+  shortExplanation: string
+  workedSolution: string
+  status: string
+  errors: CsvRowError[]
+}
+
+export interface CsvImportableQuestion {
+  rowNumber: number
+  examType: ExamType
+  yearLevel: number | null
+  subjectId: string
+  subjectSlug: string
+  topicId: string
+  topicSlug: string
+  questionTypeId: string | null
+  questionTypeSlug: string
+  difficulty: number
+  questionText: string
+  passageText: string | null
+  optionA: string
+  optionB: string
+  optionC: string
+  optionD: string
+  correctOptionLabel: QuestionOptionLabel
+  shortExplanation: string | null
+  workedSolution: string
+  status: Extract<QuestionStatus, 'draft' | 'published' | 'archived'>
+}
+
+export interface QuestionCsvPreviewResult {
+  fileName: string
+  totalRows: number
+  validRows: CsvImportableQuestion[]
+  previewRows: CsvQuestionRowPreview[]
+}
+
+export interface QuestionCsvImportSummary {
+  importedCount: number
+  skippedDuplicateCount: number
+  importedQuestionIds: string[]
+  rowMessages: Array<{
+    rowNumber: number
+    message: string
+    status: 'imported' | 'skipped'
+  }>
 }

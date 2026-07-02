@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react'
+import { redirect } from 'next/navigation'
 
-import { AppShell } from '@/components/app-shell'
 import { requireProfile } from '@/lib/auth/require-profile'
-import type { NavigationItem } from '@/lib/types'
-
-const navigation: NavigationItem[] = [{ href: '/tutor/dashboard', label: 'Dashboard', icon: 'gauge' }]
+import { getRoleRedirectPath } from '@/lib/auth/role-redirect'
+import { ADMIN_PORTAL_ROLES } from '@/lib/types'
 
 interface TutorLayoutProps {
   children: ReactNode
@@ -12,17 +11,8 @@ interface TutorLayoutProps {
 
 export default async function TutorLayout({ children }: TutorLayoutProps) {
   const profile = await requireProfile({
-    allowedRoles: ['tutor', 'admin', 'super_admin'],
+    allowedRoles: [...ADMIN_PORTAL_ROLES],
   })
 
-  return (
-    <AppShell
-      title="Tutor Workspace"
-      description="A simple role-specific workspace for future class operations, monitoring, and support."
-      navigation={navigation}
-      profile={profile}
-    >
-      {children}
-    </AppShell>
-  )
+  redirect(getRoleRedirectPath(profile.role))
 }

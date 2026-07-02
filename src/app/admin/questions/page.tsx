@@ -1,3 +1,4 @@
+import { QuestionImportPanel } from '@/components/admin/question-import-panel'
 import Link from 'next/link'
 
 import { AdminQuestionList } from '@/components/questions/admin-question-list'
@@ -50,6 +51,7 @@ export default async function AdminQuestionsPage({ searchParams }: AdminQuestion
         </Link>
       </div>
 
+      <QuestionImportPanel />
       <QuestionFilters filters={filters} subjects={subjects} topics={topics} />
       <AdminQuestionList questions={questions} />
     </div>

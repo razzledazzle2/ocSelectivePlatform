@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 
 import { requireProfile } from '@/lib/auth/require-profile'
+import { validateQuestionCsvText } from '@/lib/csv/questions'
+import { importQuestionsFromCsvRows } from '@/lib/questions/csv-import'
 import {
   archiveQuestion,
   createQuestion,
@@ -11,7 +13,13 @@ import {
   unpublishQuestion,
   updateQuestion,
 } from '@/lib/questions/mutations'
-import type { ActionResult } from '@/lib/types'
+import {
+  ADMIN_PORTAL_ROLES,
+  type ActionResult,
+  type CsvImportableQuestion,
+  type QuestionCsvImportSummary,
+  type QuestionCsvPreviewResult,
+} from '@/lib/types'
 
 function revalidateQuestionPaths(questionId: string) {
   revalidatePath('/admin/questions')
@@ -22,9 +30,16 @@ function revalidateQuestionPaths(questionId: string) {
   revalidatePath('/student/revision')
 }
 
+function revalidateQuestionCollections() {
+  revalidatePath('/admin/dashboard')
+  revalidatePath('/admin/questions')
+  revalidatePath('/student/practice')
+  revalidatePath('/student/dashboard')
+}
+
 export async function createQuestionAction(formData: FormData): Promise<ActionResult<{ redirectTo: string }>> {
   const profile = await requireProfile({
-    allowedRoles: ['admin', 'super_admin'],
+    allowedRoles: [...ADMIN_PORTAL_ROLES],
   })
   const parsed = parseQuestionWriteInput(formData)
 
@@ -60,7 +75,7 @@ export async function updateQuestionAction(
   formData: FormData
 ): Promise<ActionResult<{ redirectTo: string }>> {
   const profile = await requireProfile({
-    allowedRoles: ['admin', 'super_admin'],
+    allowedRoles: [...ADMIN_PORTAL_ROLES],
   })
   const parsed = parseQuestionWriteInput(formData)
 
@@ -93,7 +108,7 @@ export async function updateQuestionAction(
 
 export async function archiveQuestionAction(questionId: string): Promise<ActionResult> {
   const profile = await requireProfile({
-    allowedRoles: ['admin', 'super_admin'],
+    allowedRoles: [...ADMIN_PORTAL_ROLES],
   })
 
   try {
@@ -114,7 +129,7 @@ export async function archiveQuestionAction(questionId: string): Promise<ActionR
 
 export async function publishQuestionAction(questionId: string): Promise<ActionResult> {
   const profile = await requireProfile({
-    allowedRoles: ['admin', 'super_admin'],
+    allowedRoles: [...ADMIN_PORTAL_ROLES],
   })
 
   try {
@@ -135,7 +150,7 @@ export async function publishQuestionAction(questionId: string): Promise<ActionR
 
 export async function unpublishQuestionAction(questionId: string): Promise<ActionResult> {
   const profile = await requireProfile({
-    allowedRoles: ['admin', 'super_admin'],
+    allowedRoles: [...ADMIN_PORTAL_ROLES],
   })
 
   try {
@@ -150,6 +165,76 @@ export async function unpublishQuestionAction(questionId: string): Promise<Actio
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Unable to unpublish the question right now.',
+    }
+  }
+}
+
+export async function previewQuestionCsvImportAction(
+  formData: FormData
+): Promise<ActionResult<QuestionCsvPreviewResult>> {
+  await requireProfile({
+    allowedRoles: [...ADMIN_PORTAL_ROLES],
+  })
+
+  const file = formData.get('file')
+
+  if (!(file instanceof File) || !file.name.toLowerCase().endsWith('.csv')) {
+    return {
+      success: false,
+      message: 'Upload a CSV file before previewing the import.',
+    }
+  }
+
+  try {
+    const preview = await validateQuestionCsvText(await file.text(), file.name)
+
+    return {
+      success: true,
+      data: preview,
+      message:
+        preview.validRows.length === preview.totalRows
+          ? 'CSV validated successfully.'
+          : 'CSV parsed. Review the row-level issues before importing.',
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to validate the uploaded CSV.',
+    }
+  }
+}
+
+export async function importQuestionCsvRowsAction(
+  rows: CsvImportableQuestion[]
+): Promise<ActionResult<QuestionCsvImportSummary>> {
+  const profile = await requireProfile({
+    allowedRoles: [...ADMIN_PORTAL_ROLES],
+  })
+
+  if (!rows.length) {
+    return {
+      success: false,
+      message: 'There are no valid rows to import.',
+    }
+  }
+
+  try {
+    const summary = await importQuestionsFromCsvRows(rows, profile.id)
+    revalidateQuestionCollections()
+
+    for (const questionId of summary.importedQuestionIds) {
+      revalidateQuestionPaths(questionId)
+    }
+
+    return {
+      success: true,
+      data: summary,
+      message: `Imported ${summary.importedCount} question${summary.importedCount === 1 ? '' : 's'}${summary.skippedDuplicateCount ? ` and skipped ${summary.skippedDuplicateCount} duplicate${summary.skippedDuplicateCount === 1 ? '' : 's'}` : ''}.`,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to import the CSV right now.',
     }
   }
 }
