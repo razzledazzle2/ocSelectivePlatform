@@ -13,12 +13,14 @@ import {
   unpublishQuestion,
   updateQuestion,
 } from '@/lib/questions/mutations'
+import { getQuestionById, validateQuestionTaxonomy } from '@/lib/questions/queries'
 import {
   ADMIN_PORTAL_ROLES,
   type ActionResult,
   type CsvImportableQuestion,
   type QuestionCsvImportSummary,
   type QuestionCsvPreviewResult,
+  type QuestionDetail,
 } from '@/lib/types'
 
 function revalidateQuestionPaths(questionId: string) {
@@ -48,6 +50,20 @@ export async function createQuestionAction(formData: FormData): Promise<ActionRe
       success: false,
       message: parsed.message,
       fieldErrors: parsed.fieldErrors,
+    }
+  }
+
+  const taxonomyErrors = await validateQuestionTaxonomy(
+    parsed.data.subjectId,
+    parsed.data.topicId,
+    parsed.data.questionTypeId
+  )
+
+  if (Object.keys(taxonomyErrors).length > 0) {
+    return {
+      success: false,
+      message: 'Please fix the highlighted fields and try again.',
+      fieldErrors: taxonomyErrors,
     }
   }
 
@@ -84,6 +100,20 @@ export async function updateQuestionAction(
       success: false,
       message: parsed.message,
       fieldErrors: parsed.fieldErrors,
+    }
+  }
+
+  const taxonomyErrors = await validateQuestionTaxonomy(
+    parsed.data.subjectId,
+    parsed.data.topicId,
+    parsed.data.questionTypeId
+  )
+
+  if (Object.keys(taxonomyErrors).length > 0) {
+    return {
+      success: false,
+      message: 'Please fix the highlighted fields and try again.',
+      fieldErrors: taxonomyErrors,
     }
   }
 
@@ -165,6 +195,35 @@ export async function unpublishQuestionAction(questionId: string): Promise<Actio
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Unable to unpublish the question right now.',
+    }
+  }
+}
+
+export async function getQuestionPreviewAction(
+  questionId: string
+): Promise<ActionResult<QuestionDetail>> {
+  await requireProfile({
+    allowedRoles: [...ADMIN_PORTAL_ROLES],
+  })
+
+  try {
+    const question = await getQuestionById(questionId)
+
+    if (!question) {
+      return {
+        success: false,
+        message: 'This question could not be found.',
+      }
+    }
+
+    return {
+      success: true,
+      data: question,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to load the question preview.',
     }
   }
 }

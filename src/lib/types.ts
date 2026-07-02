@@ -227,6 +227,17 @@ export interface AttemptFeedback {
   workedSolution: string
 }
 
+/**
+ * Feedback returned after a student submits an answer during Phase 1B practice.
+ * Unlike AttemptFeedback, submitting this does NOT persist an attempt/session/mistake.
+ */
+export interface PracticeAnswerFeedback {
+  isCorrect: boolean
+  correctOptionLabel: QuestionOptionLabel
+  shortExplanation: string | null
+  workedSolution: string
+}
+
 export interface PracticeSessionSummary {
   sessionId: string
   totalQuestions: number

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 
-import { QuestionForm } from '@/components/questions/question-form'
+import { QuestionForm } from '@/components/admin/question-form'
 import { questionDetailToFormValues } from '@/lib/questions/form-values'
 import {
   getQuestionById,

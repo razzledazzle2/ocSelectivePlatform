@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { requireProfile } from '@/lib/auth/require-profile'
-import { getPracticeQuestions } from '@/lib/questions/queries'
+import { getPracticeQuestions, getPublishedQuestionFeedback } from '@/lib/questions/queries'
 import {
   createPracticeSession,
   saveQuestionAttempt,
@@ -15,13 +15,106 @@ import {
   STUDENT_PORTAL_ROLES,
   type AttemptFeedback,
   type ActionResult,
+  type PracticeAnswerFeedback,
+  type PracticeQuestionItem,
   type PracticeSessionSummary,
   type PracticeStartResult,
+  type QuestionOptionLabel,
 } from '@/lib/types'
+
+const PRACTICE_QUESTION_LIMIT = 20
 
 function parsePositiveNumber(value: string): number | null {
   const parsed = Number(value)
   return Number.isNaN(parsed) || parsed <= 0 ? null : parsed
+}
+
+/**
+ * Phase 1B: load a batch of PUBLISHED questions for the chosen exam type, subject and topic.
+ * This does NOT create a practice session or persist anything.
+ */
+export async function loadPracticeQuestionsAction(
+  formData: FormData
+): Promise<ActionResult<{ questions: PracticeQuestionItem[] }>> {
+  await requireProfile({
+    allowedRoles: [...STUDENT_PORTAL_ROLES],
+  })
+
+  const examType = String(formData.get('examType') ?? '').trim()
+  const subjectId = String(formData.get('subjectId') ?? '').trim()
+  const topicId = String(formData.get('topicId') ?? '').trim()
+
+  if (!EXAM_TYPES.includes(examType as (typeof EXAM_TYPES)[number])) {
+    return { success: false, message: 'Choose OC or Selective before starting practice.' }
+  }
+
+  if (!subjectId) {
+    return { success: false, message: 'Choose a subject before starting practice.' }
+  }
+
+  if (!topicId) {
+    return { success: false, message: 'Choose a topic before starting practice.' }
+  }
+
+  try {
+    const questions = await getPracticeQuestions({
+      examType: examType as (typeof EXAM_TYPES)[number],
+      subjectId,
+      topicId,
+      limit: PRACTICE_QUESTION_LIMIT,
+    })
+
+    return {
+      success: true,
+      data: { questions },
+      message: questions.length ? undefined : 'No published questions match this topic yet.',
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to load practice questions right now.',
+    }
+  }
+}
+
+/**
+ * Phase 1B: reveal whether a chosen answer is correct, plus the explanation and worked solution.
+ * The correct answer is resolved server-side only when the student submits, and nothing is saved.
+ */
+export async function checkPracticeAnswerAction(
+  questionId: string,
+  selectedOptionLabel: string
+): Promise<ActionResult<PracticeAnswerFeedback>> {
+  await requireProfile({
+    allowedRoles: [...STUDENT_PORTAL_ROLES],
+  })
+
+  if (!questionId || !QUESTION_OPTION_LABELS.includes(selectedOptionLabel as QuestionOptionLabel)) {
+    return { success: false, message: 'Choose an option before submitting.' }
+  }
+
+  try {
+    const feedback = await getPublishedQuestionFeedback(questionId)
+
+    if (!feedback) {
+      return { success: false, message: 'This question is no longer available.' }
+    }
+
+    return {
+      success: true,
+      data: {
+        isCorrect: selectedOptionLabel === feedback.correctOptionLabel,
+        correctOptionLabel: feedback.correctOptionLabel,
+        shortExplanation: feedback.shortExplanation,
+        workedSolution: feedback.workedSolution,
+      },
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to check your answer right now.',
+    }
+  }
 }
 
 export async function startPracticeAction(formData: FormData): Promise<ActionResult<PracticeStartResult>> {
