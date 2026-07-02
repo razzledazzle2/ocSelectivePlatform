@@ -34,7 +34,7 @@ interface UpsertMistakeQuestionInput {
 }
 
 export async function createPracticeSession(input: CreatePracticeSessionInput): Promise<string> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('practice_sessions')
     .insert({
@@ -61,7 +61,7 @@ export async function createPracticeSession(input: CreatePracticeSessionInput): 
 }
 
 export async function upsertMistakeQuestion(input: UpsertMistakeQuestionInput): Promise<void> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: existing, error: loadError } = await supabase
     .from('student_mistake_questions')
     .select('id, times_incorrect, times_correct_after_mistake, status')
@@ -139,7 +139,7 @@ export async function upsertMistakeQuestion(input: UpsertMistakeQuestionInput): 
 }
 
 export async function saveQuestionAttempt(input: SaveQuestionAttemptInput): Promise<AttemptFeedback> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: question, error: questionError } = await supabase
     .from('questions')
     .select(`
@@ -211,7 +211,7 @@ export async function updatePracticeSessionResults(
   sessionId: string,
   summary: Omit<PracticeSessionSummary, 'sessionId'>
 ): Promise<void> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { error } = await supabase
     .from('practice_sessions')
     .update({

@@ -38,7 +38,7 @@ function getMetadataYearLevel(value: UserMetadata['year_level']): number | null 
 }
 
 export const getCurrentUserProfile = cache(async (): Promise<AppProfile | null> => {
-  const supabase = createClient()
+  const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()

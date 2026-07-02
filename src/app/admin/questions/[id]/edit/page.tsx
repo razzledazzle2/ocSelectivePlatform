@@ -10,14 +10,15 @@ import {
 } from '@/lib/questions/queries'
 
 interface EditAdminQuestionPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default async function EditAdminQuestionPage({ params }: EditAdminQuestionPageProps) {
+  const { id } = await params
   const [question, subjects, topics, questionTypes] = await Promise.all([
-    getQuestionById(params.id),
+    getQuestionById(id),
     getSubjects(),
     getTopicsBySubject(),
     getQuestionTypes(),

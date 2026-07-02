@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { StudentDashboardStats } from '@/lib/types'
 
 export async function getStudentDashboardStats(studentId: string): Promise<StudentDashboardStats> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const [{ data: attempts, error: attemptsError }, recentSessions, recentMistakes] = await Promise.all([
     supabase
       .from('question_attempts')

@@ -82,7 +82,7 @@ function buildStudentRows(
 }
 
 export async function getAdminStudentRows(limit = 100): Promise<AdminStudentRow[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: profiles, error: profilesError } = await supabase
     .from('profiles')
     .select('id, full_name, email, role, year_level, target_exam, school, created_at')
@@ -125,7 +125,7 @@ export async function getAdminStudentRows(limit = 100): Promise<AdminStudentRow[
 }
 
 export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const last7Days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
   const [

@@ -16,7 +16,7 @@ function getRelationValue<T>(value: T | T[] | null): T | null {
 }
 
 export async function getRecentPracticeSessions(studentId: string): Promise<RecentPracticeSession[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('practice_sessions')
     .select(`
@@ -75,7 +75,7 @@ export async function getRecentPracticeSessions(studentId: string): Promise<Rece
 }
 
 export async function getStudentMistakeQuestions(studentId: string): Promise<StudentMistakeQuestion[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('student_mistake_questions')
     .select(`
@@ -139,7 +139,7 @@ export async function getMistakeQuestionById(
   studentId: string,
   questionId: string
 ): Promise<MistakeQuestionDetail | null> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('student_mistake_questions')
     .select(`
