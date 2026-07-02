@@ -354,6 +354,71 @@ export interface StudentDashboardStats {
   weakestTopic: string | null
 }
 
+export interface DashboardMetrics {
+  questionsThisWeek: number
+  overallAccuracy: number | null
+  currentStreak: number
+  revisionDueToday: number
+}
+
+export interface StreakSummary {
+  currentStreak: number
+  longestStreak: number
+  activeDaysThisMonth: number
+  questionsThisWeek: number
+}
+
+export interface ActivityCalendarDay {
+  date: string
+  count: number
+  active: boolean
+}
+
+export interface ActivityCalendar {
+  monthLabel: string
+  firstWeekday: number
+  days: ActivityCalendarDay[]
+}
+
+export interface AreaInsight {
+  subjectName: string
+  topicName: string | null
+  questionTypeName: string | null
+  attempts: number
+  correct: number
+  accuracy: number
+}
+
+export interface WeakStrongInsights {
+  hasEnoughData: boolean
+  strongest: AreaInsight | null
+  weakest: AreaInsight | null
+}
+
+export interface RevisionDueSummary {
+  dueCount: number
+  topAreas: Array<{ name: string; count: number }>
+}
+
+export interface DashboardRecommendation {
+  id: string
+  title: string
+  description: string
+  href: string
+  ctaLabel: string
+}
+
+export interface StudentDashboardData {
+  hasActivity: boolean
+  metrics: DashboardMetrics
+  streak: StreakSummary
+  calendar: ActivityCalendar
+  insights: WeakStrongInsights
+  revisionDue: RevisionDueSummary
+  recentSessions: RecentPracticeSession[]
+  recommendations: DashboardRecommendation[]
+}
+
 export interface AdminDashboardStats {
   totalStudents: number
   totalStaff: number
