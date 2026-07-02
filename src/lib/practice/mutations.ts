@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { scheduleAfterIncorrect } from '@/lib/revision/scheduling'
 import type {
   AttemptFeedback,
   PracticeSessionSummary,
@@ -73,9 +74,12 @@ export async function upsertMistakeQuestion(input: UpsertMistakeQuestionInput): 
     throw new Error('Unable to update mistake tracking.')
   }
 
-  const timestamp = new Date().toISOString()
+  const now = new Date()
+  const timestamp = now.toISOString()
 
+  // New mistake: only create a record when the student got it wrong.
   if (!existing && !input.answeredCorrectly) {
+    const schedule = scheduleAfterIncorrect(now)
     const { error: insertError } = await supabase.from('student_mistake_questions').insert({
       student_id: input.studentId,
       question_id: input.questionId,
@@ -88,7 +92,9 @@ export async function upsertMistakeQuestion(input: UpsertMistakeQuestionInput): 
       times_correct_after_mistake: 0,
       last_incorrect_at: timestamp,
       last_attempted_at: timestamp,
-      status: 'needs_review',
+      status: schedule.status,
+      correct_streak: schedule.correctStreak,
+      next_review_at: schedule.nextReviewAt,
     })
 
     if (insertError) {
@@ -102,7 +108,9 @@ export async function upsertMistakeQuestion(input: UpsertMistakeQuestionInput): 
     return
   }
 
+  // Existing record, answered incorrectly again: bump the counter and reset the schedule.
   if (!input.answeredCorrectly) {
+    const schedule = scheduleAfterIncorrect(now)
     const { error: updateError } = await supabase
       .from('student_mistake_questions')
       .update({
@@ -114,7 +122,9 @@ export async function upsertMistakeQuestion(input: UpsertMistakeQuestionInput): 
         times_incorrect: existing.times_incorrect + 1,
         last_incorrect_at: timestamp,
         last_attempted_at: timestamp,
-        status: existing.status === 'reviewing' ? 'reviewing' : 'needs_review',
+        status: schedule.status,
+        correct_streak: schedule.correctStreak,
+        next_review_at: schedule.nextReviewAt,
       })
       .eq('id', existing.id)
 
@@ -125,6 +135,8 @@ export async function upsertMistakeQuestion(input: UpsertMistakeQuestionInput): 
     return
   }
 
+  // Existing record answered correctly during normal practice: record the win but leave the
+  // spaced-repetition status progression to the dedicated revision retry flow.
   const { error: correctUpdateError } = await supabase
     .from('student_mistake_questions')
     .update({

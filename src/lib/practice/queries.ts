@@ -89,6 +89,10 @@ export async function getStudentMistakeQuestions(studentId: string): Promise<Stu
       last_incorrect_at,
       last_attempted_at,
       status,
+      next_review_at,
+      correct_streak,
+      last_reviewed_at,
+      mastered_at,
       subject:subjects(name),
       topic:topics(name),
       question_type:question_types(name),
@@ -96,7 +100,7 @@ export async function getStudentMistakeQuestions(studentId: string): Promise<Stu
     `)
     .eq('student_id', studentId)
     .order('last_incorrect_at', { ascending: false })
-    .limit(20)
+    .limit(200)
 
   if (error) {
     throw new Error('Unable to load mistake questions.')
@@ -113,6 +117,10 @@ export async function getStudentMistakeQuestions(studentId: string): Promise<Stu
     last_incorrect_at: string
     last_attempted_at: string
     status: StudentMistakeQuestion['status']
+    next_review_at: string | null
+    correct_streak: number | null
+    last_reviewed_at: string | null
+    mastered_at: string | null
     subject: { name: string }[] | { name: string } | null
     topic: { name: string }[] | { name: string } | null
     question_type: { name: string }[] | { name: string } | null
@@ -132,6 +140,10 @@ export async function getStudentMistakeQuestions(studentId: string): Promise<Stu
     lastAttemptedAt: mistake.last_attempted_at,
     status: mistake.status,
     questionText: getRelationValue(mistake.question)?.question_text ?? 'Question unavailable',
+    nextReviewAt: mistake.next_review_at,
+    correctStreak: mistake.correct_streak ?? 0,
+    lastReviewedAt: mistake.last_reviewed_at,
+    masteredAt: mistake.mastered_at,
   }))
 }
 
@@ -153,6 +165,10 @@ export async function getMistakeQuestionById(
       last_incorrect_at,
       last_attempted_at,
       status,
+      next_review_at,
+      correct_streak,
+      last_reviewed_at,
+      mastered_at,
       subject:subjects(name),
       topic:topics(name),
       question_type:question_types(name)
@@ -189,6 +205,10 @@ export async function getMistakeQuestionById(
     lastIncorrectAt: data.last_incorrect_at,
     lastAttemptedAt: data.last_attempted_at,
     status: data.status,
+    nextReviewAt: (data as { next_review_at: string | null }).next_review_at,
+    correctStreak: (data as { correct_streak: number | null }).correct_streak ?? 0,
+    lastReviewedAt: (data as { last_reviewed_at: string | null }).last_reviewed_at,
+    masteredAt: (data as { mastered_at: string | null }).mastered_at,
     questionText: questionDetail.question_text,
     passageText: questionDetail.passage_text,
     shortExplanation: questionDetail.short_explanation,
