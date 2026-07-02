@@ -7,13 +7,14 @@ import { getQuestionById } from '@/lib/questions/queries'
 import { cn } from '@/lib/utils'
 
 interface PreviewAdminQuestionPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default async function PreviewAdminQuestionPage({ params }: PreviewAdminQuestionPageProps) {
-  const question = await getQuestionById(params.id)
+  const { id } = await params
+  const question = await getQuestionById(id)
 
   if (!question) {
     notFound()

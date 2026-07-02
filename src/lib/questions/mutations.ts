@@ -155,7 +155,7 @@ function buildOptionRows(questionId: string, options: QuestionOptionRecord[]) {
 }
 
 export async function createQuestion(input: QuestionWriteInput, actorId: string): Promise<string> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('questions')
     .insert(buildQuestionPayload(input, actorId))
@@ -178,7 +178,7 @@ export async function createQuestion(input: QuestionWriteInput, actorId: string)
 }
 
 export async function updateQuestion(questionId: string, input: QuestionWriteInput, actorId: string): Promise<string> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: existingQuestion, error: loadError } = await supabase
     .from('questions')
     .select('published_at')
@@ -233,7 +233,7 @@ export async function updateQuestion(questionId: string, input: QuestionWriteInp
 }
 
 export async function archiveQuestion(questionId: string, actorId: string): Promise<void> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { error } = await supabase
     .from('questions')
     .update({
@@ -249,7 +249,7 @@ export async function archiveQuestion(questionId: string, actorId: string): Prom
 }
 
 export async function publishQuestion(questionId: string, actorId: string): Promise<void> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: existingQuestion, error: loadError } = await supabase
     .from('questions')
     .select('published_at')
@@ -276,7 +276,7 @@ export async function publishQuestion(questionId: string, actorId: string): Prom
 }
 
 export async function unpublishQuestion(questionId: string, actorId: string): Promise<void> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { error } = await supabase
     .from('questions')
     .update({

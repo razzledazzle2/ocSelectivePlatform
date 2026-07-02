@@ -12,9 +12,11 @@ import { Label } from '@/components/ui/label'
 import type { AuthPageSearchParams } from '@/lib/types'
 
 interface LoginPageProps {
-  searchParams?: AuthPageSearchParams & {
-    next?: string | string[]
-  }
+  searchParams?: Promise<
+    AuthPageSearchParams & {
+      next?: string | string[]
+    }
+  >
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
@@ -24,9 +26,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     redirect(getRoleRedirectPath(profile.role))
   }
 
-  const error = typeof searchParams?.error === 'string' ? searchParams.error : undefined
-  const message = typeof searchParams?.message === 'string' ? searchParams.message : undefined
-  const next = typeof searchParams?.next === 'string' ? searchParams.next : undefined
+  const params = (await searchParams) ?? {}
+  const error = typeof params.error === 'string' ? params.error : undefined
+  const message = typeof params.message === 'string' ? params.message : undefined
+  const next = typeof params.next === 'string' ? params.next : undefined
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">

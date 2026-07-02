@@ -76,7 +76,7 @@ function createRowPreview(
 }
 
 async function loadReferenceData(): Promise<CsvReferenceData> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const [{ data: subjects, error: subjectsError }, { data: topics, error: topicsError }, { data: questionTypes, error: questionTypesError }] =
     await Promise.all([
       supabase

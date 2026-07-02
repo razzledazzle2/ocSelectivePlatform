@@ -9,16 +9,17 @@ import { STUDENT_PORTAL_ROLES } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 interface StudentRevisionDetailPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default async function StudentRevisionDetailPage({ params }: StudentRevisionDetailPageProps) {
+  const { id } = await params
   const profile = await requireProfile({
     allowedRoles: [...STUDENT_PORTAL_ROLES],
   })
-  const mistakeQuestion = await getMistakeQuestionById(profile.id, params.id)
+  const mistakeQuestion = await getMistakeQuestionById(profile.id, id)
 
   if (!mistakeQuestion) {
     notFound()

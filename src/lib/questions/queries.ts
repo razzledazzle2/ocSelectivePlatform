@@ -30,7 +30,7 @@ async function getQuestionOptionsMap(questionIds: string[]): Promise<Map<string,
     return new Map()
   }
 
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('question_options')
     .select('id, question_id, label, option_text, sort_order, created_at')
@@ -53,7 +53,7 @@ async function getQuestionOptionsMap(questionIds: string[]): Promise<Map<string,
 }
 
 export async function getSubjects(): Promise<SubjectRecord[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('subjects')
     .select('id, name, slug, description, sort_order, is_active, created_at, updated_at')
@@ -68,7 +68,7 @@ export async function getSubjects(): Promise<SubjectRecord[]> {
 }
 
 export async function getTopicsBySubject(subjectId?: string): Promise<TopicRecord[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   let query = supabase
     .from('topics')
     .select('id, subject_id, name, slug, description, sort_order, is_active, created_at, updated_at')
@@ -89,7 +89,7 @@ export async function getTopicsBySubject(subjectId?: string): Promise<TopicRecor
 }
 
 export async function getQuestionTypesBySubject(subjectId: string): Promise<QuestionTypeRecord[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('question_types')
     .select('id, subject_id, topic_id, name, slug, description, sort_order, is_active, created_at, updated_at')
@@ -105,7 +105,7 @@ export async function getQuestionTypesBySubject(subjectId: string): Promise<Ques
 }
 
 export async function getQuestionTypes(): Promise<QuestionTypeRecord[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('question_types')
     .select('id, subject_id, topic_id, name, slug, description, sort_order, is_active, created_at, updated_at')
@@ -120,7 +120,7 @@ export async function getQuestionTypes(): Promise<QuestionTypeRecord[]> {
 }
 
 export async function getQuestionTypesByTopic(topicId: string): Promise<QuestionTypeRecord[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('question_types')
     .select('id, subject_id, topic_id, name, slug, description, sort_order, is_active, created_at, updated_at')
@@ -136,7 +136,7 @@ export async function getQuestionTypesByTopic(topicId: string): Promise<Question
 }
 
 export async function getAdminQuestions(filters: AdminQuestionFilters = {}): Promise<AdminQuestionListItem[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   let query = supabase
     .from('questions')
     .select(`
@@ -211,7 +211,7 @@ export async function getAdminQuestions(filters: AdminQuestionFilters = {}): Pro
 }
 
 export async function getQuestionById(id: string): Promise<QuestionDetail | null> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('questions')
     .select(`
@@ -278,7 +278,7 @@ function shuffleArray<T>(items: T[]): T[] {
 }
 
 export async function getPracticeQuestions(filters: PracticeQuestionFilters): Promise<PracticeQuestionItem[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   let query = supabase
     .from('questions')
     .select(`

@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import type { AuthPageSearchParams } from '@/lib/types'
 
 interface SignupPageProps {
-  searchParams?: AuthPageSearchParams
+  searchParams?: Promise<AuthPageSearchParams>
 }
 
 export default async function SignupPage({ searchParams }: SignupPageProps) {
@@ -22,7 +22,8 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
     redirect(getRoleRedirectPath(profile.role))
   }
 
-  const error = typeof searchParams?.error === 'string' ? searchParams.error : undefined
+  const params = (await searchParams) ?? {}
+  const error = typeof params.error === 'string' ? params.error : undefined
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">

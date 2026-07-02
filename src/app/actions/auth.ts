@@ -18,7 +18,7 @@ function createRedirectPath(
 }
 
 export async function signInAction(formData: FormData): Promise<never> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const email = String(formData.get('email') ?? '').trim()
   const password = String(formData.get('password') ?? '')
   const nextPath = String(formData.get('next') ?? '').trim()
@@ -48,7 +48,7 @@ export async function signInAction(formData: FormData): Promise<never> {
 }
 
 export async function signUpAction(formData: FormData): Promise<never> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const fullName = String(formData.get('full_name') ?? '').trim()
   const email = String(formData.get('email') ?? '').trim()
   const password = String(formData.get('password') ?? '')
@@ -87,7 +87,7 @@ export async function signUpAction(formData: FormData): Promise<never> {
 }
 
 export async function signOutAction(): Promise<never> {
-  const supabase = createClient()
+  const supabase = await createClient()
   await supabase.auth.signOut()
   redirect('/login')
 }

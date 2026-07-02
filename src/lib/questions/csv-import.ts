@@ -52,7 +52,7 @@ export async function importQuestionsFromCsvRows(
   rows: CsvImportableQuestion[],
   actorId: string
 ): Promise<QuestionCsvImportSummary> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const rowMessages: QuestionCsvImportSummary['rowMessages'] = []
   const importedQuestionIds: string[] = []
 

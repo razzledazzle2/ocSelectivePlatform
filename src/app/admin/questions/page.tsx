@@ -9,11 +9,11 @@ import { cn } from '@/lib/utils'
 import type { AdminQuestionFilters } from '@/lib/types'
 
 interface AdminQuestionsPageProps {
-  searchParams?: Record<string, string | string[] | undefined>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
 function getSearchParamValue(
-  searchParams: AdminQuestionsPageProps['searchParams'],
+  searchParams: Record<string, string | string[] | undefined> | undefined,
   key: keyof AdminQuestionFilters
 ): string | undefined {
   const value = searchParams?.[key]
@@ -21,13 +21,14 @@ function getSearchParamValue(
 }
 
 export default async function AdminQuestionsPage({ searchParams }: AdminQuestionsPageProps) {
+  const resolvedSearchParams = await searchParams
   const filters: AdminQuestionFilters = {
-    examType: getSearchParamValue(searchParams, 'examType'),
-    subjectId: getSearchParamValue(searchParams, 'subjectId'),
-    topicId: getSearchParamValue(searchParams, 'topicId'),
-    difficulty: getSearchParamValue(searchParams, 'difficulty'),
-    status: getSearchParamValue(searchParams, 'status'),
-    query: getSearchParamValue(searchParams, 'query'),
+    examType: getSearchParamValue(resolvedSearchParams, 'examType'),
+    subjectId: getSearchParamValue(resolvedSearchParams, 'subjectId'),
+    topicId: getSearchParamValue(resolvedSearchParams, 'topicId'),
+    difficulty: getSearchParamValue(resolvedSearchParams, 'difficulty'),
+    status: getSearchParamValue(resolvedSearchParams, 'status'),
+    query: getSearchParamValue(resolvedSearchParams, 'query'),
   }
 
   const [subjects, topics, questions] = await Promise.all([
