@@ -1,12 +1,14 @@
 import Link from 'next/link'
 import {
   BookCheckIcon,
+  CalendarClockIcon,
   CircleAlertIcon,
   TargetIcon,
   TrendingUpIcon,
 } from 'lucide-react'
 
 import { DashboardCard } from '@/components/dashboard-card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,6 +22,13 @@ interface StudentStatsCardsProps {
 function formatAccuracy(value: number | null): string {
   return value === null ? 'No data yet' : `${value}%`
 }
+
+const attemptDateFormatter = new Intl.DateTimeFormat('en-AU', {
+  day: 'numeric',
+  month: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+})
 
 export function StudentStatsCards({ stats }: StudentStatsCardsProps) {
   const cards = [
@@ -58,8 +67,31 @@ export function StudentStatsCards({ stats }: StudentStatsCardsProps) {
     },
   ]
 
+  const revisionCopy =
+    stats.revisionDueToday > 0
+      ? `You have ${stats.revisionDueToday} question${stats.revisionDueToday === 1 ? '' : 's'} due for revision today.${
+          stats.weakestTopic ? ` Your most-missed topic recently is ${stats.weakestTopic}.` : ''
+        }`
+      : null
+
   return (
     <div className="space-y-6">
+      {revisionCopy ? (
+        <Alert>
+          <CalendarClockIcon />
+          <AlertTitle>Revision due today</AlertTitle>
+          <AlertDescription>
+            <p>{revisionCopy}</p>
+            <Link
+              href="/student/revision"
+              className={cn(buttonVariants({ variant: 'default', size: 'sm' }), 'mt-3')}
+            >
+              Go to revision
+            </Link>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
           <DashboardCard key={card.label} {...card} />
@@ -162,6 +194,39 @@ export function StudentStatsCards({ stats }: StudentStatsCardsProps) {
           </Card>
         </div>
       </div>
+
+      <Card className="border-white/70 bg-white/92 shadow-lg shadow-slate-200/50">
+        <CardHeader className="border-b border-border/70">
+          <CardTitle>Recent attempts</CardTitle>
+          <CardDescription>Your latest saved answers across practice and revision.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-6">
+          {stats.recentAttempts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No attempts saved yet. Start a practice session to begin your history.
+            </p>
+          ) : (
+            stats.recentAttempts.map((attempt) => (
+              <div
+                key={attempt.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-slate-700">{attempt.questionText}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {attempt.subjectName ?? 'Subject'}
+                    {attempt.topicName ? ` • ${attempt.topicName}` : ''} •{' '}
+                    {attemptDateFormatter.format(new Date(attempt.attemptedAt))}
+                  </p>
+                </div>
+                <Badge variant={attempt.isCorrect ? 'default' : 'destructive'}>
+                  {attempt.isCorrect ? 'Correct' : 'Incorrect'}
+                </Badge>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

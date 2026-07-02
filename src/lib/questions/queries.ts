@@ -346,6 +346,66 @@ export async function getPublishedQuestionFeedback(questionId: string): Promise<
   }
 }
 
+/**
+ * Fetches a single PUBLISHED question in the student-facing practice shape (no correct answer),
+ * used to retry a tracked mistake on the revision page.
+ */
+export async function getPublishedPracticeQuestion(questionId: string): Promise<PracticeQuestionItem | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('questions')
+    .select(`
+      id,
+      subject_id,
+      topic_id,
+      question_type_id,
+      exam_type,
+      difficulty,
+      question_text,
+      passage_text,
+      subject:subjects(name),
+      topic:topics(name),
+      question_type:question_types(name)
+    `)
+    .eq('id', questionId)
+    .eq('status', 'published')
+    .maybeSingle()
+
+  if (error) {
+    throw new Error('Unable to load the question for revision.')
+  }
+
+  if (!data) {
+    return null
+  }
+
+  const question = data as unknown as Pick<
+    QuestionRecord,
+    'id' | 'subject_id' | 'topic_id' | 'question_type_id' | 'exam_type' | 'difficulty' | 'question_text' | 'passage_text'
+  > & {
+    subject: { name: string }[] | { name: string } | null
+    topic: { name: string }[] | { name: string } | null
+    question_type: { name: string }[] | { name: string } | null
+  }
+
+  const optionsMap = await getQuestionOptionsMap([questionId])
+
+  return {
+    id: question.id,
+    subjectId: question.subject_id,
+    subjectName: getRelationValue(question.subject)?.name ?? 'Subject',
+    topicId: question.topic_id,
+    topicName: getRelationValue(question.topic)?.name ?? 'Topic',
+    questionTypeId: question.question_type_id,
+    questionTypeName: getRelationValue(question.question_type)?.name ?? null,
+    examType: question.exam_type,
+    difficulty: question.difficulty,
+    questionText: question.question_text,
+    passageText: question.passage_text,
+    options: optionsMap.get(questionId) ?? [],
+  }
+}
+
 export async function getPracticeQuestions(filters: PracticeQuestionFilters): Promise<PracticeQuestionItem[]> {
   const supabase = await createClient()
   let query = supabase

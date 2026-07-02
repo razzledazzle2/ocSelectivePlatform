@@ -5,7 +5,7 @@ export const EXAM_TYPES = ['OC', 'Selective'] as const
 export const QUESTION_STATUSES = ['draft', 'published', 'archived'] as const
 export const QUESTION_OPTION_LABELS = ['A', 'B', 'C', 'D'] as const
 export const PRACTICE_MODES = ['practice'] as const
-export const MISTAKE_STATUSES = ['needs_review', 'reviewing', 'improved', 'mastered'] as const
+export const MISTAKE_STATUSES = ['needs_review', 'learning', 'improving', 'mastered'] as const
 export const ADMIN_PORTAL_ROLES = ['tutor', 'admin', 'super_admin'] as const
 export const STUDENT_PORTAL_ROLES = ['student', 'parent', 'external_customer'] as const
 
@@ -295,6 +295,42 @@ export interface StudentMistakeQuestion {
   lastAttemptedAt: string
   status: MistakeStatus
   questionText: string
+  nextReviewAt: string | null
+  correctStreak: number
+  lastReviewedAt: string | null
+  masteredAt: string | null
+}
+
+export type RevisionMode =
+  | 'all'
+  | 'due_today'
+  | 'needs_review'
+  | 'learning'
+  | 'improving'
+  | 'mastered'
+
+export interface RevisionFilters {
+  subjectName?: string
+  topicName?: string
+  questionTypeName?: string
+}
+
+export interface RevisionRetryFeedback {
+  isCorrect: boolean
+  correctOptionLabel: QuestionOptionLabel
+  shortExplanation: string | null
+  workedSolution: string
+  status: MistakeStatus
+  nextReviewAt: string | null
+}
+
+export interface RecentAttempt {
+  id: string
+  questionText: string
+  subjectName: string | null
+  topicName: string | null
+  isCorrect: boolean
+  attemptedAt: string
 }
 
 export interface MistakeQuestionDetail extends StudentMistakeQuestion {
@@ -310,7 +346,9 @@ export interface StudentDashboardStats {
   correctAnswers: number
   incorrectAnswers: number
   overallAccuracy: number | null
+  revisionDueToday: number
   recentSessions: RecentPracticeSession[]
+  recentAttempts: RecentAttempt[]
   recentMistakes: StudentMistakeQuestion[]
   weakestSubject: string | null
   weakestTopic: string | null

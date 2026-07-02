@@ -1,13 +1,19 @@
 'use client'
 
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
 import { CheckCircle2Icon, RotateCcwIcon, XCircleIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { checkPracticeAnswerAction, loadPracticeQuestionsAction } from '@/app/student/practice/actions'
+import {
+  completePracticeSessionAction,
+  savePracticeAttemptAction,
+  startPracticeAction,
+} from '@/app/student/practice/actions'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import {
@@ -17,12 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import {
   EXAM_TYPES,
+  type AttemptFeedback,
   type ExamType,
-  type PracticeAnswerFeedback,
   type PracticeQuestionItem,
   type QuestionOptionLabel,
   type SubjectRecord,
@@ -34,9 +41,24 @@ interface PracticeSessionProps {
   topics: TopicRecord[]
 }
 
-type Phase = 'setup' | 'active' | 'complete'
+interface AnsweredQuestion {
+  question: PracticeQuestionItem
+  selectedLabel: QuestionOptionLabel
+  feedback: AttemptFeedback
+}
+
+type Phase = 'setup' | 'active' | 'results'
+
+const QUESTION_COUNT = '20'
+
+function formatSeconds(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return minutes === 0 ? `${seconds}s` : `${minutes}m ${seconds}s`
+}
 
 export function PracticeSession({ subjects, topics }: PracticeSessionProps) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [phase, setPhase] = useState<Phase>('setup')
 
@@ -45,17 +67,19 @@ export function PracticeSession({ subjects, topics }: PracticeSessionProps) {
   const [topicId, setTopicId] = useState('')
   const [emptyResult, setEmptyResult] = useState(false)
 
+  const [sessionId, setSessionId] = useState('')
+  const [sessionStartedAt, setSessionStartedAt] = useState(0)
+  const [questionStartedAt, setQuestionStartedAt] = useState(0)
   const [questions, setQuestions] = useState<PracticeQuestionItem[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedOption, setSelectedOption] = useState<QuestionOptionLabel | ''>('')
-  const [feedback, setFeedback] = useState<PracticeAnswerFeedback | null>(null)
+  const [feedback, setFeedback] = useState<AttemptFeedback | null>(null)
+  const [answers, setAnswers] = useState<AnsweredQuestion[]>([])
 
   const filteredTopics = useMemo(
     () => topics.filter((topic) => topic.subject_id === subjectId),
     [topics, subjectId]
   )
-
-  // base-ui Select needs a value->label map so the trigger shows names, not raw ids.
   const subjectItems = useMemo(
     () => Object.fromEntries(subjects.map((subject) => [subject.id, subject.name])),
     [subjects]
@@ -80,66 +104,109 @@ export function PracticeSession({ subjects, topics }: PracticeSessionProps) {
     formData.set('examType', examType)
     formData.set('subjectId', subjectId)
     formData.set('topicId', topicId)
+    formData.set('questionCount', QUESTION_COUNT)
 
     startTransition(async () => {
-      const result = await loadPracticeQuestionsAction(formData)
+      const result = await startPracticeAction(formData)
 
       if (!result.success || !result.data) {
         toast.error(result.message ?? 'Unable to start practice right now.')
         return
       }
 
-      if (result.data.questions.length === 0) {
+      if (result.data.questions.length === 0 || !result.data.sessionId) {
         setEmptyResult(true)
         return
       }
 
+      const now = Date.now()
+      setSessionId(result.data.sessionId)
       setQuestions(result.data.questions)
+      setAnswers([])
       setCurrentIndex(0)
       setSelectedOption('')
       setFeedback(null)
       setEmptyResult(false)
+      setSessionStartedAt(now)
+      setQuestionStartedAt(now)
       setPhase('active')
     })
   }
 
   function submitAnswer() {
-    if (!activeQuestion || !selectedOption || feedback) {
+    if (!activeQuestion || !selectedOption || feedback || isPending) {
       return
     }
 
+    const timeTakenSeconds = Math.max(1, Math.round((Date.now() - questionStartedAt) / 1000))
+    const formData = new FormData()
+    formData.set('sessionId', sessionId)
+    formData.set('questionId', activeQuestion.id)
+    formData.set('selectedOptionLabel', selectedOption)
+    formData.set('timeTakenSeconds', String(timeTakenSeconds))
+
     startTransition(async () => {
-      const result = await checkPracticeAnswerAction(activeQuestion.id, selectedOption)
+      const result = await savePracticeAttemptAction(formData)
 
       if (!result.success || !result.data) {
-        toast.error(result.message ?? 'Unable to check your answer right now.')
+        toast.error(result.message ?? 'Unable to save your answer right now.')
         return
       }
 
       setFeedback(result.data)
+      setAnswers((current) => [
+        ...current,
+        { question: activeQuestion, selectedLabel: selectedOption, feedback: result.data as AttemptFeedback },
+      ])
     })
   }
 
   function goToNextQuestion() {
-    if (isLastQuestion) {
-      setPhase('complete')
+    if (!isLastQuestion) {
+      setCurrentIndex((current) => current + 1)
+      setSelectedOption('')
+      setFeedback(null)
+      setQuestionStartedAt(Date.now())
       return
     }
 
-    setCurrentIndex((current) => current + 1)
-    setSelectedOption('')
-    setFeedback(null)
+    // Last question answered: persist the session summary, then show results.
+    const totalQuestions = answers.length
+    const correctCount = answers.filter((answer) => answer.feedback.isCorrect).length
+    const incorrectCount = totalQuestions - correctCount
+    const totalTimeSeconds = Math.max(1, Math.round((Date.now() - sessionStartedAt) / 1000))
+    const accuracy = totalQuestions > 0 ? Number(((correctCount / totalQuestions) * 100).toFixed(1)) : 0
+
+    startTransition(async () => {
+      const result = await completePracticeSessionAction({
+        sessionId,
+        totalQuestions,
+        correctCount,
+        incorrectCount,
+        accuracy,
+        totalTimeSeconds,
+      })
+
+      if (!result.success) {
+        toast.error(result.message ?? 'Unable to finish the session, but your answers were saved.')
+      }
+
+      setPhase('results')
+      router.refresh()
+    })
   }
 
-  function backToSetup() {
+  function resetToSetup() {
     setPhase('setup')
     setQuestions([])
+    setAnswers([])
     setCurrentIndex(0)
     setSelectedOption('')
     setFeedback(null)
+    setSessionId('')
   }
 
-  // -- Setup phase ---------------------------------------------------------
+  // -- Setup ---------------------------------------------------------------
   if (phase === 'setup') {
     return (
       <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
@@ -219,7 +286,7 @@ export function PracticeSession({ subjects, topics }: PracticeSessionProps) {
                   <AlertTitle>No questions here yet</AlertTitle>
                   <AlertDescription>
                     There are no published questions for this topic and exam type yet. Try another topic or exam
-                    type, or check back once more questions are published.
+                    type.
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -234,35 +301,96 @@ export function PracticeSession({ subjects, topics }: PracticeSessionProps) {
     )
   }
 
-  // -- Complete phase ------------------------------------------------------
-  if (phase === 'complete') {
+  // -- Results -------------------------------------------------------------
+  if (phase === 'results') {
+    const totalQuestions = answers.length
+    const correctCount = answers.filter((answer) => answer.feedback.isCorrect).length
+    const incorrectCount = totalQuestions - correctCount
+    const accuracy = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0
+    const totalTimeSeconds = Math.max(1, Math.round((Date.now() - sessionStartedAt) / 1000))
+    const incorrectAnswers = answers.filter((answer) => !answer.feedback.isCorrect)
+
     return (
-      <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
-        <CardHeader className="border-b border-border/70">
-          <CardTitle>Practice complete</CardTitle>
-          <CardDescription>You have worked through all {questions.length} questions in this set.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3 pt-6">
-          <Button
-            onClick={() => {
-              setCurrentIndex(0)
-              setSelectedOption('')
-              setFeedback(null)
-              setPhase('active')
-            }}
-          >
-            <RotateCcwIcon className="size-4" />
-            Practise this set again
-          </Button>
-          <Button variant="outline" onClick={backToSetup}>
-            Change filters
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+          <CardHeader className="border-b border-border/70">
+            <CardTitle>Practice results</CardTitle>
+            <CardDescription>Your answers were saved. Here is how this set went.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6 pt-6">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Score</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-950">
+                  {correctCount}/{totalQuestions}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Accuracy</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-950">{accuracy}%</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Incorrect</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-950">{incorrectCount}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Time</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-950">{formatSeconds(totalTimeSeconds)}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={startPractice}>
+                <RotateCcwIcon className="size-4" />
+                Practise again
+              </Button>
+              <Link href="/student/revision" className={cn(buttonVariants({ variant: 'outline' }))}>
+                Review mistakes
+              </Link>
+              <Button variant="ghost" onClick={resetToSetup}>
+                Change filters
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {incorrectAnswers.length > 0 ? (
+          <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+            <CardHeader className="border-b border-border/70">
+              <CardTitle>Questions to review</CardTitle>
+              <CardDescription>
+                These went into your revision queue. Compare your answer with the correct one.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-6">
+              {incorrectAnswers.map((answer) => (
+                <div key={answer.question.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <p className="text-sm font-medium leading-7 text-slate-950">{answer.question.questionText}</p>
+                  <div className="mt-2 flex flex-wrap gap-4 text-sm">
+                    <span className="text-amber-700">Your answer: {answer.selectedLabel}</span>
+                    <span className="text-emerald-700">Correct answer: {answer.feedback.correctOptionLabel}</span>
+                  </div>
+                  <Separator className="my-3" />
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Worked solution
+                  </p>
+                  <p className="mt-1 text-sm leading-7 text-slate-700">{answer.feedback.workedSolution}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : (
+          <Alert>
+            <CheckCircle2Icon />
+            <AlertTitle>Perfect set!</AlertTitle>
+            <AlertDescription>You answered every question correctly. Nothing to review here.</AlertDescription>
+          </Alert>
+        )}
+      </div>
     )
   }
 
-  // -- Active phase --------------------------------------------------------
+  // -- Active --------------------------------------------------------------
   if (!activeQuestion) {
     return null
   }
@@ -279,11 +407,9 @@ export function PracticeSession({ subjects, topics }: PracticeSessionProps) {
           ) : null}
           <Badge variant="outline">Difficulty {activeQuestion.difficulty}</Badge>
         </div>
-        <div>
-          <CardTitle className="text-xl">
-            Question {currentIndex + 1} of {questions.length}
-          </CardTitle>
-        </div>
+        <CardTitle className="text-xl">
+          Question {currentIndex + 1} of {questions.length}
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6 pt-6">
         <div className="space-y-4">
@@ -353,14 +479,14 @@ export function PracticeSession({ subjects, topics }: PracticeSessionProps) {
         <div className="flex flex-wrap gap-3">
           {!feedback ? (
             <Button disabled={isPending || !selectedOption} onClick={submitAnswer}>
-              {isPending ? 'Checking...' : 'Submit answer'}
+              {isPending ? 'Saving...' : 'Submit answer'}
             </Button>
           ) : (
-            <Button onClick={goToNextQuestion}>
-              {isLastQuestion ? 'Finish' : 'Next question'}
+            <Button disabled={isPending} onClick={goToNextQuestion}>
+              {isLastQuestion ? 'See results' : 'Next question'}
             </Button>
           )}
-          <Button variant="ghost" onClick={backToSetup}>
+          <Button variant="ghost" onClick={resetToSetup}>
             Change filters
           </Button>
         </div>
