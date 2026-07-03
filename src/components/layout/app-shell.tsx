@@ -10,6 +10,7 @@ import {
   MenuIcon,
   RotateCcwIcon,
   SparklesIcon,
+  TimerIcon,
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react'
@@ -34,6 +35,7 @@ const navigationIcons: Record<NavigationIconName, LucideIcon> = {
   'book-open': BookOpenIcon,
   revision: RotateCcwIcon,
   'clipboard-list': ClipboardListIcon,
+  timer: TimerIcon,
   users: UsersIcon,
 }
 

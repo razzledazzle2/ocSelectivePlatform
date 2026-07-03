@@ -35,6 +35,7 @@ export type NavigationIconName =
   | 'book-open'
   | 'revision'
   | 'clipboard-list'
+  | 'timer'
   | 'users'
 
 export interface NavigationItem {
