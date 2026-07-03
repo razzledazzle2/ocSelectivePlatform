@@ -34,8 +34,10 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StudentQuestionReportButton } from '@/components/student/student-question-report-button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { OptionDistribution } from '@/components/student/option-distribution'
 import { cn } from '@/lib/utils'
 import {
+  MISTAKE_STATUS_LABELS,
   type PracticeQuestionItem,
   type QuestionOptionLabel,
   type RevisionMode,
@@ -55,6 +57,7 @@ const MODES: { value: RevisionMode; label: string }[] = [
   { value: 'needs_review', label: 'Needs review' },
   { value: 'learning', label: 'Learning' },
   { value: 'improving', label: 'Improving' },
+  { value: 'almost_mastered', label: 'Almost mastered' },
   { value: 'mastered', label: 'Mastered' },
 ]
 
@@ -114,6 +117,7 @@ export function RevisionBoard({ mistakes }: RevisionBoardProps) {
       needs_review: mistakes.filter((m) => m.status === 'needs_review').length,
       learning: mistakes.filter((m) => m.status === 'learning').length,
       improving: mistakes.filter((m) => m.status === 'improving').length,
+      almost_mastered: mistakes.filter((m) => m.status === 'almost_mastered').length,
       mastered: mistakes.filter((m) => m.status === 'mastered').length,
     } satisfies Record<RevisionMode, number>
   }, [mistakes, now])
@@ -262,7 +266,7 @@ function MistakeCard({ mistake, now }: { mistake: StudentMistakeQuestion; now: n
           {mistake.subjectName ? <Badge variant="secondary">{mistake.subjectName}</Badge> : null}
           {mistake.topicName ? <Badge variant="outline">{mistake.topicName}</Badge> : null}
           {mistake.questionTypeName ? <Badge variant="outline">{mistake.questionTypeName}</Badge> : null}
-          <Badge variant={statusVariant(mistake.status)}>{mistake.status.replace('_', ' ')}</Badge>
+          <Badge variant={statusVariant(mistake.status)}>{MISTAKE_STATUS_LABELS[mistake.status]}</Badge>
           <Badge variant="outline">Missed {mistake.timesIncorrect}x</Badge>
           {mistake.correctStreak > 0 ? (
             <Badge variant="outline">Streak {mistake.correctStreak}</Badge>
@@ -358,7 +362,7 @@ function RetryDialog({ questionId, open, onOpenChange }: RetryDialogProps) {
       setFeedback(result.data)
       toast.success(
         result.data.isCorrect
-          ? `Correct! Status: ${result.data.status.replace('_', ' ')}.`
+          ? `Correct! Status: ${MISTAKE_STATUS_LABELS[result.data.status]}.`
           : 'Saved. This question is back in your review queue.'
       )
     })
@@ -426,15 +430,23 @@ function RetryDialog({ questionId, open, onOpenChange }: RetryDialogProps) {
             </div>
 
             {feedback ? (
-              <Alert variant={feedback.isCorrect ? 'default' : 'destructive'}>
-                {feedback.isCorrect ? <CheckCircle2Icon /> : <XCircleIcon />}
-                <AlertTitle>
-                  {feedback.isCorrect ? 'Correct!' : 'Not quite.'} Correct answer: {feedback.correctOptionLabel}.
-                </AlertTitle>
-                <AlertDescription>
-                  <p className="mt-1 text-sm leading-7 text-foreground/80">{feedback.workedSolution}</p>
-                </AlertDescription>
-              </Alert>
+              <>
+                <Alert variant={feedback.isCorrect ? 'default' : 'destructive'}>
+                  {feedback.isCorrect ? <CheckCircle2Icon /> : <XCircleIcon />}
+                  <AlertTitle>
+                    {feedback.isCorrect ? 'Correct!' : 'Not quite.'} Correct answer: {feedback.correctOptionLabel}.
+                  </AlertTitle>
+                  <AlertDescription>
+                    <p className="mt-1 text-sm leading-7 text-foreground/80">{feedback.workedSolution}</p>
+                  </AlertDescription>
+                </Alert>
+                <OptionDistribution
+                  stats={feedback.optionStats}
+                  options={question.options}
+                  correctOptionLabel={feedback.correctOptionLabel}
+                  selectedOptionLabel={selected || null}
+                />
+              </>
             ) : null}
 
             <div className="flex justify-end gap-2">

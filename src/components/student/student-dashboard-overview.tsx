@@ -4,7 +4,9 @@ import {
   BookCheckIcon,
   CalendarClockIcon,
   FlameIcon,
+  LayersIcon,
   TargetIcon,
+  TimerIcon,
 } from 'lucide-react'
 
 import { ActivityCalendar } from '@/components/student/activity-calendar'
@@ -19,11 +21,61 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ProgressRing } from '@/components/ui/progress-ring'
 import { StatCard } from '@/components/ui/stat-card'
 import { cn } from '@/lib/utils'
+import type { MockExamSummaryRow } from '@/lib/mock-exams/types'
 import type { AppProfile, StudentDashboardData } from '@/lib/types'
 
 interface StudentDashboardOverviewProps {
   profile: AppProfile
   data: StudentDashboardData
+  recentMocks?: MockExamSummaryRow[]
+}
+
+function MockPerformanceCard({ mocks }: { mocks: MockExamSummaryRow[] }) {
+  const submitted = mocks.filter((mock) => mock.status === 'submitted')
+
+  return (
+    <Card className="rounded-2xl shadow-sm ring-border">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="flex size-7 items-center justify-center rounded-lg bg-brand-soft text-brand">
+            <TimerIcon className="size-4" />
+          </span>
+          Mock exams
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {submitted.length > 0 ? (
+          <ul className="space-y-2">
+            {submitted.map((mock) => (
+              <li key={mock.id}>
+                <Link
+                  href={`/student/mock-exams/${mock.id}/results`}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2.5 transition-colors hover:bg-muted/50"
+                >
+                  <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                    {mock.mockName}
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground/80">
+                    {mock.accuracy ?? 0}%
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Rehearse under exam conditions — timed sections, breaks and a full results breakdown.
+          </p>
+        )}
+        <Link
+          href="/student/mock-exams"
+          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
+        >
+          {submitted.length > 0 ? 'All mock exams' : 'Try a mock exam'}
+        </Link>
+      </CardContent>
+    </Card>
+  )
 }
 
 function greeting(): string {
@@ -33,7 +85,11 @@ function greeting(): string {
   return 'Good evening'
 }
 
-export function StudentDashboardOverview({ profile, data }: StudentDashboardOverviewProps) {
+export function StudentDashboardOverview({
+  profile,
+  data,
+  recentMocks = [],
+}: StudentDashboardOverviewProps) {
   const { metrics } = data
   const firstName = profile.full_name?.split(' ')[0] || 'there'
 
@@ -72,6 +128,16 @@ export function StudentDashboardOverview({ profile, data }: StudentDashboardOver
               >
                 Continue learning
                 <ArrowRightIcon className="size-4" />
+              </Link>
+              <Link
+                href="/student/library"
+                className={cn(
+                  buttonVariants({ variant: 'ghost', size: 'lg' }),
+                  'rounded-xl border border-white/20 px-4 text-primary-foreground hover:bg-white/10 hover:text-primary-foreground'
+                )}
+              >
+                <LayersIcon className="size-4" />
+                Skill Library
               </Link>
               {metrics.revisionDueToday > 0 ? (
                 <Link
@@ -170,6 +236,7 @@ export function StudentDashboardOverview({ profile, data }: StudentDashboardOver
             <div className="space-y-6">
               <RevisionDueCard revisionDue={data.revisionDue} />
               <WeakAreaCard insights={data.insights} />
+              <MockPerformanceCard mocks={recentMocks} />
               <RecommendedActionCard recommendations={data.recommendations} />
             </div>
           </div>

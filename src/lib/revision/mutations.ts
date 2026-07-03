@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { scheduleAfterCorrectRetry, scheduleAfterIncorrect } from '@/lib/revision/scheduling'
+import { getQuestionOptionStats } from '@/lib/questions/option-stats'
 import type { QuestionOptionLabel, RevisionRetryFeedback } from '@/lib/types'
 
 interface RetryMistakeInput {
@@ -49,7 +50,7 @@ export async function retryMistake(input: RetryMistakeInput): Promise<RevisionRe
     correct_option_label: question.correct_option_label,
     is_correct: isCorrect,
     time_taken_seconds: input.timeTakenSeconds ?? 0,
-    mode: 'practice',
+    mode: 'revision',
     subject_id: question.subject_id,
     topic_id: question.topic_id,
     question_type_id: question.question_type_id,
@@ -77,6 +78,7 @@ export async function retryMistake(input: RetryMistakeInput): Promise<RevisionRe
     correctOptionLabel: question.correct_option_label as QuestionOptionLabel,
     shortExplanation: question.short_explanation as string | null,
     workedSolution: question.worked_solution as string,
+    optionStats: await getQuestionOptionStats(input.questionId),
   }
 
   // Guard: a mistake record should exist for anything on the revision page, but tolerate its absence.

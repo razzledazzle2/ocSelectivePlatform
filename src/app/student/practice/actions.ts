@@ -2,8 +2,13 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/require-profile'
-import { getPracticeQuestions } from '@/lib/questions/queries'
+import {
+  getPracticeQuestionPool,
+  hydratePracticeQuestions,
+  shuffleArray,
+} from '@/lib/questions/queries'
 import {
   createPracticeSession,
   saveQuestionAttempt,
@@ -11,17 +16,40 @@ import {
 } from '@/lib/practice/mutations'
 import {
   EXAM_TYPES,
+  PRACTICE_SET_MODES,
   QUESTION_OPTION_LABELS,
   STUDENT_PORTAL_ROLES,
   type AttemptFeedback,
   type ActionResult,
   type PracticeSessionSummary,
+  type PracticeSetMode,
   type PracticeStartResult,
 } from '@/lib/types'
 
 function parsePositiveNumber(value: string): number | null {
   const parsed = Number(value)
   return Number.isNaN(parsed) || parsed <= 0 ? null : parsed
+}
+
+/** Question ids the student has ever attempted, and their unmastered mistakes. */
+async function getStudentQuestionHistory(studentId: string): Promise<{
+  attemptedIds: Set<string>
+  mistakeIds: Set<string>
+}> {
+  const supabase = await createClient()
+  const [attemptsResult, mistakesResult] = await Promise.all([
+    supabase.from('question_attempts').select('question_id').eq('student_id', studentId),
+    supabase
+      .from('student_mistake_questions')
+      .select('question_id')
+      .eq('student_id', studentId)
+      .neq('status', 'mastered'),
+  ])
+
+  return {
+    attemptedIds: new Set((attemptsResult.data ?? []).map((row) => row.question_id)),
+    mistakeIds: new Set((mistakesResult.data ?? []).map((row) => row.question_id)),
+  }
 }
 
 export async function startPracticeAction(formData: FormData): Promise<ActionResult<PracticeStartResult>> {
@@ -57,14 +85,54 @@ export async function startPracticeAction(formData: FormData): Promise<ActionRes
     }
   }
 
+  const modeValue = String(formData.get('mode') ?? 'new').trim()
+  const mode: PracticeSetMode = PRACTICE_SET_MODES.includes(modeValue as PracticeSetMode)
+    ? (modeValue as PracticeSetMode)
+    : 'new'
+
   try {
-    const questions = await getPracticeQuestions({
-      examType: examType as (typeof EXAM_TYPES)[number],
-      subjectId,
-      topicId,
-      difficulty: difficulty ?? undefined,
-      limit,
-    })
+    const [pool, history] = await Promise.all([
+      getPracticeQuestionPool({
+        examType: examType as (typeof EXAM_TYPES)[number],
+        subjectId,
+        topicId,
+        difficulty: difficulty ?? undefined,
+      }),
+      getStudentQuestionHistory(profile.id),
+    ])
+
+    const fresh = shuffleArray(pool.filter((question) => !history.attemptedIds.has(question.id)))
+    const seen = shuffleArray(
+      pool.filter(
+        (question) => history.attemptedIds.has(question.id) && !history.mistakeIds.has(question.id)
+      )
+    )
+    const mistakes = shuffleArray(pool.filter((question) => history.mistakeIds.has(question.id)))
+
+    let picked: typeof pool
+    if (mode === 'mistakes') {
+      picked = mistakes.slice(0, limit)
+      if (!picked.length) {
+        return {
+          success: true,
+          message: 'No mistake-review questions match these filters. Try New or Mixed practice.',
+          data: { sessionId: '', startedAt: new Date().toISOString(), questions: [] },
+        }
+      }
+    } else if (mode === 'mixed') {
+      // Half mistakes (when available), topped up with fresh questions, then repeats.
+      const mistakeShare = mistakes.slice(0, Math.ceil(limit / 2))
+      picked = shuffleArray(
+        [...mistakeShare, ...fresh.slice(0, limit - mistakeShare.length)].concat(
+          seen.slice(0, Math.max(0, limit - mistakeShare.length - fresh.length))
+        )
+      ).slice(0, limit)
+    } else {
+      // New questions first; top up with previously seen ones rather than dead-ending.
+      picked = [...fresh, ...seen, ...mistakes].slice(0, limit)
+    }
+
+    const questions = await hydratePracticeQuestions(picked)
 
     if (!questions.length) {
       return {

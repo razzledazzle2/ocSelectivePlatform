@@ -1,14 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
 import {
   MOCK_EXAM_CONFIGS,
+  getSectionConfig,
   resolveExamType,
   type MockExamStatus,
   type MockExamType,
+  type MockSectionKey,
 } from '@/lib/mock-exams/config'
 import type {
   MockExamRunnerData,
   MockExamRunnerQuestion,
+  MockExamSectionRow,
   MockExamSummaryRow,
+  MockSectionStatus,
+  SectionedMockRunnerData,
 } from '@/lib/mock-exams/types'
 import type {
   ExamType,
@@ -36,7 +41,7 @@ function shuffle<T>(items: T[]): T[] {
   return clone
 }
 
-interface CandidateQuestion {
+export interface CandidateQuestion {
   id: string
   subject_id: string
   topic_id: string
@@ -54,7 +59,7 @@ interface CandidateQuestion {
  * Round-robin selection across topic buckets so the set spreads over topics/types where
  * possible, with each bucket internally shuffled to randomise order. Returns up to `limit`.
  */
-function spreadAcrossTopics(candidates: CandidateQuestion[], limit: number): CandidateQuestion[] {
+export function spreadAcrossTopics(candidates: CandidateQuestion[], limit: number): CandidateQuestion[] {
   const buckets = new Map<string, CandidateQuestion[]>()
   for (const candidate of shuffle(candidates)) {
     const key = candidate.topic_id
@@ -84,7 +89,7 @@ function spreadAcrossTopics(candidates: CandidateQuestion[], limit: number): Can
   return selected
 }
 
-async function fetchMockCandidates(
+export async function fetchMockCandidates(
   examType: ExamType,
   subjectId: string | null
 ): Promise<CandidateQuestion[]> {
@@ -323,6 +328,166 @@ export async function getMockExamRunnerData(
     timeLimitSeconds: session.time_limit_seconds,
     startedAt: session.started_at,
     deadlineMs: computeDeadlineMs(session.started_at, session.time_limit_seconds),
+    questions,
+  }
+}
+
+/** Loads the ordered section rows for a sectioned mock session. */
+export async function getMockExamSections(sessionId: string): Promise<MockExamSectionRow[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('mock_exam_session_sections')
+    .select(
+      'id, section_order, section_key, status, time_limit_seconds, break_after_seconds, started_at, submitted_at, writing_response, writing_submitted_for_marking'
+    )
+    .eq('session_id', sessionId)
+    .order('section_order', { ascending: true })
+
+  if (error) {
+    throw new Error('Unable to load the sections for this mock exam.')
+  }
+
+  const rows = data ?? []
+
+  const questionCounts = new Map<string, number>()
+  if (rows.length) {
+    const { data: questionRows } = await supabase
+      .from('mock_exam_session_questions')
+      .select('section_id')
+      .eq('session_id', sessionId)
+
+    for (const row of questionRows ?? []) {
+      if (row.section_id) {
+        questionCounts.set(row.section_id, (questionCounts.get(row.section_id) ?? 0) + 1)
+      }
+    }
+  }
+
+  return rows.map((row) => ({
+    id: row.id,
+    sectionOrder: row.section_order,
+    sectionKey: row.section_key as MockSectionKey,
+    name: getSectionConfig(row.section_key)?.name ?? row.section_key,
+    status: row.status as MockSectionStatus,
+    timeLimitSeconds: row.time_limit_seconds,
+    breakAfterSeconds: row.break_after_seconds,
+    startedAt: row.started_at,
+    submittedAt: row.submitted_at,
+    writingResponse: row.writing_response,
+    writingSubmittedForMarking: row.writing_submitted_for_marking,
+    questionCount: questionCounts.get(row.id) ?? 0,
+  }))
+}
+
+/**
+ * Loads a sectioned mock session for its owner: session header, ordered sections
+ * and every MCQ question tagged with its section id (no correct answers).
+ */
+export async function getSectionedMockRunnerData(
+  sessionId: string,
+  studentId: string
+): Promise<SectionedMockRunnerData | null> {
+  const supabase = await createClient()
+  const { data: session, error } = await supabase
+    .from('mock_exam_sessions')
+    .select('id, mock_type, exam_type, status')
+    .eq('id', sessionId)
+    .eq('student_id', studentId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error('Unable to load this mock exam.')
+  }
+
+  if (!session) {
+    return null
+  }
+
+  const [sections, sessionQuestions] = await Promise.all([
+    getMockExamSections(sessionId),
+    supabase
+      .from('mock_exam_session_questions')
+      .select(`
+        question_order,
+        selected_option_label,
+        is_flagged,
+        section_id,
+        question:questions(
+          id,
+          subject_id,
+          topic_id,
+          question_type_id,
+          exam_type,
+          difficulty,
+          question_text,
+          passage_text,
+          subject:subjects(name),
+          topic:topics(name),
+          question_type:question_types(name)
+        )
+      `)
+      .eq('session_id', sessionId)
+      .order('question_order', { ascending: true }),
+  ])
+
+  if (sessionQuestions.error) {
+    throw new Error('Unable to load the questions for this mock exam.')
+  }
+
+  const rows = (sessionQuestions.data ?? []) as unknown as Array<{
+    question_order: number
+    selected_option_label: QuestionOptionLabel | null
+    is_flagged: boolean
+    section_id: string | null
+    question: (Pick<
+      QuestionRecord,
+      | 'id'
+      | 'subject_id'
+      | 'topic_id'
+      | 'question_type_id'
+      | 'exam_type'
+      | 'difficulty'
+      | 'question_text'
+      | 'passage_text'
+    > & {
+      subject: { name: string }[] | { name: string } | null
+      topic: { name: string }[] | { name: string } | null
+      question_type: { name: string }[] | { name: string } | null
+    })
+      | null
+  }>
+
+  const validRows = rows.filter((row) => row.question !== null)
+  const optionsMap = await getOptionsMap(validRows.map((row) => row.question!.id))
+
+  const questions = validRows.map((row) => {
+    const question = row.question!
+    return {
+      id: question.id,
+      questionOrder: row.question_order,
+      sectionId: row.section_id,
+      subjectId: question.subject_id,
+      subjectName: getRelationValue(question.subject)?.name ?? 'Subject',
+      topicId: question.topic_id,
+      topicName: getRelationValue(question.topic)?.name ?? 'Topic',
+      questionTypeId: question.question_type_id,
+      questionTypeName: getRelationValue(question.question_type)?.name ?? null,
+      examType: question.exam_type,
+      difficulty: question.difficulty,
+      questionText: question.question_text,
+      passageText: question.passage_text,
+      options: optionsMap.get(question.id) ?? [],
+      selectedOptionLabel: row.selected_option_label,
+      isFlagged: row.is_flagged,
+    }
+  })
+
+  return {
+    sessionId: session.id,
+    mockName: MOCK_EXAM_CONFIGS[session.mock_type as MockExamType]?.name ?? 'Mock exam',
+    examType: session.exam_type as ExamType,
+    status: session.status as MockExamStatus,
+    sections,
     questions,
   }
 }

@@ -1,5 +1,35 @@
 import type { ExamType, QuestionOptionLabel, QuestionOptionRecord } from '@/lib/types'
-import type { MockExamStatus, MockExamType } from '@/lib/mock-exams/config'
+import type { MockExamStatus, MockExamType, MockSectionKey } from '@/lib/mock-exams/config'
+
+export const MOCK_SECTION_STATUSES = ['pending', 'in_progress', 'submitted', 'skipped'] as const
+export type MockSectionStatus = (typeof MOCK_SECTION_STATUSES)[number]
+
+/** One section of a sectioned (randomised full) mock session. */
+export interface MockExamSectionRow {
+  id: string
+  sectionOrder: number
+  sectionKey: MockSectionKey
+  name: string
+  status: MockSectionStatus
+  timeLimitSeconds: number
+  breakAfterSeconds: number
+  startedAt: string | null
+  submittedAt: string | null
+  writingResponse: string | null
+  writingSubmittedForMarking: boolean
+  questionCount: number
+}
+
+/** Everything the sectioned mock runner needs to render and resume. */
+export interface SectionedMockRunnerData {
+  sessionId: string
+  mockName: string
+  examType: ExamType
+  status: MockExamStatus
+  sections: MockExamSectionRow[]
+  /** All MCQ questions in the session, tagged with their section id. */
+  questions: Array<MockExamRunnerQuestion & { sectionId: string | null }>
+}
 
 /** A single question inside a running mock exam — never carries the correct answer. */
 export interface MockExamRunnerQuestion {
@@ -57,6 +87,7 @@ export interface MockExamSummaryRow {
 export interface MockExamReviewQuestion {
   questionId: string
   questionOrder: number
+  timeSpentSeconds: number | null
   subjectName: string
   topicName: string
   questionTypeName: string | null
@@ -90,6 +121,16 @@ export interface MockExamRecommendation {
   ctaLabel: string
 }
 
+/** Cross-student comparison for one submitted mock (from a security-definer aggregate). */
+export interface MockExamComparison {
+  participantCount: number
+  averageAccuracy: number
+  rank: number
+}
+
+/** Minimum distinct students before comparison data is shown. */
+export const MOCK_COMPARISON_MIN_PARTICIPANTS = 5
+
 export interface MockExamResults {
   session: MockExamSummaryRow
   averageTimeSeconds: number
@@ -99,6 +140,13 @@ export interface MockExamResults {
   questionTypeBreakdown: MockExamBreakdownRow[]
   reviewQuestions: MockExamReviewQuestion[]
   recommendations: MockExamRecommendation[]
+  /** Null until enough students have completed this mock. */
+  comparison: MockExamComparison | null
+  /** Writing section state for sectioned mocks; null for single-section mocks. */
+  writingSection: {
+    submittedForMarking: boolean
+    response: string | null
+  } | null
 }
 
 export interface PrepareMockExamResult {

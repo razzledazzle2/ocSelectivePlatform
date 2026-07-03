@@ -1,7 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
 import { upsertMistakeQuestion } from '@/lib/practice/mutations'
-import { MOCK_EXAM_CONFIGS, resolveExamType, type MockExamType } from '@/lib/mock-exams/config'
-import { selectMockExamQuestions } from '@/lib/mock-exams/queries'
+import {
+  MOCK_EXAM_CONFIGS,
+  SECTIONED_MOCK_SECTIONS,
+  resolveExamType,
+  type MockExamType,
+} from '@/lib/mock-exams/config'
+import {
+  fetchMockCandidates,
+  selectMockExamQuestions,
+  spreadAcrossTopics,
+  type CandidateQuestion,
+} from '@/lib/mock-exams/queries'
 import type { ExamType, QuestionOptionLabel } from '@/lib/types'
 
 interface CreateMockExamInput {
@@ -69,6 +79,324 @@ export async function createMockExamSession(
   }
 
   return { sessionId: session.id, totalQuestions: selected.length }
+}
+
+/**
+ * Creates a sectioned (randomised full) mock session: one row per section in
+ * exam order, with randomised questions per MCQ section. Question selection
+ * avoids questions the student attempted in the last 30 days where the bank
+ * allows, and spreads across topics. The first section starts immediately.
+ */
+export async function createSectionedMockSession(input: {
+  studentId: string
+  chosenExamType: ExamType
+}): Promise<CreateMockExamResult | null> {
+  const supabase = await createClient()
+  const examType = input.chosenExamType
+
+  const subjectSlugs = SECTIONED_MOCK_SECTIONS.map((section) => section.subjectSlug).filter(Boolean)
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  const [subjectsResult, recentAttemptsResult] = await Promise.all([
+    supabase.from('subjects').select('id, slug').in('slug', subjectSlugs),
+    supabase
+      .from('question_attempts')
+      .select('question_id')
+      .eq('student_id', input.studentId)
+      .gte('attempted_at', thirtyDaysAgo),
+  ])
+
+  if (subjectsResult.error) {
+    throw new Error('Unable to prepare this mock exam.')
+  }
+
+  const subjectIdBySlug = new Map(
+    (subjectsResult.data ?? []).map((subject) => [subject.slug, subject.id])
+  )
+  const recentQuestionIds = new Set(
+    (recentAttemptsResult.data ?? []).map((row) => row.question_id)
+  )
+
+  const sectionSelections: Array<{
+    config: (typeof SECTIONED_MOCK_SECTIONS)[number]
+    questions: CandidateQuestion[]
+  }> = []
+
+  for (const section of SECTIONED_MOCK_SECTIONS) {
+    if (section.questionCount === 0) {
+      sectionSelections.push({ config: section, questions: [] })
+      continue
+    }
+
+    const subjectId = subjectIdBySlug.get(section.subjectSlug)
+    if (!subjectId) {
+      sectionSelections.push({ config: section, questions: [] })
+      continue
+    }
+
+    const candidates = await fetchMockCandidates(examType, subjectId)
+    const fresh = candidates.filter((candidate) => !recentQuestionIds.has(candidate.id))
+    const picked = spreadAcrossTopics(fresh, section.questionCount)
+
+    if (picked.length < section.questionCount) {
+      // Bank too small for a fully fresh set — top up with recently seen questions.
+      const pickedIds = new Set(picked.map((question) => question.id))
+      const seen = candidates.filter((candidate) => !pickedIds.has(candidate.id))
+      picked.push(...spreadAcrossTopics(seen, section.questionCount - picked.length))
+    }
+
+    sectionSelections.push({ config: section, questions: picked })
+  }
+
+  const totalQuestions = sectionSelections.reduce(
+    (sum, selection) => sum + selection.questions.length,
+    0
+  )
+
+  if (totalQuestions === 0) {
+    return null
+  }
+
+  const totalTimeLimit = SECTIONED_MOCK_SECTIONS.reduce(
+    (sum, section) => sum + section.timeLimitSeconds,
+    0
+  )
+
+  const { data: session, error: sessionError } = await supabase
+    .from('mock_exam_sessions')
+    .insert({
+      student_id: input.studentId,
+      mock_type: 'randomised_full',
+      exam_type: examType,
+      subject_id: null,
+      status: 'in_progress',
+      time_limit_seconds: totalTimeLimit,
+      total_questions: totalQuestions,
+    })
+    .select('id')
+    .single()
+
+  if (sessionError || !session) {
+    throw new Error('Unable to start this mock exam.')
+  }
+
+  const nowIso = new Date().toISOString()
+  const sectionRows = sectionSelections.map((selection, index) => ({
+    session_id: session.id,
+    section_order: index + 1,
+    section_key: selection.config.key,
+    subject_id: subjectIdBySlug.get(selection.config.subjectSlug) ?? null,
+    status: index === 0 ? 'in_progress' : 'pending',
+    time_limit_seconds: selection.config.timeLimitSeconds,
+    break_after_seconds: selection.config.breakAfterSeconds,
+    started_at: index === 0 ? nowIso : null,
+    total_questions: selection.questions.length,
+  }))
+
+  const { data: insertedSections, error: sectionsError } = await supabase
+    .from('mock_exam_session_sections')
+    .insert(sectionRows)
+    .select('id, section_order')
+
+  if (sectionsError || !insertedSections) {
+    throw new Error('Unable to prepare the sections for this mock exam.')
+  }
+
+  const sectionIdByOrder = new Map(
+    insertedSections.map((section) => [section.section_order, section.id])
+  )
+
+  const questionRows: Record<string, unknown>[] = []
+  let questionOrder = 0
+  sectionSelections.forEach((selection, index) => {
+    for (const question of selection.questions) {
+      questionOrder += 1
+      questionRows.push({
+        session_id: session.id,
+        question_id: question.id,
+        question_order: questionOrder,
+        section_id: sectionIdByOrder.get(index + 1) ?? null,
+        is_flagged: false,
+      })
+    }
+  })
+
+  if (questionRows.length) {
+    const { error: questionsError } = await supabase
+      .from('mock_exam_session_questions')
+      .insert(questionRows)
+
+    if (questionsError) {
+      throw new Error('Unable to prepare the questions for this mock exam.')
+    }
+  }
+
+  return { sessionId: session.id, totalQuestions }
+}
+
+export interface SubmitSectionResult {
+  finished: boolean
+  breakSeconds: number
+  nextSectionOrder: number | null
+}
+
+/**
+ * Submits one section of a sectioned mock. When it was the final open section,
+ * the whole session is graded and finalised via submitMockExam.
+ */
+export async function submitMockSection(input: {
+  sessionId: string
+  studentId: string
+  sectionId: string
+  writingResponse?: string
+  writingSubmittedForMarking?: boolean
+}): Promise<SubmitSectionResult | null> {
+  const supabase = await createClient()
+
+  const { data: session } = await supabase
+    .from('mock_exam_sessions')
+    .select('id, status')
+    .eq('id', input.sessionId)
+    .eq('student_id', input.studentId)
+    .maybeSingle()
+
+  if (!session) {
+    return null
+  }
+
+  const { data: sections, error: sectionsError } = await supabase
+    .from('mock_exam_session_sections')
+    .select('id, section_order, status, break_after_seconds')
+    .eq('session_id', input.sessionId)
+    .order('section_order', { ascending: true })
+
+  if (sectionsError || !sections?.length) {
+    throw new Error('Unable to load the sections for this mock exam.')
+  }
+
+  const current = sections.find((section) => section.id === input.sectionId)
+  if (!current) {
+    throw new Error('This section could not be found.')
+  }
+
+  if (current.status === 'in_progress') {
+    const update: Record<string, unknown> = {
+      status: 'submitted',
+      submitted_at: new Date().toISOString(),
+    }
+    if (input.writingResponse !== undefined) {
+      update.writing_response = input.writingResponse
+    }
+    if (input.writingSubmittedForMarking !== undefined) {
+      update.writing_submitted_for_marking = input.writingSubmittedForMarking
+    }
+
+    const { error: updateError } = await supabase
+      .from('mock_exam_session_sections')
+      .update(update)
+      .eq('id', current.id)
+
+    if (updateError) {
+      throw new Error('Unable to submit this section.')
+    }
+  }
+
+  const nextSection = sections.find(
+    (section) => section.section_order > current.section_order && section.status === 'pending'
+  )
+
+  if (!nextSection) {
+    // Last section done — grade and finalise the whole session.
+    if (session.status === 'in_progress') {
+      await submitMockExam(input.sessionId, input.studentId)
+    }
+    return { finished: true, breakSeconds: 0, nextSectionOrder: null }
+  }
+
+  return {
+    finished: false,
+    breakSeconds: current.break_after_seconds ?? 0,
+    nextSectionOrder: nextSection.section_order,
+  }
+}
+
+/** Starts the next pending section (used by "Skip break" and break expiry). */
+export async function startNextMockSection(input: {
+  sessionId: string
+  studentId: string
+}): Promise<{ sectionId: string } | null> {
+  const supabase = await createClient()
+
+  const { data: session } = await supabase
+    .from('mock_exam_sessions')
+    .select('id, status')
+    .eq('id', input.sessionId)
+    .eq('student_id', input.studentId)
+    .maybeSingle()
+
+  if (!session || session.status !== 'in_progress') {
+    return null
+  }
+
+  const { data: sections } = await supabase
+    .from('mock_exam_session_sections')
+    .select('id, section_order, status')
+    .eq('session_id', input.sessionId)
+    .order('section_order', { ascending: true })
+
+  const inProgress = (sections ?? []).find((section) => section.status === 'in_progress')
+  if (inProgress) {
+    return { sectionId: inProgress.id }
+  }
+
+  const next = (sections ?? []).find((section) => section.status === 'pending')
+  if (!next) {
+    return null
+  }
+
+  const { error } = await supabase
+    .from('mock_exam_session_sections')
+    .update({ status: 'in_progress', started_at: new Date().toISOString() })
+    .eq('id', next.id)
+    .eq('status', 'pending')
+
+  if (error) {
+    throw new Error('Unable to start the next section.')
+  }
+
+  return { sectionId: next.id }
+}
+
+/** Autosaves the writing draft without submitting the section. */
+export async function saveWritingDraft(input: {
+  sessionId: string
+  studentId: string
+  sectionId: string
+  writingResponse: string
+}): Promise<void> {
+  const supabase = await createClient()
+
+  const { data: session } = await supabase
+    .from('mock_exam_sessions')
+    .select('id, status')
+    .eq('id', input.sessionId)
+    .eq('student_id', input.studentId)
+    .maybeSingle()
+
+  if (!session || session.status !== 'in_progress') {
+    return
+  }
+
+  const { error } = await supabase
+    .from('mock_exam_session_sections')
+    .update({ writing_response: input.writingResponse })
+    .eq('id', input.sectionId)
+    .eq('session_id', input.sessionId)
+    .eq('status', 'in_progress')
+
+  if (error) {
+    throw new Error('Unable to save your writing draft.')
+  }
 }
 
 interface SaveMockAnswerInput {

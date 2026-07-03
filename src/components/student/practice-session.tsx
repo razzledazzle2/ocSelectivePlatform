@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { OptionDistribution } from '@/components/student/option-distribution'
 import { StudentQuestionReportButton } from '@/components/student/student-question-report-button'
 import { cn } from '@/lib/utils'
 import {
@@ -41,6 +42,7 @@ import {
   type AttemptFeedback,
   type ExamType,
   type PracticeQuestionItem,
+  type PracticeSetMode,
   type QuestionOptionLabel,
   type SubjectRecord,
   type TopicRecord,
@@ -60,6 +62,9 @@ interface PracticeSessionProps {
   subjects: SubjectRecord[]
   topics: TopicRecord[]
   hub: PracticeHubData
+  /** Preselected via Skill Library deep links. */
+  initialSubjectId?: string
+  initialTopicId?: string
 }
 
 interface AnsweredQuestion {
@@ -73,6 +78,15 @@ type Phase = 'setup' | 'active' | 'results'
 const SESSION_LENGTHS = ['5', '10', '20'] as const
 const ANY_TOPIC = 'all'
 const ANY_DIFFICULTY = 'any'
+
+const MODE_OPTIONS: Array<{ value: PracticeSetMode; label: string; hint: string }> = [
+  { value: 'new', label: 'New questions', hint: 'Questions you have not seen before' },
+  { value: 'mistakes', label: 'Mistake review', hint: 'Only questions from your mistake bank' },
+  { value: 'mixed', label: 'Mixed', hint: 'A blend of mistakes and new questions' },
+]
+
+/** Focused batch size the practice gate asks for before new practice. */
+const GATE_BATCH_SIZE = 10
 
 const DIFFICULTY_ITEMS: Record<string, string> = {
   [ANY_DIFFICULTY]: 'Any difficulty',
@@ -89,16 +103,24 @@ function formatSeconds(totalSeconds: number): string {
   return minutes === 0 ? `${seconds}s` : `${minutes}m ${seconds}s`
 }
 
-export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps) {
+export function PracticeSession({
+  subjects,
+  topics,
+  hub,
+  initialSubjectId,
+  initialTopicId,
+}: PracticeSessionProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [phase, setPhase] = useState<Phase>('setup')
 
   const [examType, setExamType] = useState<ExamType>('OC')
-  const [subjectId, setSubjectId] = useState('')
-  const [topicId, setTopicId] = useState(ANY_TOPIC)
+  const [subjectId, setSubjectId] = useState(initialSubjectId ?? '')
+  const [topicId, setTopicId] = useState(initialTopicId ?? ANY_TOPIC)
   const [difficulty, setDifficulty] = useState(ANY_DIFFICULTY)
   const [questionCount, setQuestionCount] = useState<(typeof SESSION_LENGTHS)[number]>('10')
+  const [setMode, setSetMode] = useState<PracticeSetMode>('new')
+  const [gateSkipped, setGateSkipped] = useState(false)
   const [emptyResult, setEmptyResult] = useState(false)
 
   const [sessionId, setSessionId] = useState('')
@@ -147,6 +169,7 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
       formData.set('difficulty', difficulty)
     }
     formData.set('questionCount', questionCount)
+    formData.set('mode', setMode)
 
     startTransition(async () => {
       const result = await startPracticeAction(formData)
@@ -251,9 +274,35 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
   // -- Setup: the Practice Hub ----------------------------------------------
   if (phase === 'setup') {
     const recommendedAreas = hub.revisionTopAreas.slice(0, 3).join(', ')
+    const gateBatch = Math.min(hub.revisionDueCount, GATE_BATCH_SIZE)
+    const gateActive = hub.revisionDueCount > 0 && !gateSkipped && setMode !== 'mistakes'
 
     return (
       <div className="space-y-5">
+        {gateActive ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-warning/30 bg-warning-soft px-4 py-4">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">
+                You have {hub.revisionDueCount} mistake-review question
+                {hub.revisionDueCount === 1 ? '' : 's'} due today. Complete{' '}
+                {hub.revisionDueCount > GATE_BATCH_SIZE ? `a focused batch of ${gateBatch}` : 'them'}{' '}
+                first to unlock new practice.
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Reviewing due questions first is the fastest way to turn mistakes into strengths.
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Link href="/student/revision/session" className={cn(buttonVariants({ size: 'sm' }))}>
+                Start revision ({gateBatch})
+              </Link>
+              <Button size="sm" variant="ghost" onClick={() => setGateSkipped(true)}>
+                Skip for now
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr]">
           {/* -- Recommended Today ---------------------------------------- */}
           <Card className="rounded-2xl shadow-sm ring-border">
@@ -277,7 +326,10 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
                     . Clearing these first is the fastest way to lift your accuracy.
                   </p>
                   <div>
-                    <Link href="/student/revision" className={cn(buttonVariants({ variant: 'default' }))}>
+                    <Link
+                      href="/student/revision/session"
+                      className={cn(buttonVariants({ variant: 'default' }))}
+                    >
                       Start recommended practice
                     </Link>
                   </div>
@@ -417,6 +469,29 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
                     </div>
                   </div>
 
+                  <div className="space-y-2">
+                    <Label>Mode</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {MODE_OPTIONS.map((option) => (
+                        <Button
+                          key={option.value}
+                          type="button"
+                          size="sm"
+                          variant={setMode === option.value ? 'default' : 'outline'}
+                          onClick={() => {
+                            setSetMode(option.value)
+                            setEmptyResult(false)
+                          }}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {MODE_OPTIONS.find((option) => option.value === setMode)?.hint}
+                    </p>
+                  </div>
+
                   {emptyResult ? (
                     <Alert>
                       <AlertTitle>No questions here yet</AlertTitle>
@@ -427,9 +502,18 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
                     </Alert>
                   ) : null}
 
-                  <Button className="w-full" disabled={!canStart || isPending} onClick={startPractice}>
+                  <Button
+                    className="w-full"
+                    disabled={!canStart || isPending || gateActive}
+                    onClick={startPractice}
+                  >
                     {isPending ? 'Building your set…' : 'Start practice'}
                   </Button>
+                  {gateActive && canStart ? (
+                    <p className="text-center text-xs text-muted-foreground">
+                      Clear your due revision first, or choose “Skip for now” above.
+                    </p>
+                  ) : null}
                 </>
               )}
             </CardContent>
@@ -696,6 +780,15 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
               </div>
             </AlertDescription>
           </Alert>
+        ) : null}
+
+        {feedback ? (
+          <OptionDistribution
+            stats={feedback.optionStats}
+            options={activeQuestion.options}
+            correctOptionLabel={feedback.correctOptionLabel}
+            selectedOptionLabel={selectedOption || null}
+          />
         ) : null}
 
         <div className="flex flex-wrap gap-3">

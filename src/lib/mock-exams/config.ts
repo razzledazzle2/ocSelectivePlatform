@@ -1,6 +1,6 @@
 import type { ExamType } from '@/lib/types'
 
-export const MOCK_EXAM_TYPES = ['mini', 'subject', 'full_selective', 'full_oc'] as const
+export const MOCK_EXAM_TYPES = ['mini', 'subject', 'full_selective', 'full_oc', 'randomised_full'] as const
 export type MockExamType = (typeof MOCK_EXAM_TYPES)[number]
 
 export const MOCK_EXAM_STATUSES = ['in_progress', 'submitted', 'expired'] as const
@@ -61,6 +61,83 @@ export const MOCK_EXAM_CONFIGS: Record<MockExamType, MockExamTypeConfig> = {
     fixedExamType: 'OC',
     requiresSubject: false,
   },
+  randomised_full: {
+    type: 'randomised_full',
+    name: 'Randomised Full Mock',
+    tagline: 'The full exam experience',
+    description:
+      'Four timed sections in real exam order — Reading, Mathematical Reasoning, Thinking Skills and Writing — with scheduled breaks you can skip.',
+    questionCount: 45,
+    timeLimitSeconds: 85 * 60,
+    fixedExamType: null,
+    requiresSubject: false,
+  },
+}
+
+// -- Sectioned (randomised full) mock structure -------------------------------
+
+export const MOCK_SECTION_KEYS = [
+  'reading',
+  'mathematical_reasoning',
+  'thinking_skills',
+  'writing',
+] as const
+export type MockSectionKey = (typeof MOCK_SECTION_KEYS)[number]
+
+export interface MockExamSectionConfig {
+  key: MockSectionKey
+  name: string
+  /** subjects.slug this section draws questions from ('' for writing). */
+  subjectSlug: string
+  /** Target question count; fewer are used when the bank is short. 0 = free response. */
+  questionCount: number
+  timeLimitSeconds: number
+  /** Scheduled break AFTER this section; 0 = no break (last section). */
+  breakAfterSeconds: number
+}
+
+/**
+ * Section order and breaks for the randomised full mock:
+ * Reading -> 5 min break -> Mathematical Reasoning -> 10 min break ->
+ * Thinking Skills -> 5 min break -> Writing.
+ */
+export const SECTIONED_MOCK_SECTIONS: MockExamSectionConfig[] = [
+  {
+    key: 'reading',
+    name: 'Reading',
+    subjectSlug: 'reading',
+    questionCount: 15,
+    timeLimitSeconds: 20 * 60,
+    breakAfterSeconds: 5 * 60,
+  },
+  {
+    key: 'mathematical_reasoning',
+    name: 'Mathematical Reasoning',
+    subjectSlug: 'mathematical-reasoning',
+    questionCount: 15,
+    timeLimitSeconds: 20 * 60,
+    breakAfterSeconds: 10 * 60,
+  },
+  {
+    key: 'thinking_skills',
+    name: 'Thinking Skills',
+    subjectSlug: 'thinking-skills',
+    questionCount: 15,
+    timeLimitSeconds: 20 * 60,
+    breakAfterSeconds: 5 * 60,
+  },
+  {
+    key: 'writing',
+    name: 'Writing',
+    subjectSlug: 'writing',
+    questionCount: 0,
+    timeLimitSeconds: 25 * 60,
+    breakAfterSeconds: 0,
+  },
+]
+
+export function getSectionConfig(key: string): MockExamSectionConfig | null {
+  return SECTIONED_MOCK_SECTIONS.find((section) => section.key === key) ?? null
 }
 
 export const MOCK_EXAM_CONFIG_LIST: MockExamTypeConfig[] = MOCK_EXAM_TYPES.map(

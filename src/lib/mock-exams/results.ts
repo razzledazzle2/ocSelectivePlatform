@@ -1,10 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { getMockExamSummary } from '@/lib/mock-exams/queries'
-import type {
-  MockExamBreakdownRow,
-  MockExamRecommendation,
-  MockExamResults,
-  MockExamReviewQuestion,
+import {
+  MOCK_COMPARISON_MIN_PARTICIPANTS,
+  type MockExamBreakdownRow,
+  type MockExamComparison,
+  type MockExamRecommendation,
+  type MockExamResults,
+  type MockExamReviewQuestion,
 } from '@/lib/mock-exams/types'
 import type {
   QuestionOptionLabel,
@@ -136,6 +138,7 @@ export async function getMockExamResults(
       question_order,
       selected_option_label,
       is_flagged,
+      time_spent_seconds,
       question:questions(
         id,
         difficulty,
@@ -160,6 +163,7 @@ export async function getMockExamResults(
     question_order: number
     selected_option_label: QuestionOptionLabel | null
     is_flagged: boolean
+    time_spent_seconds: number | null
     question: (Pick<
       QuestionRecord,
       'id' | 'difficulty' | 'question_text' | 'passage_text' | 'correct_option_label' | 'short_explanation' | 'worked_solution'
@@ -196,6 +200,7 @@ export async function getMockExamResults(
     return {
       questionId: question.id,
       questionOrder: row.question_order,
+      timeSpentSeconds: row.time_spent_seconds,
       subjectName: getRelationValue(question.subject)?.name ?? 'Subject',
       topicName: getRelationValue(question.topic)?.name ?? 'Topic',
       questionTypeName: getRelationValue(question.question_type)?.name ?? null,
@@ -232,6 +237,11 @@ export async function getMockExamResults(
     missedQuestions.length > 0
   )
 
+  const [comparison, writingSection] = await Promise.all([
+    getMockExamComparison(sessionId),
+    getWritingSection(sessionId),
+  ])
+
   return {
     session: summary,
     averageTimeSeconds,
@@ -241,5 +251,73 @@ export async function getMockExamResults(
     questionTypeBreakdown,
     reviewQuestions,
     recommendations,
+    comparison,
+    writingSection,
+  }
+}
+
+/**
+ * Average accuracy + rank across students who submitted the same kind of mock,
+ * via the get_mock_exam_comparison security-definer function. Returns null (no
+ * comparison shown) below the participant threshold or on any failure — the UI
+ * then shows a clean "not enough data" message instead of misleading numbers.
+ */
+async function getMockExamComparison(sessionId: string): Promise<MockExamComparison | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_mock_exam_comparison', {
+    p_session_id: sessionId,
+  })
+
+  if (error || !data) {
+    return null
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | {
+        participant_count: number | string | null
+        average_accuracy: number | string | null
+        student_rank: number | string | null
+      }
+    | undefined
+
+  if (!row) {
+    return null
+  }
+
+  const participantCount = Number(row.participant_count ?? 0)
+  const averageAccuracy = Number(row.average_accuracy ?? Number.NaN)
+  const rank = Number(row.student_rank ?? Number.NaN)
+
+  if (
+    !Number.isFinite(participantCount) ||
+    !Number.isFinite(averageAccuracy) ||
+    !Number.isFinite(rank) ||
+    participantCount < MOCK_COMPARISON_MIN_PARTICIPANTS
+  ) {
+    return null
+  }
+
+  return { participantCount, averageAccuracy, rank }
+}
+
+/** Writing section state for sectioned mocks (null for single-section mocks). */
+async function getWritingSection(
+  sessionId: string
+): Promise<MockExamResults['writingSection']> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('mock_exam_session_sections')
+    .select('writing_response, writing_submitted_for_marking')
+    .eq('session_id', sessionId)
+    .eq('section_key', 'writing')
+    .maybeSingle()
+
+  if (!data) {
+    return null
+  }
+
+  return {
+    submittedForMarking: data.writing_submitted_for_marking,
+    response: data.writing_response,
   }
 }

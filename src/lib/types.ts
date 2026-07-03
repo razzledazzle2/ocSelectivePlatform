@@ -6,7 +6,9 @@ export const QUESTION_STATUSES = ['draft', 'published', 'archived'] as const
 export const QUESTION_OPTION_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
 export const QUESTION_SOURCES = ['manual', 'csv', 'bulk_paste'] as const
 export const PRACTICE_MODES = ['practice'] as const
-export const MISTAKE_STATUSES = ['needs_review', 'learning', 'improving', 'mastered'] as const
+export const ATTEMPT_MODES = ['practice', 'revision', 'mock'] as const
+export const MISTAKE_STATUSES = ['needs_review', 'learning', 'improving', 'almost_mastered', 'mastered'] as const
+export const PRACTICE_SET_MODES = ['new', 'mistakes', 'mixed'] as const
 export const ADMIN_PORTAL_ROLES = ['tutor', 'admin', 'super_admin'] as const
 export const STUDENT_PORTAL_ROLES = ['student', 'parent', 'external_customer'] as const
 
@@ -16,7 +18,27 @@ export type QuestionStatus = (typeof QUESTION_STATUSES)[number]
 export type QuestionOptionLabel = (typeof QUESTION_OPTION_LABELS)[number]
 export type QuestionSource = (typeof QUESTION_SOURCES)[number]
 export type PracticeMode = (typeof PRACTICE_MODES)[number]
+export type AttemptMode = (typeof ATTEMPT_MODES)[number]
 export type MistakeStatus = (typeof MISTAKE_STATUSES)[number]
+export type PracticeSetMode = (typeof PRACTICE_SET_MODES)[number]
+
+/** Student-facing labels for spaced-repetition stages. */
+export const MISTAKE_STATUS_LABELS: Record<MistakeStatus, string> = {
+  needs_review: 'Needs review',
+  learning: 'Learning',
+  improving: 'Improving',
+  almost_mastered: 'Almost mastered',
+  mastered: 'Mastered',
+}
+
+/** Minimum attempts before option response distributions are shown to students. */
+export const OPTION_STATS_MIN_ATTEMPTS = 5
+
+/** Aggregated option response distribution for one question (post-answer only). */
+export interface OptionStats {
+  totalAttempts: number
+  counts: Partial<Record<QuestionOptionLabel, number>>
+}
 export type AdminPortalRole = (typeof ADMIN_PORTAL_ROLES)[number]
 export type StudentPortalRole = (typeof STUDENT_PORTAL_ROLES)[number]
 
@@ -233,6 +255,8 @@ export interface AttemptFeedback {
   correctOptionLabel: QuestionOptionLabel
   shortExplanation: string | null
   workedSolution: string
+  /** Aggregated distribution across all students; null when unavailable. */
+  optionStats: OptionStats | null
 }
 
 /**
@@ -315,6 +339,7 @@ export type RevisionMode =
   | 'needs_review'
   | 'learning'
   | 'improving'
+  | 'almost_mastered'
   | 'mastered'
 
 export interface RevisionFilters {
@@ -330,6 +355,8 @@ export interface RevisionRetryFeedback {
   workedSolution: string
   status: MistakeStatus
   nextReviewAt: string | null
+  /** Aggregated distribution across all students; null when unavailable. */
+  optionStats: OptionStats | null
 }
 
 export interface RecentAttempt {

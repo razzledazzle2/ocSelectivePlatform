@@ -10,7 +10,16 @@ import {
   resolveExamType,
   type MockExamType,
 } from '@/lib/mock-exams/config'
-import { createMockExamSession, saveMockAnswer, submitMockExam } from '@/lib/mock-exams/mutations'
+import {
+  createMockExamSession,
+  createSectionedMockSession,
+  saveMockAnswer,
+  saveWritingDraft,
+  startNextMockSection,
+  submitMockExam,
+  submitMockSection,
+  type SubmitSectionResult,
+} from '@/lib/mock-exams/mutations'
 import { countAvailableMockQuestions } from '@/lib/mock-exams/queries'
 import type { PrepareMockExamResult } from '@/lib/mock-exams/types'
 import {
@@ -123,12 +132,15 @@ export async function startMockExamAction(
   const { mockType, examType, subjectId } = validation
 
   try {
-    const result = await createMockExamSession({
-      studentId: profile.id,
-      mockType,
-      chosenExamType: examType,
-      subjectId,
-    })
+    const result =
+      mockType === 'randomised_full'
+        ? await createSectionedMockSession({ studentId: profile.id, chosenExamType: examType })
+        : await createMockExamSession({
+            studentId: profile.id,
+            mockType,
+            chosenExamType: examType,
+            subjectId,
+          })
 
     if (!result) {
       return {
@@ -187,6 +199,102 @@ export async function saveMockAnswerAction(input: {
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Unable to save your progress.',
+    }
+  }
+}
+
+/** Submits one section of a sectioned mock; finalises the session after the last one. */
+export async function submitMockSectionAction(input: {
+  sessionId: string
+  sectionId: string
+  writingResponse?: string
+  writingSubmittedForMarking?: boolean
+}): Promise<ActionResult<SubmitSectionResult>> {
+  const profile = await requireProfile({ allowedRoles: [...STUDENT_PORTAL_ROLES] })
+
+  if (!input.sessionId || !input.sectionId) {
+    return { success: false, message: 'This section could not be found.' }
+  }
+
+  try {
+    const result = await submitMockSection({
+      sessionId: input.sessionId,
+      studentId: profile.id,
+      sectionId: input.sectionId,
+      writingResponse: input.writingResponse,
+      writingSubmittedForMarking: input.writingSubmittedForMarking,
+    })
+
+    if (!result) {
+      return { success: false, message: 'This mock exam could not be found.' }
+    }
+
+    if (result.finished) {
+      revalidatePath('/student/mock-exams')
+      revalidatePath('/student/dashboard')
+      revalidatePath('/student/revision')
+    }
+
+    return { success: true, data: result }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to submit this section.',
+    }
+  }
+}
+
+/** Starts the next pending section (skip break / break finished). */
+export async function startNextMockSectionAction(
+  sessionId: string
+): Promise<ActionResult<{ sectionId: string }>> {
+  const profile = await requireProfile({ allowedRoles: [...STUDENT_PORTAL_ROLES] })
+
+  if (!sessionId) {
+    return { success: false, message: 'This mock exam could not be found.' }
+  }
+
+  try {
+    const result = await startNextMockSection({ sessionId, studentId: profile.id })
+
+    if (!result) {
+      return { success: false, message: 'There is no section left to start.' }
+    }
+
+    return { success: true, data: result }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to start the next section.',
+    }
+  }
+}
+
+/** Autosaves the writing draft while the section is open. */
+export async function saveWritingDraftAction(input: {
+  sessionId: string
+  sectionId: string
+  writingResponse: string
+}): Promise<ActionResult> {
+  const profile = await requireProfile({ allowedRoles: [...STUDENT_PORTAL_ROLES] })
+
+  if (!input.sessionId || !input.sectionId) {
+    return { success: false, message: 'Unable to save your writing.' }
+  }
+
+  try {
+    await saveWritingDraft({
+      sessionId: input.sessionId,
+      studentId: profile.id,
+      sectionId: input.sectionId,
+      writingResponse: input.writingResponse,
+    })
+
+    return { success: true }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to save your writing.',
     }
   }
 }

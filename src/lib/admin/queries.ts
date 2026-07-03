@@ -35,7 +35,7 @@ function buildStudentRows(
   }
 
   for (const mistake of mistakes) {
-    if (mistake.status !== 'needs_review' && mistake.status !== 'reviewing') {
+    if (mistake.status === 'mastered') {
       continue
     }
 
@@ -158,7 +158,7 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
     supabase
       .from('student_mistake_questions')
       .select('id', { count: 'exact', head: true })
-      .in('status', ['needs_review', 'reviewing']),
+      .neq('status', 'mastered'),
     getAdminStudentRows(6),
   ])
 

@@ -480,7 +480,14 @@ export async function getPublishedPracticeQuestion(questionId: string): Promise<
   }
 }
 
-export async function getPracticeQuestions(filters: PracticeQuestionFilters): Promise<PracticeQuestionItem[]> {
+/**
+ * Fetches the candidate pool (up to 100 published questions, without options)
+ * matching the practice filters. Callers pick from the pool (mode logic lives in
+ * the practice action) and hydrate the selection via hydratePracticeQuestions.
+ */
+export async function getPracticeQuestionPool(
+  filters: Omit<PracticeQuestionFilters, 'limit'>
+): Promise<Array<Omit<PracticeQuestionItem, 'options'>>> {
   const supabase = await createClient()
   let query = supabase
     .from('questions')
@@ -527,10 +534,8 @@ export async function getPracticeQuestions(filters: PracticeQuestionFilters): Pr
       question_type: { name: string }[] | { name: string } | null
     }
   >
-  const selectedQuestions = shuffleArray(questions).slice(0, filters.limit)
-  const optionsMap = await getQuestionOptionsMap(selectedQuestions.map((question) => question.id))
 
-  return selectedQuestions.map((question) => ({
+  return questions.map((question) => ({
     id: question.id,
     subjectId: question.subject_id,
     subjectName: getRelationValue(question.subject)?.name ?? 'Subject',
@@ -542,6 +547,24 @@ export async function getPracticeQuestions(filters: PracticeQuestionFilters): Pr
     difficulty: question.difficulty,
     questionText: question.question_text,
     passageText: question.passage_text,
+  }))
+}
+
+/** Attaches answer options to a picked set of pool questions. */
+export async function hydratePracticeQuestions(
+  questions: Array<Omit<PracticeQuestionItem, 'options'>>
+): Promise<PracticeQuestionItem[]> {
+  const optionsMap = await getQuestionOptionsMap(questions.map((question) => question.id))
+
+  return questions.map((question) => ({
+    ...question,
     options: optionsMap.get(question.id) ?? [],
   }))
 }
+
+export async function getPracticeQuestions(filters: PracticeQuestionFilters): Promise<PracticeQuestionItem[]> {
+  const pool = await getPracticeQuestionPool(filters)
+  return hydratePracticeQuestions(shuffleArray(pool).slice(0, filters.limit))
+}
+
+export { shuffleArray }
