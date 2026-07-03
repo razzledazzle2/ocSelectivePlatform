@@ -7,12 +7,13 @@ import { parseBulkPasteQuestions } from '@/lib/import/bulk-paste-parser'
 import { parseCsvQuestions } from '@/lib/import/csv-parser'
 import { importValidatedQuestions } from '@/lib/import/import-questions'
 import { validateQuestionImportRows } from '@/lib/import/validation'
-import type {
-  ImportFormat,
-  ImportStatusMode,
-  ImportSummary,
-  ImportValidationResult,
-  QuestionImportRow,
+import {
+  IMPORT_FORMAT_SOURCE,
+  type ImportFormat,
+  type ImportStatusMode,
+  type ImportSummary,
+  type ImportValidationResult,
+  type QuestionImportRow,
 } from '@/lib/import/types'
 import {
   getExistingQuestionTexts,
@@ -115,7 +116,11 @@ export async function importQuestionsAction(
       return { success: false, message: 'No valid rows are ready to import. Fix the highlighted issues first.' }
     }
 
-    const { summary, importedQuestionIds } = await importValidatedQuestions(resolvedRows, profile.id)
+    const { summary, importedQuestionIds } = await importValidatedQuestions(
+      resolvedRows,
+      profile.id,
+      IMPORT_FORMAT_SOURCE[format]
+    )
 
     revalidatePath('/admin/questions')
     revalidatePath('/admin/dashboard')

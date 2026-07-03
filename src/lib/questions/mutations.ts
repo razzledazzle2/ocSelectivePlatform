@@ -1,3 +1,4 @@
+import { MAX_OPTION_COUNT, MIN_OPTION_COUNT } from '@/lib/questions/option-rules'
 import { createClient } from '@/lib/supabase/server'
 import {
   EXAM_TYPES,
@@ -7,6 +8,11 @@ import {
   type QuestionOptionRecord,
   type QuestionWriteInput,
 } from '@/lib/types'
+
+/** Splits a comma-separated tags string into trimmed, de-duplicated tags. */
+export function parseTags(value: string): string[] {
+  return [...new Set(value.split(',').map((tag) => tag.trim()).filter(Boolean))]
+}
 
 function readTrimmedValue(formData: FormData, key: string): string {
   return String(formData.get(key) ?? '').trim()
@@ -20,12 +26,18 @@ function isValidOptionLabel(value: string): value is QuestionOptionLabel {
   return QUESTION_OPTION_LABELS.includes(value as QuestionOptionLabel)
 }
 
+/**
+ * Reads a flexible number of options (A–E). Only labels whose field was
+ * actually submitted are included, so a 4-option question simply omits E.
+ */
 function buildOptions(formData: FormData): QuestionOptionRecord[] {
-  return QUESTION_OPTION_LABELS.map((label, index) => ({
-    label,
-    option_text: readTrimmedValue(formData, `option${label}`),
-    sort_order: index + 1,
-  }))
+  return QUESTION_OPTION_LABELS.filter((label) => formData.get(`option${label}`) !== null).map(
+    (label, index) => ({
+      label,
+      option_text: readTrimmedValue(formData, `option${label}`),
+      sort_order: index + 1,
+    })
+  )
 }
 
 export function parseQuestionWriteInput(formData: FormData): ActionResult<QuestionWriteInput> {
@@ -42,6 +54,7 @@ export function parseQuestionWriteInput(formData: FormData): ActionResult<Questi
   const workedSolution = readTrimmedValue(formData, 'workedSolution')
   const correctOptionLabel = readTrimmedValue(formData, 'correctOptionLabel')
   const status = readTrimmedValue(formData, 'status')
+  const tags = parseTags(readTrimmedValue(formData, 'tags'))
   const options = buildOptions(formData)
 
   if (!isValidExamType(examType)) {
@@ -72,8 +85,21 @@ export function parseQuestionWriteInput(formData: FormData): ActionResult<Questi
     }
   }
 
+  if (options.length < MIN_OPTION_COUNT || options.length > MAX_OPTION_COUNT) {
+    fieldErrors.options = `Questions need between ${MIN_OPTION_COUNT} and ${MAX_OPTION_COUNT} options.`
+  }
+
+  const filledTexts = options.map((option) => option.option_text.toLowerCase()).filter(Boolean)
+  if (new Set(filledTexts).size !== filledTexts.length) {
+    fieldErrors.options = 'Options must be unique within a question.'
+  }
+
   if (!isValidOptionLabel(correctOptionLabel)) {
     fieldErrors.correctOptionLabel = 'Choose the correct option.'
+  } else if (!options.some((option) => option.label === correctOptionLabel)) {
+    fieldErrors.correctOptionLabel = `Correct answer is ${correctOptionLabel}, but this question only has options ${options
+      .map((option) => option.label)
+      .join('–')}.`
   }
 
   if (!workedSolution) {
@@ -117,6 +143,7 @@ export function parseQuestionWriteInput(formData: FormData): ActionResult<Questi
       correctOptionLabel: normalizedCorrectOptionLabel,
       shortExplanation: shortExplanation || null,
       workedSolution,
+      tags,
       status: normalizedStatus,
     },
   }
@@ -138,6 +165,8 @@ function buildQuestionPayload(input: QuestionWriteInput, actorId: string) {
     worked_solution: input.workedSolution,
     correct_option_label: input.correctOptionLabel,
     status: input.status,
+    source: 'manual',
+    tags: input.tags,
     created_by: actorId,
     updated_by: actorId,
     published_at: publishedAt,
@@ -209,6 +238,7 @@ export async function updateQuestion(questionId: string, input: QuestionWriteInp
       worked_solution: input.workedSolution,
       correct_option_label: input.correctOptionLabel,
       status: input.status,
+      tags: input.tags,
       published_at: publishedAt,
       archived_at: null,
       updated_by: actorId,
@@ -227,6 +257,18 @@ export async function updateQuestion(questionId: string, input: QuestionWriteInp
 
   if (optionsError) {
     throw new Error('Question updated, but the answer options could not be saved.')
+  }
+
+  // If the edit reduced the option count (e.g. 5 → 4), remove the stale labels.
+  const keptLabels = input.options.map((option) => option.label)
+  const { error: staleError } = await supabase
+    .from('question_options')
+    .delete()
+    .eq('question_id', questionId)
+    .not('label', 'in', `(${keptLabels.map((label) => `"${label}"`).join(',')})`)
+
+  if (staleError) {
+    throw new Error('Question updated, but old answer options could not be removed.')
   }
 
   return questionId
@@ -307,7 +349,7 @@ export async function duplicateQuestion(
   const { data: original, error: loadError } = await supabase
     .from('questions')
     .select(
-      'subject_id, topic_id, question_type_id, exam_type, year_level, difficulty, question_text, passage_text, short_explanation, worked_solution, correct_option_label'
+      'subject_id, topic_id, question_type_id, exam_type, year_level, difficulty, question_text, passage_text, short_explanation, worked_solution, correct_option_label, tags'
     )
     .eq('id', questionId)
     .maybeSingle()
@@ -342,7 +384,9 @@ export async function duplicateQuestion(
       short_explanation: original.short_explanation,
       worked_solution: original.worked_solution,
       correct_option_label: original.correct_option_label,
+      tags: original.tags ?? [],
       status: 'draft',
+      source: 'manual',
       created_by: actorId,
       updated_by: actorId,
       published_at: null,

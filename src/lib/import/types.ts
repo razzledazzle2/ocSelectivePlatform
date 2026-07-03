@@ -1,6 +1,20 @@
-import type { ExamType, QuestionOptionLabel, QuestionStatus, SubjectRecord, TopicRecord, QuestionTypeRecord } from '@/lib/types'
+import type {
+  ExamType,
+  QuestionOptionLabel,
+  QuestionSource,
+  QuestionStatus,
+  SubjectRecord,
+  TopicRecord,
+  QuestionTypeRecord,
+} from '@/lib/types'
 
 export type ImportFormat = 'csv' | 'paste'
+
+/** Maps an import format to the questions.source value it produces. */
+export const IMPORT_FORMAT_SOURCE: Record<ImportFormat, QuestionSource> = {
+  csv: 'csv',
+  paste: 'bulk_paste',
+}
 
 /** 'draft' forces every row to draft; 'source' respects the parsed status (defaulting to draft). */
 export type ImportStatusMode = 'draft' | 'source'
@@ -8,6 +22,7 @@ export type ImportStatusMode = 'draft' | 'source'
 /**
  * The common internal shape every importer (CSV, bulk paste, and later AI drafts) produces.
  * Fields are raw strings straight from the source; validation resolves and normalises them.
+ * Options are positional (index 0 = A, 1 = B, ...) and support 4 or 5 entries.
  */
 export interface QuestionImportRow {
   rowNumber: number
@@ -18,10 +33,8 @@ export interface QuestionImportRow {
   examType: string
   questionText: string
   passageText: string
-  optionA: string
-  optionB: string
-  optionC: string
-  optionD: string
+  /** Option texts in label order. Empty entries are dropped during validation. */
+  options: string[]
   correctAnswer: string
   workedSolution: string
   shortExplanation: string
@@ -45,13 +58,12 @@ export interface ResolvedImportQuestion {
   yearLevel: number | null
   questionText: string
   passageText: string | null
-  optionA: string
-  optionB: string
-  optionC: string
-  optionD: string
+  /** Option texts in label order (A, B, C, ...). */
+  options: string[]
   correctOptionLabel: QuestionOptionLabel
   workedSolution: string
   shortExplanation: string | null
+  tags: string[]
   status: QuestionStatus
 }
 
@@ -62,6 +74,8 @@ export interface ValidatedImportRow {
   topicLabel: string
   questionTypeLabel: string
   statusLabel: string
+  optionsCount: number
+  correctAnswerLabel: string
   errors: ImportRowIssue[]
   warnings: ImportRowIssue[]
   isDuplicate: boolean

@@ -1,3 +1,5 @@
+import { parseTags } from '@/lib/questions/mutations'
+import { checkOptionCount, labelsForCount } from '@/lib/questions/option-rules'
 import {
   EXAM_TYPES,
   QUESTION_OPTION_LABELS,
@@ -111,22 +113,56 @@ export function validateQuestionImportRows(
       errors.push({ field: 'solution', message: 'A worked solution is required.' })
     }
 
-    const optionValues = { A: row.optionA, B: row.optionB, C: row.optionC, D: row.optionD }
-    for (const label of QUESTION_OPTION_LABELS) {
-      if (!optionValues[label].trim()) {
-        errors.push({ field: `option_${label.toLowerCase()}`, message: `Option ${label} is required.` })
+    // -- Options (flexible A–E, subject-aware count rules) -------------------
+    const optionTexts = row.options.map((option) => option.trim())
+    const optionLabels = labelsForCount(optionTexts.length)
+
+    // Interior gaps (e.g. A, B, D parsed but no C) are called out by letter so
+    // nothing is silently discarded.
+    optionTexts.forEach((text, index) => {
+      if (!text) {
+        errors.push({
+          field: `option_${optionLabels[index]?.toLowerCase() ?? index + 1}`,
+          message: `Option ${optionLabels[index] ?? index + 1} is empty.`,
+        })
+      }
+    })
+
+    if (optionTexts.length === 0) {
+      errors.push({ field: 'options', message: 'No answer options were parsed for this question.' })
+    } else {
+      // Count rules come from the central config (option-rules.ts): e.g.
+      // Mathematical Reasoning allows 4–5 and prefers 5; Thinking Skills requires 4.
+      const countCheck = checkOptionCount(subject?.name ?? row.subject, optionTexts.length)
+      if (countCheck.error) {
+        errors.push({ field: 'options', message: countCheck.error })
+      } else if (countCheck.warning) {
+        warnings.push({ field: 'options', message: countCheck.warning })
       }
     }
-    const filledOptions = QUESTION_OPTION_LABELS.map((label) => optionValues[label].trim().toLowerCase()).filter(
-      Boolean
-    )
+
+    const filledOptions = optionTexts.map((text) => text.toLowerCase()).filter(Boolean)
     if (new Set(filledOptions).size !== filledOptions.length) {
       errors.push({ field: 'options', message: 'Options must be unique within a question.' })
     }
 
     const correctOptionLabel = row.correctAnswer.trim().toUpperCase()
     if (!QUESTION_OPTION_LABELS.includes(correctOptionLabel as QuestionOptionLabel)) {
-      errors.push({ field: 'correct_answer', message: 'Correct answer must be A, B, C, or D.' })
+      errors.push({
+        field: 'correct_answer',
+        message: `Correct answer must be one of ${QUESTION_OPTION_LABELS.join(', ')}.`,
+      })
+    } else if (
+      optionTexts.length > 0 &&
+      !optionLabels.includes(correctOptionLabel as QuestionOptionLabel)
+    ) {
+      // e.g. "Correct answer is E but only A–D options were parsed."
+      errors.push({
+        field: 'correct_answer',
+        message: `Correct answer is ${correctOptionLabel} but only ${optionLabels[0]}–${
+          optionLabels[optionLabels.length - 1]
+        } options were parsed.`,
+      })
     }
 
     const examType = normalizeExamType(row.examType)
@@ -192,13 +228,11 @@ export function validateQuestionImportRows(
             yearLevel,
             questionText: row.questionText.trim(),
             passageText: row.passageText.trim() || null,
-            optionA: row.optionA.trim(),
-            optionB: row.optionB.trim(),
-            optionC: row.optionC.trim(),
-            optionD: row.optionD.trim(),
+            options: optionTexts,
             correctOptionLabel: correctOptionLabel as QuestionOptionLabel,
             workedSolution: row.workedSolution.trim(),
             shortExplanation: row.shortExplanation.trim() || null,
+            tags: parseTags(row.tags),
             status: resolvedStatus,
           }
         : null
@@ -210,6 +244,8 @@ export function validateQuestionImportRows(
       topicLabel: topic?.name ?? (row.topic || '—'),
       questionTypeLabel: questionType?.name ?? (row.questionType || 'Untagged'),
       statusLabel: resolvedStatus,
+      optionsCount: optionTexts.length,
+      correctAnswerLabel: correctOptionLabel || '—',
       errors,
       warnings,
       isDuplicate,

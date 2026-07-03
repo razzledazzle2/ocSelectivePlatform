@@ -1,3 +1,4 @@
+import { QUESTION_OPTION_LABELS } from '@/lib/types'
 import type { QuestionImportRow } from '@/lib/import/types'
 
 export interface BulkPasteParseResult {
@@ -5,7 +6,9 @@ export interface BulkPasteParseResult {
   error?: string
 }
 
-const OPTION_RE = /^\s*([A-D])[.)]\s*(.+)$/i
+// A–E option lines ("A. 60", "e) 150"). Five-option (Maths Reasoning) and
+// four-option questions both parse; validation applies the subject rules.
+const OPTION_RE = /^\s*([A-E])[.)]\s*(.+)$/i
 const LABEL_RE = /^\s*([A-Za-z][A-Za-z ]*?)\s*:\s*(.+)$/
 const QUESTION_START_RE = /^\s*(?:q|question)\s*\d*\s*[.):-]/i
 
@@ -19,10 +22,7 @@ function emptyRow(rowNumber: number): QuestionImportRow {
     examType: '',
     questionText: '',
     passageText: '',
-    optionA: '',
-    optionB: '',
-    optionC: '',
-    optionD: '',
+    options: [],
     correctAnswer: '',
     workedSolution: '',
     shortExplanation: '',
@@ -61,6 +61,8 @@ function splitIntoBlocks(text: string): string[] {
 
 function parseBlock(block: string, rowNumber: number): QuestionImportRow {
   const row = emptyRow(rowNumber)
+  // Collected by label so out-of-order or missing letters stay detectable.
+  const optionsByLabel = new Map<string, string>()
   const questionParts: string[] = []
   let sawOption = false
   let collectingSolution = false
@@ -70,8 +72,7 @@ function parseBlock(block: string, rowNumber: number): QuestionImportRow {
     if (optionMatch) {
       sawOption = true
       collectingSolution = false
-      const label = optionMatch[1].toUpperCase() as 'A' | 'B' | 'C' | 'D'
-      row[`option${label}`] = optionMatch[2].trim()
+      optionsByLabel.set(optionMatch[1].toUpperCase(), optionMatch[2].trim())
       continue
     }
 
@@ -151,6 +152,18 @@ function parseBlock(block: string, rowNumber: number): QuestionImportRow {
     .replace(/\s+/g, ' ')
     .trim()
   row.workedSolution = row.workedSolution.trim()
+
+  // Positional options up to the highest label seen; interior gaps stay empty
+  // so validation can point at the exact missing letter instead of silently
+  // discarding what was pasted.
+  const labels = QUESTION_OPTION_LABELS as readonly string[]
+  const highestIndex = Math.max(
+    ...[...optionsByLabel.keys()].map((label) => labels.indexOf(label)),
+    -1
+  )
+  row.options = labels
+    .slice(0, highestIndex + 1)
+    .map((label) => optionsByLabel.get(label) ?? '')
 
   return row
 }

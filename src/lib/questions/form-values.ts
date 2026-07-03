@@ -1,3 +1,4 @@
+import { getOptionRuleForSubject } from '@/lib/questions/option-rules'
 import type { QuestionDetail, QuestionFormValues, QuestionTypeRecord, SubjectRecord, TopicRecord } from '@/lib/types'
 
 export function createEmptyQuestionFormValues(
@@ -5,12 +6,15 @@ export function createEmptyQuestionFormValues(
   topics: TopicRecord[],
   questionTypes: QuestionTypeRecord[]
 ): QuestionFormValues {
-  const defaultSubjectId = subjects[0]?.id ?? ''
+  const defaultSubject = subjects[0] ?? null
+  const defaultSubjectId = defaultSubject?.id ?? ''
   const defaultTopicId = topics.find((topic) => topic.subject_id === defaultSubjectId)?.id ?? ''
   const defaultQuestionTypeId =
     questionTypes.find((questionType) => questionType.topic_id === defaultTopicId)?.id ??
     questionTypes.find((questionType) => questionType.subject_id === defaultSubjectId)?.id ??
     ''
+  // Start with the subject's preferred option count (e.g. 5 for Maths Reasoning).
+  const preferredCount = getOptionRuleForSubject(defaultSubject?.name).preferredCount
 
   return {
     examType: 'OC',
@@ -21,20 +25,17 @@ export function createEmptyQuestionFormValues(
     difficulty: '3',
     questionText: '',
     passageText: '',
-    optionA: '',
-    optionB: '',
-    optionC: '',
-    optionD: '',
+    options: Array.from({ length: preferredCount }, () => ''),
     correctOptionLabel: 'A',
     shortExplanation: '',
     workedSolution: '',
+    tags: '',
     status: 'draft',
   }
 }
 
 export function questionDetailToFormValues(question: QuestionDetail): QuestionFormValues {
-  const getOptionText = (label: 'A' | 'B' | 'C' | 'D') =>
-    question.options.find((option) => option.label === label)?.option_text ?? ''
+  const sortedOptions = [...question.options].sort((left, right) => left.sort_order - right.sort_order)
 
   return {
     examType: question.exam_type,
@@ -45,13 +46,11 @@ export function questionDetailToFormValues(question: QuestionDetail): QuestionFo
     difficulty: String(question.difficulty),
     questionText: question.question_text,
     passageText: question.passage_text ?? '',
-    optionA: getOptionText('A'),
-    optionB: getOptionText('B'),
-    optionC: getOptionText('C'),
-    optionD: getOptionText('D'),
+    options: sortedOptions.map((option) => option.option_text),
     correctOptionLabel: question.correct_option_label,
     shortExplanation: question.short_explanation ?? '',
     workedSolution: question.worked_solution,
+    tags: (question.tags ?? []).join(', '),
     status: question.status === 'archived' ? 'draft' : question.status,
   }
 }

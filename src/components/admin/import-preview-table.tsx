@@ -15,10 +15,13 @@ interface ImportPreviewTableProps {
 
 function StatusBadge({ row }: { row: ValidatedImportRow }) {
   if (row.errors.length > 0) {
-    return <Badge variant="destructive">Needs fixing</Badge>
+    return <Badge variant="destructive">Error</Badge>
   }
   if (row.isDuplicate) {
-    return <Badge variant="outline">Duplicate — skipped</Badge>
+    return <Badge variant="outline">Duplicate?</Badge>
+  }
+  if (row.warnings.length > 0) {
+    return <Badge variant="secondary">Warning</Badge>
   }
   return <Badge>Ready</Badge>
 }
@@ -31,10 +34,13 @@ export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead className="w-12">#</TableHead>
-              <TableHead className="min-w-[18rem]">Question</TableHead>
-              <TableHead>Taxonomy</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="min-w-[16rem]">Validation</TableHead>
+              <TableHead className="min-w-[16rem]">Question</TableHead>
+              <TableHead>Subject</TableHead>
+              <TableHead>Topic</TableHead>
+              <TableHead className="text-center">Options</TableHead>
+              <TableHead className="text-center">Correct</TableHead>
+              <TableHead className="min-w-[16rem]">Issues</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -42,16 +48,19 @@ export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
               <TableRow key={row.rowNumber}>
                 <TableCell className="align-top text-sm text-muted-foreground">{row.rowNumber}</TableCell>
                 <TableCell className="align-top">
-                  <p className="line-clamp-2 text-sm text-foreground">{row.questionPreview}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Imports as {row.statusLabel}</p>
-                </TableCell>
-                <TableCell className="align-top text-sm">
-                  <p className="text-foreground">{row.subjectLabel}</p>
-                  <p className="text-muted-foreground">{row.topicLabel}</p>
-                  <p className="text-muted-foreground">{row.questionTypeLabel}</p>
+                  <StatusBadge row={row} />
                 </TableCell>
                 <TableCell className="align-top">
-                  <StatusBadge row={row} />
+                  <p className="line-clamp-2 text-sm text-foreground">{row.questionPreview}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {row.questionTypeLabel} • imports as {row.statusLabel}
+                  </p>
+                </TableCell>
+                <TableCell className="align-top text-sm">{row.subjectLabel}</TableCell>
+                <TableCell className="align-top text-sm">{row.topicLabel}</TableCell>
+                <TableCell className="align-top text-center text-sm">{row.optionsCount}</TableCell>
+                <TableCell className="align-top text-center">
+                  <Badge variant="outline">{row.correctAnswerLabel}</Badge>
                 </TableCell>
                 <TableCell className="align-top">
                   {row.errors.length === 0 && row.warnings.length === 0 ? (
@@ -60,12 +69,12 @@ export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
                     <ul className="space-y-1 text-xs">
                       {row.errors.map((issue, index) => (
                         <li key={`e-${index}`} className="text-destructive">
-                          {issue.field}: {issue.message}
+                          {issue.message}
                         </li>
                       ))}
                       {row.warnings.map((issue, index) => (
                         <li key={`w-${index}`} className="text-amber-700">
-                          {issue.field}: {issue.message}
+                          {issue.message}
                         </li>
                       ))}
                     </ul>

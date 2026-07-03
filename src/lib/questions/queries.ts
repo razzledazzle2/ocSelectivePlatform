@@ -146,13 +146,16 @@ export async function getAdminQuestions(filters: AdminQuestionFilters = {}): Pro
       exam_type,
       difficulty,
       status,
+      correct_option_label,
+      tags,
       created_at,
       updated_at,
       published_at,
       archived_at,
       subject:subjects(name),
       topic:topics(name),
-      question_type:question_types(name)
+      question_type:question_types(name),
+      options:question_options(count)
     `)
     .order('created_at', { ascending: false })
 
@@ -189,11 +192,22 @@ export async function getAdminQuestions(filters: AdminQuestionFilters = {}): Pro
   return ((data ?? []) as unknown as Array<
     Pick<
       QuestionRecord,
-      'id' | 'question_text' | 'exam_type' | 'difficulty' | 'status' | 'created_at' | 'updated_at' | 'published_at' | 'archived_at'
+      | 'id'
+      | 'question_text'
+      | 'exam_type'
+      | 'difficulty'
+      | 'status'
+      | 'correct_option_label'
+      | 'created_at'
+      | 'updated_at'
+      | 'published_at'
+      | 'archived_at'
     > & {
+      tags: string[] | null
       subject: { name: string }[] | { name: string } | null
       topic: { name: string }[] | { name: string } | null
       question_type: { name: string }[] | { name: string } | null
+      options: { count: number }[] | { count: number } | null
     }
   >).map((question) => ({
     id: question.id,
@@ -204,6 +218,9 @@ export async function getAdminQuestions(filters: AdminQuestionFilters = {}): Pro
     examType: question.exam_type,
     difficulty: question.difficulty,
     status: question.status,
+    optionsCount: getRelationValue(question.options)?.count ?? 0,
+    correctOptionLabel: question.correct_option_label,
+    tags: question.tags ?? [],
     createdAt: question.created_at,
     updatedAt: question.updated_at,
     publishedAt: question.published_at,

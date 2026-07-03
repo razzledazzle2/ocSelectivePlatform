@@ -3,7 +3,8 @@ import type { LucideIcon } from 'lucide-react'
 export const APP_ROLES = ['student', 'admin', 'tutor', 'parent', 'external_customer', 'super_admin'] as const
 export const EXAM_TYPES = ['OC', 'Selective'] as const
 export const QUESTION_STATUSES = ['draft', 'published', 'archived'] as const
-export const QUESTION_OPTION_LABELS = ['A', 'B', 'C', 'D'] as const
+export const QUESTION_OPTION_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
+export const QUESTION_SOURCES = ['manual', 'csv', 'bulk_paste'] as const
 export const PRACTICE_MODES = ['practice'] as const
 export const MISTAKE_STATUSES = ['needs_review', 'learning', 'improving', 'mastered'] as const
 export const ADMIN_PORTAL_ROLES = ['tutor', 'admin', 'super_admin'] as const
@@ -13,6 +14,7 @@ export type AppRole = (typeof APP_ROLES)[number]
 export type ExamType = (typeof EXAM_TYPES)[number]
 export type QuestionStatus = (typeof QUESTION_STATUSES)[number]
 export type QuestionOptionLabel = (typeof QUESTION_OPTION_LABELS)[number]
+export type QuestionSource = (typeof QUESTION_SOURCES)[number]
 export type PracticeMode = (typeof PRACTICE_MODES)[number]
 export type MistakeStatus = (typeof MISTAKE_STATUSES)[number]
 export type AdminPortalRole = (typeof ADMIN_PORTAL_ROLES)[number]
@@ -106,6 +108,8 @@ export interface QuestionRecord {
   worked_solution: string
   correct_option_label: QuestionOptionLabel
   status: QuestionStatus
+  source: QuestionSource
+  tags: string[]
   created_by: string | null
   updated_by: string | null
   published_at: string | null
@@ -139,6 +143,9 @@ export interface AdminQuestionListItem {
   examType: ExamType
   difficulty: number
   status: QuestionStatus
+  optionsCount: number
+  correctOptionLabel: QuestionOptionLabel
+  tags: string[]
   createdAt: string
   updatedAt: string
   publishedAt: string | null
@@ -154,13 +161,13 @@ export interface QuestionFormValues {
   difficulty: string
   questionText: string
   passageText: string
-  optionA: string
-  optionB: string
-  optionC: string
-  optionD: string
+  /** Option texts in label order (index 0 = A, 1 = B, ...). Length 4–5. */
+  options: string[]
   correctOptionLabel: QuestionOptionLabel
   shortExplanation: string
   workedSolution: string
+  /** Comma-separated in the form; split into text[] on write. */
+  tags: string
   status: Extract<QuestionStatus, 'draft' | 'published'>
 }
 
@@ -177,6 +184,7 @@ export interface QuestionWriteInput {
   correctOptionLabel: QuestionOptionLabel
   shortExplanation: string | null
   workedSolution: string
+  tags: string[]
   status: Extract<QuestionStatus, 'draft' | 'published'>
 }
 

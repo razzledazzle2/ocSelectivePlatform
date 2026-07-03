@@ -3,7 +3,15 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
-import { CheckCircle2Icon, RotateCcwIcon, XCircleIcon } from 'lucide-react'
+import {
+  BrainIcon,
+  CheckCircle2Icon,
+  RotateCcwIcon,
+  SparklesIcon,
+  TimerIcon,
+  TrendingUpIcon,
+  XCircleIcon,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -29,6 +37,7 @@ import { StudentQuestionReportButton } from '@/components/student/student-questi
 import { cn } from '@/lib/utils'
 import {
   EXAM_TYPES,
+  type AreaInsight,
   type AttemptFeedback,
   type ExamType,
   type PracticeQuestionItem,
@@ -37,9 +46,20 @@ import {
   type TopicRecord,
 } from '@/lib/types'
 
+/** Aggregates from real attempt/mistake data that power the hub cards. */
+export interface PracticeHubData {
+  hasActivity: boolean
+  revisionDueCount: number
+  revisionTopAreas: string[]
+  hasEnoughInsightData: boolean
+  weakest: AreaInsight | null
+  strongest: AreaInsight | null
+}
+
 interface PracticeSessionProps {
   subjects: SubjectRecord[]
   topics: TopicRecord[]
+  hub: PracticeHubData
 }
 
 interface AnsweredQuestion {
@@ -50,7 +70,18 @@ interface AnsweredQuestion {
 
 type Phase = 'setup' | 'active' | 'results'
 
-const QUESTION_COUNT = '20'
+const SESSION_LENGTHS = ['5', '10', '20'] as const
+const ANY_TOPIC = 'all'
+const ANY_DIFFICULTY = 'any'
+
+const DIFFICULTY_ITEMS: Record<string, string> = {
+  [ANY_DIFFICULTY]: 'Any difficulty',
+  '1': 'Difficulty 1 — gentle',
+  '2': 'Difficulty 2',
+  '3': 'Difficulty 3',
+  '4': 'Difficulty 4',
+  '5': 'Difficulty 5 — exam level',
+}
 
 function formatSeconds(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
@@ -58,14 +89,16 @@ function formatSeconds(totalSeconds: number): string {
   return minutes === 0 ? `${seconds}s` : `${minutes}m ${seconds}s`
 }
 
-export function PracticeSession({ subjects, topics }: PracticeSessionProps) {
+export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [phase, setPhase] = useState<Phase>('setup')
 
   const [examType, setExamType] = useState<ExamType>('OC')
   const [subjectId, setSubjectId] = useState('')
-  const [topicId, setTopicId] = useState('')
+  const [topicId, setTopicId] = useState(ANY_TOPIC)
+  const [difficulty, setDifficulty] = useState(ANY_DIFFICULTY)
+  const [questionCount, setQuestionCount] = useState<(typeof SESSION_LENGTHS)[number]>('10')
   const [emptyResult, setEmptyResult] = useState(false)
 
   const [sessionId, setSessionId] = useState('')
@@ -86,17 +119,20 @@ export function PracticeSession({ subjects, topics }: PracticeSessionProps) {
     [subjects]
   )
   const topicItems = useMemo(
-    () => Object.fromEntries(filteredTopics.map((topic) => [topic.id, topic.name])),
+    () => ({
+      [ANY_TOPIC]: 'All topics (recommended)',
+      ...Object.fromEntries(filteredTopics.map((topic) => [topic.id, topic.name])),
+    }),
     [filteredTopics]
   )
 
   const activeQuestion = questions[currentIndex] ?? null
   const isLastQuestion = currentIndex >= questions.length - 1
-  const canStart = Boolean(examType && subjectId && topicId)
+  const canStart = Boolean(examType && subjectId)
 
   function handleSubjectChange(nextSubjectId: string) {
     setSubjectId(nextSubjectId)
-    setTopicId('')
+    setTopicId(ANY_TOPIC)
     setEmptyResult(false)
   }
 
@@ -104,8 +140,13 @@ export function PracticeSession({ subjects, topics }: PracticeSessionProps) {
     const formData = new FormData()
     formData.set('examType', examType)
     formData.set('subjectId', subjectId)
-    formData.set('topicId', topicId)
-    formData.set('questionCount', QUESTION_COUNT)
+    if (topicId !== ANY_TOPIC) {
+      formData.set('topicId', topicId)
+    }
+    if (difficulty !== ANY_DIFFICULTY) {
+      formData.set('difficulty', difficulty)
+    }
+    formData.set('questionCount', questionCount)
 
     startTransition(async () => {
       const result = await startPracticeAction(formData)
@@ -207,98 +248,271 @@ export function PracticeSession({ subjects, topics }: PracticeSessionProps) {
     setSessionId('')
   }
 
-  // -- Setup ---------------------------------------------------------------
+  // -- Setup: the Practice Hub ----------------------------------------------
   if (phase === 'setup') {
+    const recommendedAreas = hub.revisionTopAreas.slice(0, 3).join(', ')
+
     return (
-      <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
-        <CardHeader className="border-b border-border/70">
-          <CardTitle>Practice filters</CardTitle>
-          <CardDescription>Choose an exam type, subject and topic, then start practising.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5 pt-6">
-          {isPending ? (
-            <div className="space-y-3">
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-40 w-full" />
-              <Skeleton className="h-10 w-32" />
-            </div>
-          ) : (
-            <>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>Exam type</Label>
-                  <Select value={examType} onValueChange={(value) => setExamType(value as ExamType)}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Choose exam type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {EXAM_TYPES.map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {value}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Subject</Label>
-                  <Select value={subjectId} onValueChange={handleSubjectChange} items={subjectItems}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Choose a subject" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subjects.map((subject) => (
-                        <SelectItem key={subject.id} value={subject.id}>
-                          {subject.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Topic</Label>
-                  <Select
-                    value={topicId}
-                    onValueChange={(value) => {
-                      setTopicId(value)
-                      setEmptyResult(false)
-                    }}
-                    disabled={!subjectId}
-                    items={topicItems}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={subjectId ? 'Choose a topic' : 'Choose a subject first'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredTopics.map((topic) => (
-                        <SelectItem key={topic.id} value={topic.id}>
-                          {topic.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+      <div className="space-y-5">
+        <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr]">
+          {/* -- Recommended Today ---------------------------------------- */}
+          <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+            <CardHeader className="border-b border-border/70">
+              <div className="flex items-center gap-2">
+                <SparklesIcon className="size-4 text-cyan-700" />
+                <CardTitle>Recommended today</CardTitle>
               </div>
+              <CardDescription>Built from your mistakes and weak areas — it updates as you practise.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex h-full flex-col justify-between gap-4 pt-6">
+              {hub.revisionDueCount > 0 ? (
+                <>
+                  <p className="text-sm leading-7 text-slate-700">
+                    You have <span className="font-semibold text-slate-950">{hub.revisionDueCount} question{hub.revisionDueCount === 1 ? '' : 's'} ready to review</span>
+                    {recommendedAreas ? (
+                      <>
+                        {' '}— mostly <span className="font-medium text-slate-950">{recommendedAreas}</span>
+                      </>
+                    ) : null}
+                    . Clearing these first is the fastest way to lift your accuracy.
+                  </p>
+                  <div>
+                    <Link href="/student/revision" className={cn(buttonVariants({ variant: 'default' }))}>
+                      Start recommended practice
+                    </Link>
+                  </div>
+                </>
+              ) : hub.weakest ? (
+                <>
+                  <p className="text-sm leading-7 text-slate-700">
+                    Nothing is due for revision — nice. Your data says{' '}
+                    <span className="font-medium text-slate-950">
+                      {[hub.weakest.subjectName, hub.weakest.topicName].filter(Boolean).join(' — ')}
+                    </span>{' '}
+                    is your weakest area ({hub.weakest.accuracy}% accuracy), so a focused set there is the best
+                    use of today.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Use Quick Practice on the right and pick that subject to target it.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm leading-7 text-slate-700">
+                    Welcome! Start with a quick 10-question set — after a few sessions this card starts
+                    recommending exactly what to practise next.
+                  </p>
+                  <p className="text-xs text-muted-foreground">Choose a subject on the right to begin.</p>
+                </>
+              )}
+            </CardContent>
+          </Card>
 
-              {emptyResult ? (
-                <Alert>
-                  <AlertTitle>No questions here yet</AlertTitle>
-                  <AlertDescription>
-                    There are no published questions for this topic and exam type yet. Try another topic or exam
-                    type.
-                  </AlertDescription>
-                </Alert>
-              ) : null}
+          {/* -- Quick Practice -------------------------------------------- */}
+          <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+            <CardHeader className="border-b border-border/70">
+              <CardTitle>Quick practice</CardTitle>
+              <CardDescription>
+                Choose a subject and session length — we pick the questions.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-6">
+              {isPending ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-32 w-full" />
+                  <Skeleton className="h-10 w-32" />
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Exam type</Label>
+                      <Select value={examType} onValueChange={(value) => setExamType(value as ExamType)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Choose exam type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {EXAM_TYPES.map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {value}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-              <Button disabled={!canStart || isPending} onClick={startPractice}>
-                {isPending ? 'Starting...' : 'Start practice'}
-              </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
+                    <div className="space-y-2">
+                      <Label>Subject</Label>
+                      <Select value={subjectId} onValueChange={handleSubjectChange} items={subjectItems}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Choose a subject" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {subjects.map((subject) => (
+                            <SelectItem key={subject.id} value={subject.id}>
+                              {subject.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Topic</Label>
+                      <Select
+                        value={topicId}
+                        onValueChange={(value) => {
+                          setTopicId(value)
+                          setEmptyResult(false)
+                        }}
+                        disabled={!subjectId}
+                        items={topicItems}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={subjectId ? 'All topics' : 'Choose a subject first'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={ANY_TOPIC}>All topics (recommended)</SelectItem>
+                          {filteredTopics.map((topic) => (
+                            <SelectItem key={topic.id} value={topic.id}>
+                              {topic.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Difficulty</Label>
+                      <Select value={difficulty} onValueChange={setDifficulty} items={DIFFICULTY_ITEMS}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Any difficulty" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(DIFFICULTY_ITEMS).map(([value, label]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Session length</Label>
+                    <div className="flex gap-2">
+                      {SESSION_LENGTHS.map((length) => (
+                        <Button
+                          key={length}
+                          type="button"
+                          size="sm"
+                          variant={questionCount === length ? 'default' : 'outline'}
+                          onClick={() => setQuestionCount(length)}
+                        >
+                          {length} questions
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {emptyResult ? (
+                    <Alert>
+                      <AlertTitle>No questions here yet</AlertTitle>
+                      <AlertDescription>
+                        There are no published questions for these filters yet. Try another topic, difficulty or
+                        exam type.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
+
+                  <Button className="w-full" disabled={!canStart || isPending} onClick={startPractice}>
+                    {isPending ? 'Building your set…' : 'Start practice'}
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* -- Weak areas / Revision due / Mock exams ----------------------- */}
+        <div className="grid gap-5 md:grid-cols-3">
+          <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <TrendingUpIcon className="size-4 text-cyan-700" />
+                <CardTitle className="text-base">Weak areas</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {hub.hasEnoughInsightData && hub.weakest ? (
+                <>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+                    <p className="text-sm font-medium text-amber-950">
+                      {[hub.weakest.subjectName, hub.weakest.topicName].filter(Boolean).join(' — ')}
+                    </p>
+                    <p className="mt-1 text-xs text-amber-800">
+                      {hub.weakest.accuracy}% accuracy over {hub.weakest.attempts} attempts
+                    </p>
+                  </div>
+                  {hub.strongest ? (
+                    <p className="text-xs text-muted-foreground">
+                      Strongest: {[hub.strongest.subjectName, hub.strongest.topicName].filter(Boolean).join(' — ')}{' '}
+                      ({hub.strongest.accuracy}%)
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Complete a few practice sessions to unlock weak-area recommendations.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <BrainIcon className="size-4 text-cyan-700" />
+                <CardTitle className="text-base">Revision due</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-2xl font-semibold text-slate-950">{hub.revisionDueCount}</p>
+              <p className="text-sm text-muted-foreground">
+                {hub.revisionDueCount === 0
+                  ? 'Nothing due right now — mistakes you make in practice appear here for spaced review.'
+                  : 'Mistake-review questions are due. Short, spaced reviews beat cramming.'}
+              </p>
+              <Link
+                href="/student/revision"
+                className={cn(buttonVariants({ variant: hub.revisionDueCount > 0 ? 'default' : 'outline', size: 'sm' }))}
+              >
+                Review mistakes
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <TimerIcon className="size-4 text-cyan-700" />
+                <CardTitle className="text-base">Mock exams</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Timed, exam-style sessions with a full results breakdown at the end. Best once you are
+                comfortable with a subject.
+              </p>
+              <Link href="/student/mock-exams" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
+                Try a mock exam
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     )
   }
 
