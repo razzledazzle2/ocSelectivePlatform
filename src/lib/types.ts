@@ -35,6 +35,7 @@ export type NavigationIconName =
   | 'timer'
   | 'users'
   | 'flag'
+  | 'layers'
 
 export interface NavigationItem {
   href: string

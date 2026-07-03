@@ -239,6 +239,26 @@ export async function getExistingQuestionTexts(): Promise<string[]> {
   return ((data ?? []) as Array<{ question_text: string }>).map((row) => row.question_text)
 }
 
+/** Distinct tags already used across the bank — powers the "new tag" import warning. */
+export async function getExistingTags(): Promise<string[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('questions').select('tags')
+
+  if (error) {
+    throw new Error('Unable to load existing tags.')
+  }
+
+  const tags = new Set<string>()
+  for (const row of (data ?? []) as Array<{ tags: string[] | null }>) {
+    for (const tag of row.tags ?? []) {
+      if (tag.trim()) {
+        tags.add(tag.trim())
+      }
+    }
+  }
+  return [...tags]
+}
+
 export async function validateQuestionTaxonomy(
   subjectId: string,
   topicId: string,

@@ -16,8 +16,26 @@ export const IMPORT_FORMAT_SOURCE: Record<ImportFormat, QuestionSource> = {
   paste: 'bulk_paste',
 }
 
-/** 'draft' forces every row to draft; 'source' respects the parsed status (defaulting to draft). */
-export type ImportStatusMode = 'draft' | 'source'
+/**
+ * Admin-controlled import behaviour. Defaults are forgiving: import as draft,
+ * auto-create missing taxonomy, allow missing short explanations, warn (not
+ * block) on duplicates.
+ */
+export interface ImportSettings {
+  importStatus: Extract<QuestionStatus, 'draft' | 'published'>
+  createMissingTopics: boolean
+  createMissingQuestionTypes: boolean
+  requireShortExplanation: boolean
+  blockDuplicates: boolean
+}
+
+export const DEFAULT_IMPORT_SETTINGS: ImportSettings = {
+  importStatus: 'draft',
+  createMissingTopics: true,
+  createMissingQuestionTypes: true,
+  requireShortExplanation: false,
+  blockDuplicates: false,
+}
 
 /**
  * The common internal shape every importer (CSV, bulk paste, and later AI drafts) produces.
@@ -48,11 +66,20 @@ export interface ImportRowIssue {
   message: string
 }
 
-/** A fully resolved, insert-ready question (ids resolved, values normalised). */
+/** Whether a validated row can import cleanly, imports with warnings, or is blocked. */
+export type ImportRowStatus = 'ready' | 'warning' | 'error'
+
+/**
+ * A fully resolved, insert-ready question. Taxonomy may still be pending
+ * creation: a null topicId/questionTypeId together with a non-empty name means
+ * "create this under the subject at import time" (auto-create was enabled).
+ */
 export interface ResolvedImportQuestion {
   subjectId: string
-  topicId: string
+  topicId: string | null
+  topicName: string
   questionTypeId: string | null
+  questionTypeName: string | null
   examType: ExamType
   difficulty: number
   yearLevel: number | null
@@ -69,6 +96,7 @@ export interface ResolvedImportQuestion {
 
 export interface ValidatedImportRow {
   rowNumber: number
+  rowStatus: ImportRowStatus
   questionPreview: string
   subjectLabel: string
   topicLabel: string
@@ -86,8 +114,13 @@ export interface ValidatedImportRow {
 export interface ImportValidationResult {
   format: ImportFormat
   totalRows: number
+  /** Rows that will import (no blocking errors) — includes rows with warnings. */
+  importableCount: number
+  /** Importable rows with zero warnings. */
   readyCount: number
+  /** Rows carrying at least one warning. */
   warningCount: number
+  /** Rows blocked by a structural error. */
   errorCount: number
   duplicateCount: number
   rows: ValidatedImportRow[]
@@ -97,6 +130,8 @@ export interface ImportValidationResult {
 export interface ImportSummary {
   importedCount: number
   skippedDuplicateCount: number
+  createdTopicCount: number
+  createdQuestionTypeCount: number
   failedCount: number
 }
 
@@ -104,4 +139,5 @@ export interface ImportReference {
   subjects: SubjectRecord[]
   topics: TopicRecord[]
   questionTypes: QuestionTypeRecord[]
+  existingTags: string[]
 }

@@ -10,6 +10,7 @@ import {
   ClipboardPasteIcon,
   DownloadIcon,
   FilePlus2Icon,
+  SettingsIcon,
   UploadCloudIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -18,7 +19,7 @@ import { ImportPreviewTable } from '@/components/admin/import-preview-table'
 import { ImportValidationSummary } from '@/components/admin/import-validation-summary'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import {
@@ -32,15 +33,16 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { importQuestionsAction, previewImportAction } from '@/lib/import/actions'
 import { buildCsvTemplate, CSV_TEMPLATE_FILENAME } from '@/lib/import/csv-template'
-import type { ImportFormat, ImportStatusMode, ImportSummary, ImportValidationResult } from '@/lib/import/types'
+import {
+  DEFAULT_IMPORT_SETTINGS,
+  type ImportFormat,
+  type ImportSettings,
+  type ImportSummary,
+  type ImportValidationResult,
+} from '@/lib/import/types'
 import { cn } from '@/lib/utils'
 
 type WizardStep = 1 | 2 | 3
-
-const STATUS_MODE_ITEMS: Record<ImportStatusMode, string> = {
-  draft: 'Import everything as draft (recommended)',
-  source: 'Respect the status column',
-}
 
 const PASTE_PLACEHOLDER = `Q1. What is 25% of 360?
 A. 60
@@ -90,12 +92,7 @@ function StepIndicator({ step }: { step: WizardStep }) {
             >
               {isDone ? <CheckCircle2Icon className="size-4" /> : number}
             </span>
-            <span
-              className={cn(
-                'text-sm',
-                isActive ? 'font-medium text-slate-950' : 'text-muted-foreground'
-              )}
-            >
+            <span className={cn('text-sm', isActive ? 'font-medium text-slate-950' : 'text-muted-foreground')}>
               {label}
             </span>
             {index < steps.length - 1 ? <span className="mx-1 text-slate-300">/</span> : null}
@@ -142,6 +139,91 @@ function MethodCard({ icon, title, description, onClick, href }: MethodCardProps
   )
 }
 
+/** A labelled Select bound to one import setting. */
+function SettingSelect({
+  label,
+  value,
+  items,
+  onChange,
+}: {
+  label: string
+  value: string
+  items: Record<string, string>
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
+      <Select value={value} onValueChange={onChange} items={items}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {Object.entries(items).map(([itemValue, itemLabel]) => (
+            <SelectItem key={itemValue} value={itemValue}>
+              {itemLabel}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
+function ImportSettingsPanel({
+  settings,
+  onChange,
+  disabled,
+}: {
+  settings: ImportSettings
+  onChange: (next: ImportSettings) => void
+  disabled: boolean
+}) {
+  return (
+    <div className={cn('rounded-2xl border border-border/70 bg-slate-50/60 p-4', disabled && 'opacity-60')}>
+      <div className="flex items-center gap-2">
+        <SettingsIcon className="size-4 text-slate-600" />
+        <p className="text-sm font-medium text-slate-950">Import settings</p>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Defaults are forgiving — missing topics and question types are created automatically as drafts.
+      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <SettingSelect
+          label="Import status"
+          value={settings.importStatus}
+          items={{ draft: 'Draft (recommended)', published: 'Published' }}
+          onChange={(value) => onChange({ ...settings, importStatus: value as ImportSettings['importStatus'] })}
+        />
+        <SettingSelect
+          label="Missing topics"
+          value={settings.createMissingTopics ? 'create' : 'error'}
+          items={{ create: 'Create automatically', error: 'Treat as error' }}
+          onChange={(value) => onChange({ ...settings, createMissingTopics: value === 'create' })}
+        />
+        <SettingSelect
+          label="Missing question types"
+          value={settings.createMissingQuestionTypes ? 'create' : 'error'}
+          items={{ create: 'Create automatically', error: 'Treat as error' }}
+          onChange={(value) => onChange({ ...settings, createMissingQuestionTypes: value === 'create' })}
+        />
+        <SettingSelect
+          label="Missing short explanation"
+          value={settings.requireShortExplanation ? 'require' : 'allow'}
+          items={{ allow: 'Allow (derive from solution)', require: 'Require' }}
+          onChange={(value) => onChange({ ...settings, requireShortExplanation: value === 'require' })}
+        />
+        <SettingSelect
+          label="Duplicates"
+          value={settings.blockDuplicates ? 'block' : 'warn'}
+          items={{ warn: 'Warn but allow', block: 'Block' }}
+          onChange={(value) => onChange({ ...settings, blockDuplicates: value === 'block' })}
+        />
+      </div>
+    </div>
+  )
+}
+
 export function QuestionImportPanel() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -151,7 +233,7 @@ export function QuestionImportPanel() {
   const [format, setFormat] = useState<ImportFormat>('csv')
   const [source, setSource] = useState('')
   const [fileName, setFileName] = useState('')
-  const [statusMode, setStatusMode] = useState<ImportStatusMode>('draft')
+  const [settings, setSettings] = useState<ImportSettings>(DEFAULT_IMPORT_SETTINGS)
   const [result, setResult] = useState<ImportValidationResult | null>(null)
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null)
 
@@ -170,10 +252,16 @@ export function QuestionImportPanel() {
     setFileName('')
     setResult(null)
     setImportSummary(null)
-    setStatusMode('draft')
+    setSettings(DEFAULT_IMPORT_SETTINGS)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+  }
+
+  function updateSettings(next: ImportSettings) {
+    setSettings(next)
+    // Settings change what counts as an error vs warning — force a re-preview.
+    setResult(null)
   }
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -194,7 +282,7 @@ export function QuestionImportPanel() {
       return
     }
     startTransition(async () => {
-      const response = await previewImportAction(source, format, statusMode)
+      const response = await previewImportAction(source, format, settings)
       if (response.success && response.data) {
         setResult(response.data)
       } else {
@@ -206,7 +294,7 @@ export function QuestionImportPanel() {
 
   function runImport() {
     startTransition(async () => {
-      const response = await importQuestionsAction(source, format, statusMode)
+      const response = await importQuestionsAction(source, format, settings)
       if (response.success) {
         toast.success(response.message ?? 'Import complete.')
         setImportSummary(response.data ?? null)
@@ -224,8 +312,8 @@ export function QuestionImportPanel() {
           <div>
             <CardTitle>Add questions</CardTitle>
             <CardDescription className="mt-1">
-              Enter questions manually, upload a CSV, or paste from a document. Every row is validated before
-              anything is saved, and imports default to draft.
+              Enter questions manually, upload a CSV, or paste from a document. Import is fast and forgiving —
+              missing topics and question types are created for you, and everything lands as draft by default.
             </CardDescription>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={downloadCsvTemplate}>
@@ -261,7 +349,7 @@ export function QuestionImportPanel() {
           </div>
         ) : null}
 
-        {/* -- Step 2: upload/paste + preview ------------------------------ */}
+        {/* -- Step 2: upload/paste + settings + preview ------------------ */}
         {step === 2 ? (
           <div className="space-y-5">
             {format === 'csv' ? (
@@ -302,6 +390,8 @@ export function QuestionImportPanel() {
               </div>
             )}
 
+            <ImportSettingsPanel settings={settings} onChange={updateSettings} disabled={isPending} />
+
             <div className="flex flex-wrap items-center gap-3">
               <Button type="button" variant="ghost" onClick={resetWizard}>
                 <ArrowLeftIcon className="size-4" />
@@ -329,7 +419,7 @@ export function QuestionImportPanel() {
                   <>
                     <ImportPreviewTable rows={result.rows} />
                     <div className="flex justify-end">
-                      <Button type="button" disabled={result.readyCount === 0} onClick={() => setStep(3)}>
+                      <Button type="button" disabled={result.importableCount === 0} onClick={() => setStep(3)}>
                         Continue to import
                         <ArrowRightIcon className="size-4" />
                       </Button>
@@ -341,7 +431,7 @@ export function QuestionImportPanel() {
           </div>
         ) : null}
 
-        {/* -- Step 3: import ---------------------------------------------- */}
+        {/* -- Step 3: import -------------------------------------------- */}
         {step === 3 && result ? (
           <div className="space-y-5">
             {importSummary ? (
@@ -350,6 +440,10 @@ export function QuestionImportPanel() {
                 <AlertTitle>Import finished</AlertTitle>
                 <AlertDescription>
                   {importSummary.importedCount} imported
+                  {importSummary.createdTopicCount > 0 ? `, ${importSummary.createdTopicCount} new topics` : ''}
+                  {importSummary.createdQuestionTypeCount > 0
+                    ? `, ${importSummary.createdQuestionTypeCount} new question types`
+                    : ''}
                   {importSummary.skippedDuplicateCount > 0
                     ? `, ${importSummary.skippedDuplicateCount} duplicates skipped`
                     : ''}
@@ -360,27 +454,14 @@ export function QuestionImportPanel() {
             ) : (
               <>
                 <ImportValidationSummary result={result} />
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="space-y-2">
-                    <Label>Status handling</Label>
-                    <Select
-                      value={statusMode}
-                      onValueChange={(value) => setStatusMode(value as ImportStatusMode)}
-                      items={STATUS_MODE_ITEMS}
-                    >
-                      <SelectTrigger className="w-80">
-                        <SelectValue placeholder="Status handling" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="draft">Import everything as draft (recommended)</SelectItem>
-                        <SelectItem value="source">Respect the status column</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Nothing is published automatically unless you choose to respect the status column.
-                    </p>
-                  </div>
-                </div>
+                <p className="text-sm text-muted-foreground">
+                  {result.importableCount} question{result.importableCount === 1 ? '' : 's'} will import as{' '}
+                  <span className="font-medium text-slate-950">{settings.importStatus}</span>
+                  {settings.createMissingTopics || settings.createMissingQuestionTypes
+                    ? ', creating any missing taxonomy'
+                    : ''}
+                  . Rows with warnings are included; only errors are skipped.
+                </p>
               </>
             )}
 
@@ -395,10 +476,10 @@ export function QuestionImportPanel() {
                     <ArrowLeftIcon className="size-4" />
                     Back to preview
                   </Button>
-                  <Button type="button" disabled={isPending || result.readyCount === 0} onClick={runImport}>
+                  <Button type="button" disabled={isPending || result.importableCount === 0} onClick={runImport}>
                     {isPending
                       ? 'Importing…'
-                      : `Import ${result.readyCount} ready question${result.readyCount === 1 ? '' : 's'}`}
+                      : `Import ${result.importableCount} question${result.importableCount === 1 ? '' : 's'}`}
                   </Button>
                 </>
               )}

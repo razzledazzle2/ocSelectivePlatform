@@ -8,20 +8,27 @@ import { parseCsvQuestions } from '@/lib/import/csv-parser'
 import { importValidatedQuestions } from '@/lib/import/import-questions'
 import { validateQuestionImportRows } from '@/lib/import/validation'
 import {
+  DEFAULT_IMPORT_SETTINGS,
   IMPORT_FORMAT_SOURCE,
   type ImportFormat,
-  type ImportStatusMode,
+  type ImportSettings,
   type ImportSummary,
   type ImportValidationResult,
   type QuestionImportRow,
 } from '@/lib/import/types'
 import {
   getExistingQuestionTexts,
+  getExistingTags,
   getQuestionTypes,
   getSubjects,
   getTopicsBySubject,
 } from '@/lib/questions/queries'
 import { ADMIN_PORTAL_ROLES, type ActionResult } from '@/lib/types'
+
+/** Merge partial client settings over the forgiving defaults so old callers stay safe. */
+function resolveSettings(settings?: Partial<ImportSettings>): ImportSettings {
+  return { ...DEFAULT_IMPORT_SETTINGS, ...settings }
+}
 
 function parseSource(source: string, format: ImportFormat): { rows: QuestionImportRow[]; error?: string } {
   return format === 'csv' ? parseCsvQuestions(source) : parseBulkPasteQuestions(source)
@@ -30,7 +37,7 @@ function parseSource(source: string, format: ImportFormat): { rows: QuestionImpo
 async function buildValidation(
   source: string,
   format: ImportFormat,
-  statusMode: ImportStatusMode
+  settings: ImportSettings
 ): Promise<ImportValidationResult> {
   const parsed = parseSource(source, format)
 
@@ -38,6 +45,7 @@ async function buildValidation(
     return {
       format,
       totalRows: 0,
+      importableCount: 0,
       readyCount: 0,
       warningCount: 0,
       errorCount: 0,
@@ -47,25 +55,26 @@ async function buildValidation(
     }
   }
 
-  const [subjects, topics, questionTypes, existingQuestionTexts] = await Promise.all([
+  const [subjects, topics, questionTypes, existingQuestionTexts, existingTags] = await Promise.all([
     getSubjects(),
     getTopicsBySubject(),
     getQuestionTypes(),
     getExistingQuestionTexts(),
+    getExistingTags(),
   ])
 
   return validateQuestionImportRows(parsed.rows, {
     format,
-    reference: { subjects, topics, questionTypes },
+    reference: { subjects, topics, questionTypes, existingTags },
     existingQuestionTexts,
-    statusMode,
+    settings,
   })
 }
 
 export async function previewImportAction(
   source: string,
   format: ImportFormat,
-  statusMode: ImportStatusMode
+  settings?: Partial<ImportSettings>
 ): Promise<ActionResult<ImportValidationResult>> {
   await requireProfile({ allowedRoles: [...ADMIN_PORTAL_ROLES] })
 
@@ -74,7 +83,7 @@ export async function previewImportAction(
   }
 
   try {
-    const result = await buildValidation(source, format, statusMode)
+    const result = await buildValidation(source, format, resolveSettings(settings))
 
     if (result.parseError) {
       return { success: false, message: result.parseError }
@@ -92,7 +101,7 @@ export async function previewImportAction(
 export async function importQuestionsAction(
   source: string,
   format: ImportFormat,
-  statusMode: ImportStatusMode
+  settings?: Partial<ImportSettings>
 ): Promise<ActionResult<ImportSummary>> {
   const profile = await requireProfile({ allowedRoles: [...ADMIN_PORTAL_ROLES] })
 
@@ -102,7 +111,7 @@ export async function importQuestionsAction(
 
   try {
     // Re-validate server-side so we never trust client-sent rows.
-    const validation = await buildValidation(source, format, statusMode)
+    const validation = await buildValidation(source, format, resolveSettings(settings))
 
     if (validation.parseError) {
       return { success: false, message: validation.parseError }
@@ -113,7 +122,7 @@ export async function importQuestionsAction(
       .map((row) => row.resolved!)
 
     if (resolvedRows.length === 0) {
-      return { success: false, message: 'No valid rows are ready to import. Fix the highlighted issues first.' }
+      return { success: false, message: 'No valid rows are ready to import. Fix the highlighted errors first.' }
     }
 
     const { summary, importedQuestionIds } = await importValidatedQuestions(
@@ -123,6 +132,7 @@ export async function importQuestionsAction(
     )
 
     revalidatePath('/admin/questions')
+    revalidatePath('/admin/taxonomy')
     revalidatePath('/admin/dashboard')
     revalidatePath('/student/practice')
     for (const questionId of importedQuestionIds) {
@@ -130,6 +140,14 @@ export async function importQuestionsAction(
     }
 
     const parts = [`Imported ${summary.importedCount} question${summary.importedCount === 1 ? '' : 's'}`]
+    if (summary.createdTopicCount > 0) {
+      parts.push(`created ${summary.createdTopicCount} topic${summary.createdTopicCount === 1 ? '' : 's'}`)
+    }
+    if (summary.createdQuestionTypeCount > 0) {
+      parts.push(
+        `created ${summary.createdQuestionTypeCount} question type${summary.createdQuestionTypeCount === 1 ? '' : 's'}`
+      )
+    }
     if (summary.skippedDuplicateCount > 0) {
       parts.push(`skipped ${summary.skippedDuplicateCount} duplicate${summary.skippedDuplicateCount === 1 ? '' : 's'}`)
     }

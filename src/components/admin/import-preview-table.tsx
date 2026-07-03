@@ -7,21 +7,18 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import type { ValidatedImportRow } from '@/lib/import/types'
+import type { ImportRowStatus, ValidatedImportRow } from '@/lib/import/types'
 
 interface ImportPreviewTableProps {
   rows: ValidatedImportRow[]
 }
 
-function StatusBadge({ row }: { row: ValidatedImportRow }) {
-  if (row.errors.length > 0) {
+function StatusBadge({ status }: { status: ImportRowStatus }) {
+  if (status === 'error') {
     return <Badge variant="destructive">Error</Badge>
   }
-  if (row.isDuplicate) {
-    return <Badge variant="outline">Duplicate?</Badge>
-  }
-  if (row.warnings.length > 0) {
-    return <Badge variant="secondary">Warning</Badge>
+  if (status === 'warning') {
+    return <Badge variant="secondary">Ready with warnings</Badge>
   }
   return <Badge>Ready</Badge>
 }
@@ -48,7 +45,7 @@ export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
               <TableRow key={row.rowNumber}>
                 <TableCell className="align-top text-sm text-muted-foreground">{row.rowNumber}</TableCell>
                 <TableCell className="align-top">
-                  <StatusBadge row={row} />
+                  <StatusBadge status={row.rowStatus} />
                 </TableCell>
                 <TableCell className="align-top">
                   <p className="line-clamp-2 text-sm text-foreground">{row.questionPreview}</p>

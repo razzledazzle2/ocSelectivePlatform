@@ -20,15 +20,15 @@ export function ImportValidationSummary({ result }: ImportValidationSummaryProps
   return (
     <div className="space-y-3">
       <p className="text-sm text-foreground">
-        {result.totalRows} question{result.totalRows === 1 ? '' : 's'} detected. {result.readyCount} ready to
-        import.
-        {result.totalRows - result.readyCount > 0 ? ` ${result.totalRows - result.readyCount} need attention.` : ''}
+        {result.totalRows} detected, <span className="font-semibold text-slate-950">{result.importableCount} importable</span>
+        {result.warningCount > 0 ? `, ${result.warningCount} with warnings` : ''}, {result.errorCount} error
+        {result.errorCount === 1 ? '' : 's'}.
       </p>
       <div className="flex flex-wrap gap-2">
         <Badge variant="secondary">{result.totalRows} detected</Badge>
-        <Badge variant="default">{result.readyCount} ready</Badge>
-        {result.warningCount > 0 ? <Badge variant="outline">{result.warningCount} warnings</Badge> : null}
-        {result.errorCount > 0 ? <Badge variant="destructive">{result.errorCount} errors</Badge> : null}
+        <Badge variant="default">{result.importableCount} importable</Badge>
+        {result.warningCount > 0 ? <Badge variant="outline">{result.warningCount} with warnings</Badge> : null}
+        <Badge variant={result.errorCount > 0 ? 'destructive' : 'outline'}>{result.errorCount} errors</Badge>
         {result.duplicateCount > 0 ? <Badge variant="outline">{result.duplicateCount} duplicates</Badge> : null}
       </div>
       {shownDigest.length > 0 ? (

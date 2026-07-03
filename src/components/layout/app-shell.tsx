@@ -8,6 +8,7 @@ import {
   FlagIcon,
   GaugeIcon,
   GraduationCapIcon,
+  LayersIcon,
   MenuIcon,
   RotateCcwIcon,
   SparklesIcon,
@@ -39,6 +40,7 @@ const navigationIcons: Record<NavigationIconName, LucideIcon> = {
   timer: TimerIcon,
   users: UsersIcon,
   flag: FlagIcon,
+  layers: LayersIcon,
 }
 
 interface ShellNavProps {
