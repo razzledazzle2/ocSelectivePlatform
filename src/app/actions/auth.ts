@@ -81,18 +81,12 @@ export async function signUpAction(formData: FormData): Promise<never> {
   const fullName = String(formData.get('full_name') ?? '').trim()
   const email = String(formData.get('email') ?? '').trim()
   const password = String(formData.get('password') ?? '')
-  const targetExam = String(formData.get('target_exam') ?? '').trim()
-  const yearLevelValue = String(formData.get('year_level') ?? '').trim()
-  const yearLevel = yearLevelValue ? Number(yearLevelValue) : null
-
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         full_name: fullName,
-        target_exam: targetExam || null,
-        year_level: Number.isNaN(yearLevel) ? null : yearLevel,
         role: 'student',
       },
     },

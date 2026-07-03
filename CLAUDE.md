@@ -30,6 +30,19 @@ The Supabase CLI is used locally (`supabase` is a dev dependency; a global `supa
 - **Do not run `supabase db push`.** The repo owner reviews and pushes migrations. If DB changes are needed, state the migration name, the command, and the SQL for them to run.
 - Reuse existing DB helpers instead of redefining them: `public.set_updated_at()` (updated_at trigger) and `public.get_current_user_role()` (RLS role lookup).
 
+### Supabase MCP
+
+Supabase MCP is connected for this project. Use it to inspect the **live remote database** when debugging DB/auth/RLS issues — verify the actual remote schema before guessing.
+
+- Default to **read-only** MCP usage: only run `SELECT`/introspection queries unless the repo owner explicitly approves writes.
+- **Do not** apply migrations through MCP.
+- **Do not** run destructive SQL.
+- **Do not** insert/update/delete/alter live database objects through MCP unless explicitly approved.
+- If schema changes are needed, create a normal migration file with `supabase migration new <descriptive_name>` and edit only that file.
+- Do not edit already-pushed migrations.
+- Do not run `supabase db push`; the repo owner pushes migrations themselves.
+- Use MCP to verify the actual remote schema before guessing — the remote can drift from the migration files (e.g. the un-timestamped `create_initial_foundation_schema.sql` is skipped by `db push`, so foundation objects may be missing on remote).
+
 ## Stack
 
 Next.js 15 (App Router, RSC) · React 19 · TypeScript · Supabase (Auth + Postgres with RLS) · Tailwind v4 · shadcn/ui **`base-nova` style built on Base UI** (`@base-ui/react`, not Radix) · lucide-react · sonner. Path alias `@/*` → `src/*`.

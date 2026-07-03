@@ -2,7 +2,7 @@ import { MockExamLanding } from '@/components/student/mock-exams/mock-exam-landi
 import { requireProfile } from '@/lib/auth/require-profile'
 import { getRecentMockExams } from '@/lib/mock-exams/queries'
 import { getSubjects } from '@/lib/questions/queries'
-import { EXAM_TYPES, STUDENT_PORTAL_ROLES, type ExamType } from '@/lib/types'
+import { STUDENT_PORTAL_ROLES, type ExamType } from '@/lib/types'
 
 export default async function StudentMockExamsPage() {
   const profile = await requireProfile({ allowedRoles: [...STUDENT_PORTAL_ROLES] })
@@ -11,9 +11,7 @@ export default async function StudentMockExamsPage() {
     getRecentMockExams(profile.id),
   ])
 
-  const defaultExamType: ExamType = EXAM_TYPES.includes(profile.target_exam as ExamType)
-    ? (profile.target_exam as ExamType)
-    : 'Selective'
+  const defaultExamType: ExamType = 'Selective'
 
   const activeSubjects = subjects.filter((subject) => subject.is_active)
 

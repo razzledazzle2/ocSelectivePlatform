@@ -101,8 +101,7 @@ export function AdminDashboardOverview({ stats }: AdminDashboardOverviewProps) {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {student.targetExam ? <Badge variant="outline">{student.targetExam}</Badge> : null}
-                      {student.yearLevel ? <Badge variant="secondary">Year {student.yearLevel}</Badge> : null}
+                      <Badge variant="outline">{student.role}</Badge>
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-5 text-sm text-slate-700">

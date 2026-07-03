@@ -6,9 +6,6 @@ interface ProfileRow {
   full_name: string | null
   email: string | null
   role: AppRole
-  year_level: number | null
-  target_exam: string | null
-  school: string | null
   created_at: string
 }
 
@@ -67,9 +64,6 @@ function buildStudentRows(
       fullName: profile.full_name,
       email: profile.email,
       role: profile.role,
-      yearLevel: profile.year_level,
-      targetExam: profile.target_exam,
-      school: profile.school,
       createdAt: profile.created_at,
       questionsCompleted,
       correctAnswers,
@@ -85,7 +79,7 @@ export async function getAdminStudentRows(limit = 100): Promise<AdminStudentRow[
   const supabase = await createClient()
   const { data: profiles, error: profilesError } = await supabase
     .from('profiles')
-    .select('id, full_name, email, role, year_level, target_exam, school, created_at')
+    .select('id, full_name, email, role, created_at')
     .eq('role', 'student')
     .order('created_at', { ascending: false })
     .limit(limit)

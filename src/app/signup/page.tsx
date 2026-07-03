@@ -78,14 +78,6 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
                 <Label htmlFor="password">Password</Label>
                 <Input id="password" name="password" type="password" placeholder="Create a password" required />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="target_exam">Target exam</Label>
-                <Input id="target_exam" name="target_exam" placeholder="Selective" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="year_level">Year level</Label>
-                <Input id="year_level" name="year_level" type="number" min="3" max="12" placeholder="5" />
-              </div>
               <div className="sm:col-span-2">
                 <Button type="submit" size="lg" className="h-11 w-full rounded-2xl">
                   Create account

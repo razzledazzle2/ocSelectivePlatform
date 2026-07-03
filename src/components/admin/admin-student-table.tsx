@@ -34,7 +34,7 @@ export function AdminStudentTable({ students }: AdminStudentTableProps) {
             <TableHeader>
               <TableRow>
                 <TableHead>Student</TableHead>
-                <TableHead>Target</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead>Attempts</TableHead>
                 <TableHead>Accuracy</TableHead>
                 <TableHead>Mistakes</TableHead>
@@ -53,17 +53,10 @@ export function AdminStudentTable({ students }: AdminStudentTableProps) {
                       <p className="text-sm text-muted-foreground">
                         {student.email || 'No email saved'}
                       </p>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline">student</Badge>
-                        {student.yearLevel ? <Badge variant="secondary">Year {student.yearLevel}</Badge> : null}
-                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="space-y-1 text-sm text-slate-700">
-                      <p>{student.targetExam || 'Not set'}</p>
-                      <p className="text-muted-foreground">{student.school || 'School not set'}</p>
-                    </div>
+                    <Badge variant="outline">{student.role}</Badge>
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1 text-sm text-slate-700">

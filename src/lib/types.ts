@@ -23,11 +23,6 @@ export interface AppProfile {
   email: string | null
   full_name: string | null
   role: AppRole
-  year_level: number | null
-  target_exam: string | null
-  school: string | null
-  avatar_url: string | null
-  is_active: boolean
 }
 
 export type NavigationIconName =
@@ -438,9 +433,6 @@ export interface AdminStudentRow {
   fullName: string | null
   email: string | null
   role: AppRole
-  yearLevel: number | null
-  targetExam: string | null
-  school: string | null
   createdAt: string
   questionsCompleted: number
   correctAnswers: number

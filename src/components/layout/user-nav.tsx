@@ -2,7 +2,7 @@
 
 import { BookOpenCheckIcon } from 'lucide-react'
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -42,7 +42,6 @@ export function UserNav({ profile }: UserNavProps) {
       >
         <div className="flex min-w-0 items-center gap-3">
           <Avatar size="lg">
-            <AvatarImage src={profile.avatar_url ?? undefined} alt={profile.full_name ?? 'User avatar'} />
             <AvatarFallback>{initials || 'U'}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 text-left">
