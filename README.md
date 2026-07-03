@@ -20,6 +20,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 ## Create an admin user
 
 1. Create the user in Supabase Auth through the app signup flow or the Supabase dashboard.
+   A matching `public.profiles` row (default `role = 'student'`) is created automatically by
+   the `on_auth_user_created` trigger, so the promotion query below always has a row to update.
 2. Promote the user in SQL:
 
 ```sql
@@ -63,4 +65,14 @@ Tutors can be created the same way by setting `role = 'tutor'`.
 
 The existing pushed migrations were left untouched.
 
-At the moment there are no new migrations to push with `supabase db push`.
+Pending migration to push:
+
+- `supabase/migrations/20260703020522_add_profile_creation_trigger.sql` — hardens the
+  new-user trigger (auto-creates a `profiles` row, `role = 'student'` by default) and
+  backfills profiles for any existing auth users that are missing one.
+
+Review it, then push with:
+
+```bash
+supabase db push
+```
