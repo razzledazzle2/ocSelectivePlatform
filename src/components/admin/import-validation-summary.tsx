@@ -20,19 +20,25 @@ export function ImportValidationSummary({ result }: ImportValidationSummaryProps
   return (
     <div className="space-y-3">
       <p className="text-sm text-foreground">
-        {result.totalRows} detected, <span className="font-semibold text-slate-950">{result.importableCount} importable</span>
+        {result.totalRows} detected, <span className="font-semibold text-foreground">{result.importableCount} importable</span>
         {result.warningCount > 0 ? `, ${result.warningCount} with warnings` : ''}, {result.errorCount} error
         {result.errorCount === 1 ? '' : 's'}.
       </p>
       <div className="flex flex-wrap gap-2">
         <Badge variant="secondary">{result.totalRows} detected</Badge>
-        <Badge variant="default">{result.importableCount} importable</Badge>
-        {result.warningCount > 0 ? <Badge variant="outline">{result.warningCount} with warnings</Badge> : null}
+        <Badge variant="outline" className="border-transparent bg-success-soft text-success">
+          {result.importableCount} importable
+        </Badge>
+        {result.warningCount > 0 ? (
+          <Badge variant="outline" className="border-transparent bg-warning-soft text-warning">
+            {result.warningCount} with warnings
+          </Badge>
+        ) : null}
         <Badge variant={result.errorCount > 0 ? 'destructive' : 'outline'}>{result.errorCount} errors</Badge>
         {result.duplicateCount > 0 ? <Badge variant="outline">{result.duplicateCount} duplicates</Badge> : null}
       </div>
       {shownDigest.length > 0 ? (
-        <ul className="space-y-1 rounded-xl border border-border/70 bg-slate-50 px-4 py-3 text-xs">
+        <ul className="space-y-1 rounded-xl border border-border/70 bg-muted/50 px-4 py-3 text-xs">
           {shownDigest.map((issue, index) => (
             <li key={index} className={issue.tone === 'error' ? 'text-destructive' : 'text-amber-700'}>
               Question {issue.rowNumber}: {issue.message}

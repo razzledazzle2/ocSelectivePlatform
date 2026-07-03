@@ -31,10 +31,10 @@ export default async function MockExamResultsPage({ params }: MockExamResultsPag
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-700">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">
             Mock exam results
           </p>
-          <h2 className="mt-2 text-3xl font-semibold text-slate-950">{results.session.mockName}</h2>
+          <h2 className="mt-2 text-3xl font-semibold text-foreground">{results.session.mockName}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {results.session.examType}
             {results.session.subjectName ? ` · ${results.session.subjectName}` : ''}

@@ -14,7 +14,7 @@ export function RevisionDueCard({ revisionDue }: RevisionDueCardProps) {
   const hasDue = revisionDue.dueCount > 0
 
   return (
-    <Card className="border-border/70 bg-card">
+    <Card className="rounded-2xl bg-brand-soft shadow-sm ring-border">
       <CardHeader>
         <CardTitle>Revision due today</CardTitle>
         <CardDescription>

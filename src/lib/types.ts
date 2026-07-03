@@ -36,6 +36,8 @@ export type NavigationIconName =
   | 'users'
   | 'flag'
   | 'layers'
+  | 'chart'
+  | 'upload'
 
 export interface NavigationItem {
   href: string

@@ -43,29 +43,29 @@ export function MockExamTypeCard({
   return (
     <Card
       className={cn(
-        'flex h-full flex-col border-white/70 bg-white/94 shadow-lg shadow-slate-200/50 transition-shadow hover:shadow-xl'
+        'flex h-full flex-col rounded-2xl shadow-sm ring-border transition-shadow hover:shadow-md'
       )}
     >
       <CardHeader className="space-y-3 border-b border-border/70">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
             {config.tagline}
           </p>
           <Badge variant="outline">{effectiveExamType}</Badge>
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-slate-950">{config.name}</h3>
+          <h3 className="text-lg font-semibold text-foreground">{config.name}</h3>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">{config.description}</p>
         </div>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4 pt-5">
-        <div className="flex flex-wrap gap-4 text-sm text-slate-700">
+        <div className="flex flex-wrap gap-4 text-sm text-foreground/80">
           <span className="inline-flex items-center gap-1.5">
-            <ListChecksIcon className="size-4 text-slate-500" />
+            <ListChecksIcon className="size-4 text-muted-foreground" />
             {config.questionCount} questions
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <ClockIcon className="size-4 text-slate-500" />
+            <ClockIcon className="size-4 text-muted-foreground" />
             {formatTimeLimit(config.timeLimitSeconds)}
           </span>
         </div>

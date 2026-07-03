@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/layout/page-header'
 import { MockExamLanding } from '@/components/student/mock-exams/mock-exam-landing'
 import { requireProfile } from '@/lib/auth/require-profile'
 import { getRecentMockExams } from '@/lib/mock-exams/queries'
@@ -17,14 +18,11 @@ export default async function StudentMockExamsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-700">Mock Exams</p>
-        <h2 className="mt-2 text-3xl font-semibold text-slate-950">Timed exam practice</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Simulate test pressure: a countdown, no instant feedback, and a full results breakdown at
-          the end. Every question you miss flows into Smart Revision.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Mock Exams"
+        title="Timed exam practice"
+        description="Simulate test pressure: a countdown, no instant feedback, and a full results breakdown at the end. Every question you miss flows into Smart Revision."
+      />
 
       <MockExamLanding
         subjects={activeSubjects}

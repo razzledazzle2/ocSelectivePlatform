@@ -134,11 +134,11 @@ export function MockExamRunner({ data }: MockExamRunnerProps) {
 
   return (
     <div className="space-y-5">
-      <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+      <Card className="rounded-2xl shadow-sm ring-border">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b border-border/70">
           <div className="flex flex-wrap items-center gap-2">
             <Badge>{data.examType}</Badge>
-            <span className="text-sm font-semibold text-slate-950">{data.mockName}</span>
+            <span className="text-sm font-semibold text-foreground">{data.mockName}</span>
             {data.subjectName ? <Badge variant="secondary">{data.subjectName}</Badge> : null}
           </div>
           <MockExamTimer deadlineMs={data.deadlineMs} onExpire={handleExpire} />

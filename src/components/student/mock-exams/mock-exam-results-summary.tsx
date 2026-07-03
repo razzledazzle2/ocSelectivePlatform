@@ -36,23 +36,23 @@ export function MockExamResultsSummary({ results }: MockExamResultsSummaryProps)
   ]
 
   return (
-    <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+    <Card className="rounded-2xl shadow-sm ring-border">
       <CardHeader className="border-b border-border/70">
         <CardTitle>Overall result</CardTitle>
       </CardHeader>
       <CardContent className="pt-6">
-        <div className="mb-6 flex flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 py-6">
+        <div className="mb-6 flex flex-col items-center justify-center gap-1 rounded-2xl border border-border bg-muted/50 py-6">
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Accuracy</p>
-          <p className="text-5xl font-semibold text-slate-950">{accuracy}%</p>
+          <p className="text-5xl font-semibold text-foreground">{accuracy}%</p>
           <p className="text-sm text-muted-foreground">
             {session.correctCount} of {session.totalQuestions} correct
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {metrics.map((metric) => (
-            <div key={metric.label} className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+            <div key={metric.label} className="rounded-2xl border border-border bg-white px-4 py-4">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">{metric.label}</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-950">{metric.value}</p>
+              <p className="mt-1 text-2xl font-semibold text-foreground">{metric.value}</p>
               {metric.hint ? (
                 <p className="mt-0.5 text-[11px] text-muted-foreground">{metric.hint}</p>
               ) : null}

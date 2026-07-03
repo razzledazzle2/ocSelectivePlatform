@@ -37,9 +37,9 @@ export function MockExamQuestionNavigator({
               }`}
               className={cn(
                 'relative flex h-9 items-center justify-center rounded-lg border text-sm font-medium transition-colors',
-                'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
-                item.answered && 'border-slate-900 bg-slate-900 text-white hover:border-slate-900',
-                isCurrent && 'ring-2 ring-cyan-500 ring-offset-1'
+                'border-border bg-white text-foreground/80 hover:border-border',
+                item.answered && 'border-primary bg-primary text-primary-foreground hover:border-primary',
+                isCurrent && 'ring-2 ring-brand ring-offset-1'
               )}
             >
               {item.index + 1}
@@ -52,11 +52,11 @@ export function MockExamQuestionNavigator({
       </div>
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
-          <span className="size-3 rounded-sm border border-slate-900 bg-slate-900" />
+          <span className="size-3 rounded-sm border border-primary bg-primary" />
           Answered
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="size-3 rounded-sm border border-slate-200 bg-white" />
+          <span className="size-3 rounded-sm border border-border bg-white" />
           Unanswered
         </span>
         <span className="inline-flex items-center gap-1.5">

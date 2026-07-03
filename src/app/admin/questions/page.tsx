@@ -1,10 +1,16 @@
 import Link from 'next/link'
+import { PlusIcon, UploadCloudIcon } from 'lucide-react'
 
-import { QuestionFilters } from '@/components/admin/question-filters'
-import { QuestionImportPanel } from '@/components/admin/question-import-panel'
-import { QuestionsTable } from '@/components/admin/questions-table'
+import { ExportQuestionsCsvButton } from '@/components/admin/export-questions-csv-button'
+import { PageHeader } from '@/components/layout/page-header'
+import { QuestionBankWorkspace } from '@/components/admin/question-bank-workspace'
 import { buttonVariants } from '@/components/ui/button'
-import { getAdminQuestions, getSubjects, getTopicsBySubject } from '@/lib/questions/queries'
+import {
+  getAdminQuestions,
+  getQuestionStatusCounts,
+  getSubjects,
+  getTopicsBySubject,
+} from '@/lib/questions/queries'
 import { cn } from '@/lib/utils'
 import type { AdminQuestionFilters } from '@/lib/types'
 
@@ -31,30 +37,41 @@ export default async function AdminQuestionsPage({ searchParams }: AdminQuestion
     query: getSearchParamValue(resolvedSearchParams, 'query'),
   }
 
-  const [subjects, topics, questions] = await Promise.all([
+  const [subjects, topics, questions, statusCounts] = await Promise.all([
     getSubjects(),
     getTopicsBySubject(),
     getAdminQuestions(filters),
+    getQuestionStatusCounts(),
   ])
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-700">Content workflow</p>
-          <h2 className="mt-2 text-3xl font-semibold text-slate-950">Question Bank</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Manage OC and Selective practice questions.
-          </p>
-        </div>
-        <Link href="/admin/questions/new" className={cn(buttonVariants({ variant: 'default' }))}>
-          New question
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow="Content workflow"
+        title="Question Bank"
+        description="Manage OC and Selective practice questions."
+        actions={
+          <>
+            <Link href="/admin/questions/new" className={cn(buttonVariants({ variant: 'default' }))}>
+              <PlusIcon className="size-4" />
+              Add question
+            </Link>
+            <Link href="/admin/import" className={cn(buttonVariants({ variant: 'outline' }))}>
+              <UploadCloudIcon className="size-4" />
+              Import
+            </Link>
+            <ExportQuestionsCsvButton questions={questions} />
+          </>
+        }
+      />
 
-      <QuestionImportPanel />
-      <QuestionFilters filters={filters} subjects={subjects} topics={topics} />
-      <QuestionsTable questions={questions} />
+      <QuestionBankWorkspace
+        questions={questions}
+        subjects={subjects}
+        topics={topics}
+        filters={filters}
+        statusCounts={statusCounts}
+      />
     </div>
   )
 }

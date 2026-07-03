@@ -15,11 +15,11 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
 
   if (!missed.length) {
     return (
-      <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+      <Card className="rounded-2xl shadow-sm ring-border">
         <CardContent className="flex items-center gap-3 py-6">
           <CheckCircle2Icon className="size-5 text-emerald-600" />
           <div>
-            <p className="text-sm font-semibold text-slate-950">Perfect paper!</p>
+            <p className="text-sm font-semibold text-foreground">Perfect paper!</p>
             <p className="text-sm text-muted-foreground">
               You answered every question correctly. Nothing to review here.
             </p>
@@ -30,7 +30,7 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
   }
 
   return (
-    <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+    <Card className="rounded-2xl shadow-sm ring-border">
       <CardHeader className="border-b border-border/70">
         <CardTitle>Review incorrect questions</CardTitle>
         <CardDescription>
@@ -49,7 +49,7 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
           return (
             <div
               key={question.questionId}
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+              className="rounded-2xl border border-border bg-muted/50 px-4 py-4"
             >
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -66,11 +66,11 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
               </div>
 
               {question.passageText ? (
-                <p className="mb-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-700">
+                <p className="mb-2 rounded-xl border border-border bg-white px-3 py-2 text-sm leading-6 text-foreground/80">
                   {question.passageText}
                 </p>
               ) : null}
-              <p className="text-sm font-medium leading-7 text-slate-950">{question.questionText}</p>
+              <p className="text-sm font-medium leading-7 text-foreground">{question.questionText}</p>
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <div
@@ -105,7 +105,7 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Explanation
                   </p>
-                  <p className="mt-0.5 text-sm leading-7 text-slate-700">
+                  <p className="mt-0.5 text-sm leading-7 text-foreground/80">
                     {question.shortExplanation}
                   </p>
                 </div>
@@ -114,7 +114,7 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Worked solution
                 </p>
-                <p className="mt-0.5 text-sm leading-7 text-slate-700">{question.workedSolution}</p>
+                <p className="mt-0.5 text-sm leading-7 text-foreground/80">{question.workedSolution}</p>
               </div>
             </div>
           )

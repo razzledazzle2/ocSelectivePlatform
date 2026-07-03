@@ -84,18 +84,20 @@ function StepIndicator({ step }: { step: WizardStep }) {
           <li key={label} className="flex items-center gap-2">
             <span
               className={cn(
-                'inline-flex size-6 items-center justify-center rounded-full text-xs font-semibold',
-                isActive && 'bg-slate-950 text-white',
-                isDone && 'bg-emerald-100 text-emerald-800',
-                !isActive && !isDone && 'bg-slate-100 text-slate-500'
+                'inline-flex size-7 items-center justify-center rounded-full text-xs font-semibold ring-1 ring-inset',
+                isActive && 'bg-primary text-primary-foreground ring-primary',
+                isDone && 'bg-success-soft text-success ring-success/30',
+                !isActive && !isDone && 'bg-muted text-muted-foreground ring-border'
               )}
             >
               {isDone ? <CheckCircle2Icon className="size-4" /> : number}
             </span>
-            <span className={cn('text-sm', isActive ? 'font-medium text-slate-950' : 'text-muted-foreground')}>
+            <span className={cn('text-sm', isActive ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
               {label}
             </span>
-            {index < steps.length - 1 ? <span className="mx-1 text-slate-300">/</span> : null}
+            {index < steps.length - 1 ? (
+              <span aria-hidden className="mx-1 h-px w-8 bg-border sm:w-12" />
+            ) : null}
           </li>
         )
       })}
@@ -113,12 +115,12 @@ interface MethodCardProps {
 
 function MethodCard({ icon, title, description, onClick, href }: MethodCardProps) {
   const body = (
-    <div className="flex h-full flex-col gap-3 rounded-2xl border border-border/70 bg-white p-5 text-left transition-colors hover:border-cyan-300 hover:bg-cyan-50/40">
-      <span className="inline-flex size-10 items-center justify-center rounded-xl bg-slate-950 text-white">
+    <div className="flex h-full flex-col gap-3 rounded-2xl border border-border/70 bg-white p-5 text-left transition-colors hover:border-brand/40 hover:bg-brand-soft/50">
+      <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
         {icon}
       </span>
       <div>
-        <p className="font-medium text-slate-950">{title}</p>
+        <p className="font-medium text-foreground">{title}</p>
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </div>
     </div>
@@ -180,10 +182,10 @@ function ImportSettingsPanel({
   disabled: boolean
 }) {
   return (
-    <div className={cn('rounded-2xl border border-border/70 bg-slate-50/60 p-4', disabled && 'opacity-60')}>
+    <div className={cn('rounded-2xl border border-border/70 bg-muted/40 p-4', disabled && 'opacity-60')}>
       <div className="flex items-center gap-2">
-        <SettingsIcon className="size-4 text-slate-600" />
-        <p className="text-sm font-medium text-slate-950">Import settings</p>
+        <SettingsIcon className="size-4 text-muted-foreground" />
+        <p className="text-sm font-medium text-foreground">Import settings</p>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
         Defaults are forgiving — missing topics and question types are created automatically as drafts.
@@ -306,7 +308,7 @@ export function QuestionImportPanel() {
   }
 
   return (
-    <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+    <Card className="rounded-2xl shadow-sm ring-border">
       <CardHeader className="space-y-4 border-b border-border/70">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -456,7 +458,7 @@ export function QuestionImportPanel() {
                 <ImportValidationSummary result={result} />
                 <p className="text-sm text-muted-foreground">
                   {result.importableCount} question{result.importableCount === 1 ? '' : 's'} will import as{' '}
-                  <span className="font-medium text-slate-950">{settings.importStatus}</span>
+                  <span className="font-medium text-foreground">{settings.importStatus}</span>
                   {settings.createMissingTopics || settings.createMissingQuestionTypes
                     ? ', creating any missing taxonomy'
                     : ''}

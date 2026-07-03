@@ -9,7 +9,7 @@ const STATUS_STYLES: Record<ReportStatus, string> = {
   open: 'bg-amber-100 text-amber-800',
   in_review: 'bg-sky-100 text-sky-800',
   resolved: 'bg-emerald-100 text-emerald-800',
-  dismissed: 'bg-slate-100 text-slate-600',
+  dismissed: 'bg-muted text-muted-foreground',
 }
 
 export function ReportStatusBadge({ status }: { status: ReportStatus }) {
@@ -22,7 +22,7 @@ export function ReportStatusBadge({ status }: { status: ReportStatus }) {
 
 export function ReportTypeBadge({ type }: { type: ReportType }) {
   return (
-    <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+    <Badge variant="outline" className="border-border bg-muted/50 text-foreground/80">
       {REPORT_TYPE_SHORT_LABELS[type]}
     </Badge>
   )
@@ -38,7 +38,7 @@ const SIGNAL_ICONS: Record<QualitySignalType, typeof FlagIcon> = {
 const TONE_STYLES: Record<QualitySignal['tone'], string> = {
   critical: 'bg-red-100 text-red-800',
   warning: 'bg-amber-100 text-amber-800',
-  neutral: 'bg-slate-100 text-slate-700',
+  neutral: 'bg-muted text-foreground/80',
 }
 
 export function QualitySignalBadge({ signal }: { signal: QualitySignal }) {

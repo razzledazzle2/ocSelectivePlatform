@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/layout/page-header'
 import { QuestionForm } from '@/components/admin/question-form'
 import { createEmptyQuestionFormValues } from '@/lib/questions/form-values'
 import {
@@ -16,13 +17,11 @@ export default async function NewAdminQuestionPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-700">Question Bank</p>
-        <h2 className="mt-2 text-3xl font-semibold text-slate-950">New question</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Create an original multiple-choice question for OC or Selective practice.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Question Bank"
+        title="New question"
+        description="Create an original multiple-choice question for OC or Selective practice."
+      />
 
       <QuestionForm
         mode="create"

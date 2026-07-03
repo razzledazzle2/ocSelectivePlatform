@@ -10,18 +10,18 @@ const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 function intensityClass(day: ActivityCalendarDay): string {
   if (!day.active) {
-    return day.count > 0 ? 'bg-slate-100 text-slate-500' : 'bg-muted/60 text-muted-foreground'
+    return day.count > 0 ? 'bg-muted text-muted-foreground' : 'bg-muted/60 text-muted-foreground'
   }
-  if (day.count >= 10) return 'bg-emerald-500 text-white'
-  if (day.count >= 5) return 'bg-emerald-400 text-white'
-  return 'bg-emerald-200 text-emerald-900'
+  if (day.count >= 10) return 'bg-brand text-brand-foreground'
+  if (day.count >= 5) return 'bg-brand/70 text-brand-foreground'
+  return 'bg-brand-soft text-brand'
 }
 
 export function ActivityCalendar({ calendar }: ActivityCalendarProps) {
   const leadingCells = Array.from({ length: calendar.firstWeekday })
 
   return (
-    <Card className="border-border/70 bg-card">
+    <Card className="rounded-2xl shadow-sm ring-border">
       <CardHeader>
         <CardTitle>Activity</CardTitle>
         <CardDescription>{calendar.monthLabel}</CardDescription>
@@ -58,9 +58,9 @@ export function ActivityCalendar({ calendar }: ActivityCalendarProps) {
         <div className="flex items-center justify-end gap-2 text-[0.65rem] text-muted-foreground">
           <span>Less</span>
           <span className="size-3 rounded-sm bg-muted/60" />
-          <span className="size-3 rounded-sm bg-emerald-200" />
-          <span className="size-3 rounded-sm bg-emerald-400" />
-          <span className="size-3 rounded-sm bg-emerald-500" />
+          <span className="size-3 rounded-sm bg-brand-soft" />
+          <span className="size-3 rounded-sm bg-brand/70" />
+          <span className="size-3 rounded-sm bg-brand" />
           <span>More</span>
         </div>
       </CardContent>

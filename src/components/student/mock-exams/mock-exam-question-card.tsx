@@ -31,7 +31,7 @@ export function MockExamQuestionCard({
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
             Question {questionNumber} of {totalQuestions}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -56,11 +56,11 @@ export function MockExamQuestionCard({
 
       <div className="space-y-4">
         {question.passageText ? (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700">
+          <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4 text-sm leading-7 text-foreground/80">
             {question.passageText}
           </div>
         ) : null}
-        <p className="text-lg leading-8 text-slate-950">{question.questionText}</p>
+        <p className="text-lg leading-8 text-foreground">{question.questionText}</p>
       </div>
 
       <div className="grid gap-3">
@@ -74,14 +74,14 @@ export function MockExamQuestionCard({
               onClick={() => onSelect(option.label as QuestionOptionLabel)}
               className={cn(
                 'flex w-full items-start gap-3 rounded-2xl border px-4 py-4 text-left transition-colors',
-                'border-slate-200 bg-white hover:bg-slate-50',
-                isSelected && 'border-cyan-400 bg-cyan-50 text-cyan-950'
+                'border-border bg-white hover:bg-muted/50',
+                isSelected && 'border-brand bg-brand-soft text-foreground'
               )}
             >
               <span
                 className={cn(
                   'inline-flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
-                  isSelected ? 'bg-cyan-600 text-white' : 'bg-slate-950 text-white'
+                  isSelected ? 'bg-brand text-brand-foreground' : 'bg-primary text-primary-foreground'
                 )}
               >
                 {option.label}

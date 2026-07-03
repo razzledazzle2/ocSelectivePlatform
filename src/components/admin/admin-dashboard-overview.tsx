@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 
 import { DashboardCard } from '@/components/dashboard-card'
+import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -48,23 +49,24 @@ export function AdminDashboardOverview({ stats }: AdminDashboardOverviewProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-700">Operations overview</p>
-          <h2 className="mt-2 text-3xl font-semibold text-slate-950">Learning platform health</h2>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Track students, content coverage, and practice activity from one admin command surface.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Link href="/admin/questions/new" className={cn(buttonVariants({ variant: 'default' }))}>
-            Add a question
-          </Link>
-          <Link href="/admin/students" className={cn(buttonVariants({ variant: 'outline' }))}>
-            View students
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Operations overview"
+        title="Learning platform health"
+        description="Track students, content coverage, and practice activity from one admin command surface."
+        actions={
+          <>
+            <Link href="/admin/questions/new" className={cn(buttonVariants({ variant: 'default' }))}>
+              Add a question
+            </Link>
+            <Link href="/admin/questions" className={cn(buttonVariants({ variant: 'outline' }))}>
+              Import questions
+            </Link>
+            <Link href="/admin/students" className={cn(buttonVariants({ variant: 'outline' }))}>
+              View students
+            </Link>
+          </>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
@@ -73,7 +75,7 @@ export function AdminDashboardOverview({ stats }: AdminDashboardOverviewProps) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+        <Card className="rounded-2xl shadow-sm ring-border">
           <CardHeader className="border-b border-border/70">
             <CardTitle>Recent students</CardTitle>
             <CardDescription>
@@ -89,11 +91,11 @@ export function AdminDashboardOverview({ stats }: AdminDashboardOverviewProps) {
               stats.recentStudents.map((student) => (
                 <div
                   key={student.id}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                  className="rounded-2xl border border-border bg-muted/50 px-4 py-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="font-medium text-slate-950">
+                      <p className="font-medium text-foreground">
                         {student.fullName || student.email || 'Student account'}
                       </p>
                       <p className="mt-1 text-sm text-muted-foreground">
@@ -104,7 +106,7 @@ export function AdminDashboardOverview({ stats }: AdminDashboardOverviewProps) {
                       <Badge variant="outline">{student.role}</Badge>
                     </div>
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-5 text-sm text-slate-700">
+                  <div className="mt-4 flex flex-wrap gap-5 text-sm text-foreground/80">
                     <p>{student.questionsCompleted} attempts</p>
                     <p>{formatPercent(student.accuracy)} accuracy</p>
                     <p>{student.activeMistakes} active mistakes</p>
@@ -115,31 +117,31 @@ export function AdminDashboardOverview({ stats }: AdminDashboardOverviewProps) {
           </CardContent>
         </Card>
 
-        <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+        <Card className="rounded-2xl shadow-sm ring-border">
           <CardHeader className="border-b border-border/70">
             <CardTitle>Publishing snapshot</CardTitle>
             <CardDescription>
               A fast check of where the question bank sits today.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4 pt-6 text-sm text-slate-700">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="font-medium text-slate-950">Published questions</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-950">{stats.publishedQuestions}</p>
+          <CardContent className="space-y-4 pt-6 text-sm text-foreground/80">
+            <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4">
+              <p className="font-medium text-foreground">Published questions</p>
+              <p className="mt-2 text-3xl font-semibold text-foreground">{stats.publishedQuestions}</p>
               <p className="mt-2 text-sm text-muted-foreground">
                 These are currently eligible for student practice.
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="font-medium text-slate-950">Draft backlog</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-950">{stats.draftQuestions}</p>
+            <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4">
+              <p className="font-medium text-foreground">Draft backlog</p>
+              <p className="mt-2 text-3xl font-semibold text-foreground">{stats.draftQuestions}</p>
               <p className="mt-2 text-sm text-muted-foreground">
                 Questions waiting for review or publication.
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="font-medium text-slate-950">Archived content</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-950">{stats.archivedQuestions}</p>
+            <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4">
+              <p className="font-medium text-foreground">Archived content</p>
+              <p className="mt-2 text-3xl font-semibold text-foreground">{stats.archivedQuestions}</p>
               <p className="mt-2 text-sm text-muted-foreground">
                 Older or retired questions kept out of student flows.
               </p>

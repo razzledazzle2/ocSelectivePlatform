@@ -18,7 +18,7 @@ export function MockExamRecommendationCard({
   }
 
   return (
-    <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+    <Card className="rounded-2xl shadow-sm ring-border">
       <CardHeader className="border-b border-border/70">
         <CardTitle className="flex items-center gap-2">
           <LightbulbIcon className="size-4 text-amber-500" />
@@ -29,10 +29,10 @@ export function MockExamRecommendationCard({
         {recommendations.map((recommendation) => (
           <div
             key={recommendation.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted/50 px-4 py-4"
           >
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-950">{recommendation.title}</p>
+              <p className="text-sm font-semibold text-foreground">{recommendation.title}</p>
               <p className="mt-0.5 text-sm leading-6 text-muted-foreground">
                 {recommendation.description}
               </p>

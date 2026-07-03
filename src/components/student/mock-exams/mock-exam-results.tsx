@@ -42,7 +42,7 @@ export function MockExamResultsView({ results }: MockExamResultsViewProps) {
 
       <MockExamRecommendationCard recommendations={results.recommendations} />
 
-      <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+      <Card className="rounded-2xl shadow-sm ring-border">
         <CardHeader className="border-b border-border/70">
           <CardTitle>Performance breakdown</CardTitle>
         </CardHeader>

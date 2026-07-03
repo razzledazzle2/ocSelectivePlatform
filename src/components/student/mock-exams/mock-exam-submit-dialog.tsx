@@ -46,19 +46,19 @@ export function MockExamSubmitDialog({
         </DialogHeader>
 
         <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-center">
+          <div className="rounded-xl border border-border bg-muted/50 px-3 py-2.5 text-center">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Answered</p>
-            <p className="mt-0.5 text-lg font-semibold text-slate-950">
+            <p className="mt-0.5 text-lg font-semibold text-foreground">
               {answeredCount}/{totalQuestions}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-center">
+          <div className="rounded-xl border border-border bg-muted/50 px-3 py-2.5 text-center">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Unanswered</p>
-            <p className="mt-0.5 text-lg font-semibold text-slate-950">{unanswered}</p>
+            <p className="mt-0.5 text-lg font-semibold text-foreground">{unanswered}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-center">
+          <div className="rounded-xl border border-border bg-muted/50 px-3 py-2.5 text-center">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Flagged</p>
-            <p className="mt-0.5 text-lg font-semibold text-slate-950">{flaggedCount}</p>
+            <p className="mt-0.5 text-lg font-semibold text-foreground">{flaggedCount}</p>
           </div>
         </div>
 

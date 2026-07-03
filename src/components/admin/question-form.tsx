@@ -220,7 +220,7 @@ export function QuestionForm({
   const fieldErrors = result.fieldErrors ?? {}
 
   return (
-    <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+    <Card className="rounded-2xl shadow-sm ring-border">
       <CardHeader className="space-y-4 border-b border-border/70">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{mode === 'create' ? 'New question' : 'Edit question'}</Badge>
@@ -412,7 +412,7 @@ export function QuestionForm({
           <div className="space-y-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">Answer options</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-brand">Answer options</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {optionRule.label === 'General'
                     ? 'Questions can have four or five options (A–E).'

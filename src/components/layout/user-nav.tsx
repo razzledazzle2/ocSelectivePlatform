@@ -1,7 +1,5 @@
 'use client'
 
-import { BookOpenCheckIcon } from 'lucide-react'
-
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,9 +7,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { SignOutButton } from '@/components/layout/sign-out-button'
 import type { AppProfile } from '@/lib/types'
 
 function getInitials(name = ''): string {
@@ -35,48 +33,39 @@ export function UserNav({ profile }: UserNavProps) {
       <DropdownMenuTrigger
         render={
           <Button
-            variant="outline"
-            className="h-11 min-w-[14rem] justify-between rounded-2xl border-white/80 bg-white/90 px-3 shadow-sm shadow-slate-200/50"
+            variant="ghost"
+            className="h-11 gap-3 rounded-xl px-2 hover:bg-muted"
           />
         }
       >
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar size="lg">
-            <AvatarFallback>{initials || 'U'}</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 text-left">
-            <p className="truncate text-sm font-semibold text-foreground">
-              {profile.full_name || 'Platform user'}
-            </p>
-            <p className="truncate text-xs text-muted-foreground">{profile.email}</p>
-          </div>
+        <Avatar size="lg">
+          <AvatarFallback className="bg-primary text-primary-foreground">{initials || 'U'}</AvatarFallback>
+        </Avatar>
+        <div className="hidden min-w-0 text-left md:block">
+          <p className="max-w-[11rem] truncate text-sm font-semibold text-foreground">
+            {profile.full_name || 'Platform user'}
+          </p>
+          <p className="max-w-[11rem] truncate text-xs text-muted-foreground">{profile.email}</p>
         </div>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64 rounded-2xl border bg-white/95 p-0 shadow-xl">
+      <DropdownMenuContent align="end" className="w-64 rounded-2xl p-0 shadow-xl">
         <div className="space-y-3 p-4">
-          <DropdownMenuLabel className="px-0 py-0 text-slate-900">Account</DropdownMenuLabel>
-          <div className="rounded-2xl border border-border/80 bg-muted/40 p-3">
+          <DropdownMenuLabel className="px-0 py-0">Account</DropdownMenuLabel>
+          <div className="rounded-xl border border-border bg-muted/40 p-3">
             <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">{profile.full_name || 'Platform user'}</p>
-                <p className="text-xs text-muted-foreground">{profile.email}</p>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {profile.full_name || 'Platform user'}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">{profile.email}</p>
               </div>
-              <Badge variant="secondary" className="capitalize">
+              <Badge variant="secondary" className="shrink-0 capitalize">
                 {profile.role.replace('_', ' ')}
               </Badge>
             </div>
           </div>
-          <div className="flex items-start gap-3 rounded-2xl bg-slate-950 px-3 py-3 text-slate-100">
-            <BookOpenCheckIcon className="mt-0.5 size-4 shrink-0" />
-            <div>
-              <p className="text-sm font-medium">Phase 0 foundation</p>
-              <p className="text-xs text-slate-300">
-                Auth, roles, routing, and dashboard scaffolding are ready for the next phase.
-              </p>
-            </div>
-          </div>
+          <SignOutButton variant="outline" />
         </div>
-        <DropdownMenuSeparator />
       </DropdownMenuContent>
     </DropdownMenu>
   )

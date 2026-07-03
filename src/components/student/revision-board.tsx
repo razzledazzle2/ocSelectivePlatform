@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
-import { BookOpenIcon, CheckCircle2Icon, RotateCcwIcon, XCircleIcon } from 'lucide-react'
+import { AlarmClockIcon, BookOpenIcon, CheckCircle2Icon, RotateCcwIcon, XCircleIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -12,6 +12,7 @@ import {
   retryMistakeAction,
 } from '@/app/student/revision/actions'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -130,24 +131,42 @@ export function RevisionBoard({ mistakes }: RevisionBoardProps) {
 
   if (mistakes.length === 0) {
     return (
-      <Alert>
-        <BookOpenIcon />
-        <AlertTitle>No mistakes to review yet</AlertTitle>
-        <AlertDescription>
-          <p>
-            When you answer a question incorrectly during practice, it is saved here so you can revise it and
-            improve over time.
-          </p>
-          <Link href="/student/practice" className={cn(buttonVariants({ variant: 'default', size: 'sm' }), 'mt-3')}>
+      <EmptyState
+        icon={BookOpenIcon}
+        title="No mistakes to review yet"
+        description="When you answer a question incorrectly during practice, it is saved here so you can revise it and improve over time."
+        action={
+          <Link href="/student/practice" className={cn(buttonVariants({ variant: 'default' }))}>
             Start practising
           </Link>
-        </AlertDescription>
-      </Alert>
+        }
+      />
     )
   }
 
   return (
     <div className="space-y-5">
+      {counts.due_today > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-warning/30 bg-warning-soft px-4 py-3.5">
+          <div className="flex items-center gap-3">
+            <span className="flex size-9 items-center justify-center rounded-xl bg-warning/15 text-warning">
+              <AlarmClockIcon className="size-4" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                {counts.due_today} question{counts.due_today === 1 ? '' : 's'} due for review
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Regular revision moves knowledge from short-term to long-term memory.
+              </p>
+            </div>
+          </div>
+          <Button size="sm" onClick={() => setMode('due_today')}>
+            Review now
+          </Button>
+        </div>
+      ) : null}
+
       <Tabs value={mode} onValueChange={(value) => setMode(value as RevisionMode)}>
         <TabsList className="flex-wrap">
           {MODES.map((item) => (
@@ -203,7 +222,7 @@ export function RevisionBoard({ mistakes }: RevisionBoardProps) {
       </div>
 
       {visibleMistakes.length === 0 ? (
-        <Card className="border-dashed border-slate-300 bg-white/80">
+        <Card className="rounded-2xl border border-dashed border-border shadow-none ring-0">
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
             Nothing matches this view right now.
           </CardContent>
@@ -237,7 +256,7 @@ function MistakeCard({ mistake, now }: { mistake: StudentMistakeQuestion; now: n
   }
 
   return (
-    <Card className="border-white/70 bg-white/94 shadow-sm shadow-slate-200/40">
+    <Card className="rounded-2xl shadow-sm ring-border transition-shadow hover:shadow-md">
       <CardContent className="space-y-3 pt-5">
         <div className="flex flex-wrap items-center gap-2">
           {mistake.subjectName ? <Badge variant="secondary">{mistake.subjectName}</Badge> : null}
@@ -250,7 +269,7 @@ function MistakeCard({ mistake, now }: { mistake: StudentMistakeQuestion; now: n
           ) : null}
         </div>
 
-        <p className="text-sm leading-7 text-slate-700">{mistake.questionText}</p>
+        <p className="text-sm leading-7 text-foreground/80">{mistake.questionText}</p>
 
         <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
           <span>{dueLabel(mistake, now)}</span>
@@ -370,9 +389,9 @@ function RetryDialog({ questionId, open, onOpenChange }: RetryDialogProps) {
 
         {question ? (
           <div className="space-y-4">
-            <p className="text-base leading-7 text-slate-950">{question.questionText}</p>
+            <p className="text-base leading-7 text-foreground">{question.questionText}</p>
             {question.passageText ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-7 text-slate-700">
+              <div className="rounded-xl border border-border bg-muted/50 px-3 py-3 text-sm leading-7 text-foreground/80">
                 {question.passageText}
               </div>
             ) : null}
@@ -390,14 +409,14 @@ function RetryDialog({ questionId, open, onOpenChange }: RetryDialogProps) {
                     disabled={Boolean(feedback)}
                     className={cn(
                       'flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors',
-                      'border-slate-200 bg-white hover:bg-slate-50 disabled:cursor-default',
-                      isSelected && !feedback && 'border-cyan-400 bg-cyan-50 text-cyan-950',
+                      'border-border bg-card hover:bg-muted/50 disabled:cursor-default',
+                      isSelected && !feedback && 'border-brand bg-brand-soft text-foreground',
                       feedback && isCorrect && 'border-emerald-300 bg-emerald-50 text-emerald-950',
                       isWrong && 'border-amber-300 bg-amber-50 text-amber-950'
                     )}
                     onClick={() => setSelected(option.label)}
                   >
-                    <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-950 text-xs font-semibold text-white">
+                    <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                       {option.label}
                     </span>
                     <span className="whitespace-normal leading-6">{option.option_text}</span>
@@ -413,7 +432,7 @@ function RetryDialog({ questionId, open, onOpenChange }: RetryDialogProps) {
                   {feedback.isCorrect ? 'Correct!' : 'Not quite.'} Correct answer: {feedback.correctOptionLabel}.
                 </AlertTitle>
                 <AlertDescription>
-                  <p className="mt-1 text-sm leading-7 text-slate-700">{feedback.workedSolution}</p>
+                  <p className="mt-1 text-sm leading-7 text-foreground/80">{feedback.workedSolution}</p>
                 </AlertDescription>
               </Alert>
             ) : null}

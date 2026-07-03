@@ -142,7 +142,7 @@ export function TaxonomyManager({
 
       {/* -- Subjects ------------------------------------------------------ */}
       <TabsContent value="subjects" className="pt-5">
-        <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+        <Card className="rounded-2xl shadow-sm ring-border">
           <CardHeader className="border-b border-border/70">
             <CardTitle>Subjects</CardTitle>
             <CardDescription>Top-level areas such as Mathematical Reasoning or Thinking Skills.</CardDescription>
@@ -189,7 +189,7 @@ export function TaxonomyManager({
 
       {/* -- Topics -------------------------------------------------------- */}
       <TabsContent value="topics" className="pt-5">
-        <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+        <Card className="rounded-2xl shadow-sm ring-border">
           <CardHeader className="border-b border-border/70">
             <CardTitle>Topics</CardTitle>
             <CardDescription>Topics live under a subject and group related question types.</CardDescription>
@@ -253,7 +253,7 @@ export function TaxonomyManager({
 
       {/* -- Question types ----------------------------------------------- */}
       <TabsContent value="types" className="pt-5">
-        <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+        <Card className="rounded-2xl shadow-sm ring-border">
           <CardHeader className="border-b border-border/70">
             <CardTitle>Question types</CardTitle>
             <CardDescription>
@@ -344,12 +344,12 @@ export function TaxonomyManager({
 
       {/* -- Option rules (read-only, code-configured) -------------------- */}
       <TabsContent value="rules" className="pt-5">
-        <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+        <Card className="rounded-2xl shadow-sm ring-border">
           <CardHeader className="border-b border-border/70">
             <CardTitle>Option count rules</CardTitle>
             <CardDescription>
               How many answer options each subject expects. These are configured centrally in{' '}
-              <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">src/lib/questions/option-rules.ts</code>{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">src/lib/questions/option-rules.ts</code>{' '}
               and applied in the manual editor and every import.
             </CardDescription>
           </CardHeader>
@@ -366,7 +366,7 @@ export function TaxonomyManager({
                 <TableBody>
                   {optionRules.map((rule) => (
                     <TableRow key={rule.label}>
-                      <TableCell className="font-medium text-slate-950">{rule.label}</TableCell>
+                      <TableCell className="font-medium text-foreground">{rule.label}</TableCell>
                       <TableCell>{rule.allowedCounts.join(' or ')}</TableCell>
                       <TableCell>
                         <Badge variant="secondary">{rule.preferredCount}</Badge>
@@ -374,7 +374,7 @@ export function TaxonomyManager({
                     </TableRow>
                   ))}
                   <TableRow>
-                    <TableCell className="font-medium text-slate-950">
+                    <TableCell className="font-medium text-foreground">
                       Any other subject <span className="text-muted-foreground">(default)</span>
                     </TableCell>
                     <TableCell>{defaultOptionRule.allowedCounts.join(' or ')}</TableCell>
@@ -413,7 +413,7 @@ function TaxonomyTable({
   emptyLabel: string
 }) {
   if (rows.length === 0) {
-    return <p className="rounded-xl border border-dashed border-slate-300 px-4 py-6 text-sm text-muted-foreground">{emptyLabel}</p>
+    return <p className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">{emptyLabel}</p>
   }
 
   return (
@@ -430,7 +430,7 @@ function TaxonomyTable({
         <TableBody>
           {rows.map((row) => (
             <TableRow key={row.id}>
-              <TableCell className="font-medium text-slate-950">{row.primary}</TableCell>
+              <TableCell className="font-medium text-foreground">{row.primary}</TableCell>
               <TableCell className="text-muted-foreground">{row.secondary}</TableCell>
               <TableCell>
                 <Badge variant={row.isActive ? 'default' : 'outline'}>{row.isActive ? 'Active' : 'Disabled'}</Badge>

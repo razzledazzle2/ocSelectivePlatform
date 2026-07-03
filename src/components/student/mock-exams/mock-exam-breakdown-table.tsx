@@ -50,12 +50,12 @@ export function MockExamBreakdownTable({
           const answered = row.correct + row.incorrect
           return (
             <TableRow key={row.label}>
-              <TableCell className="font-medium text-slate-950">{row.label}</TableCell>
-              <TableCell className="text-right text-slate-700">
+              <TableCell className="font-medium text-foreground">{row.label}</TableCell>
+              <TableCell className="text-right text-foreground/80">
                 {answered}/{row.total}
               </TableCell>
-              <TableCell className="text-right text-slate-700">{row.correct}</TableCell>
-              <TableCell className="text-right text-slate-700">
+              <TableCell className="text-right text-foreground/80">{row.correct}</TableCell>
+              <TableCell className="text-right text-foreground/80">
                 {row.incorrect + row.unanswered}
               </TableCell>
               <TableCell className={cn('text-right font-semibold', accuracyClass(row.accuracy))}>

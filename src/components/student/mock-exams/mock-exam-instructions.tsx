@@ -43,13 +43,13 @@ export function MockExamInstructions({ prepared }: MockExamInstructionsProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+        <div className="rounded-xl border border-border bg-muted/50 px-3 py-2.5">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Questions</p>
-          <p className="mt-0.5 text-xl font-semibold text-slate-950">{isEmpty ? 0 : questionCount}</p>
+          <p className="mt-0.5 text-xl font-semibold text-foreground">{isEmpty ? 0 : questionCount}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+        <div className="rounded-xl border border-border bg-muted/50 px-3 py-2.5">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Time limit</p>
-          <p className="mt-0.5 text-xl font-semibold text-slate-950">
+          <p className="mt-0.5 text-xl font-semibold text-foreground">
             {formatTimeLimit(prepared.timeLimitSeconds)}
           </p>
         </div>
@@ -84,8 +84,8 @@ export function MockExamInstructions({ prepared }: MockExamInstructionsProps) {
           {RULES.map((rule) => {
             const Icon = rule.icon
             return (
-              <li key={rule.text} className="flex items-start gap-2.5 text-sm leading-6 text-slate-700">
-                <Icon className="mt-0.5 size-4 shrink-0 text-slate-500" />
+              <li key={rule.text} className="flex items-start gap-2.5 text-sm leading-6 text-foreground/80">
+                <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                 <span>{rule.text}</span>
               </li>
             )

@@ -256,10 +256,10 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
       <div className="space-y-5">
         <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr]">
           {/* -- Recommended Today ---------------------------------------- */}
-          <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+          <Card className="rounded-2xl shadow-sm ring-border">
             <CardHeader className="border-b border-border/70">
               <div className="flex items-center gap-2">
-                <SparklesIcon className="size-4 text-cyan-700" />
+                <SparklesIcon className="size-4 text-brand" />
                 <CardTitle>Recommended today</CardTitle>
               </div>
               <CardDescription>Built from your mistakes and weak areas — it updates as you practise.</CardDescription>
@@ -267,11 +267,11 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
             <CardContent className="flex h-full flex-col justify-between gap-4 pt-6">
               {hub.revisionDueCount > 0 ? (
                 <>
-                  <p className="text-sm leading-7 text-slate-700">
-                    You have <span className="font-semibold text-slate-950">{hub.revisionDueCount} question{hub.revisionDueCount === 1 ? '' : 's'} ready to review</span>
+                  <p className="text-sm leading-7 text-foreground/80">
+                    You have <span className="font-semibold text-foreground">{hub.revisionDueCount} question{hub.revisionDueCount === 1 ? '' : 's'} ready to review</span>
                     {recommendedAreas ? (
                       <>
-                        {' '}— mostly <span className="font-medium text-slate-950">{recommendedAreas}</span>
+                        {' '}— mostly <span className="font-medium text-foreground">{recommendedAreas}</span>
                       </>
                     ) : null}
                     . Clearing these first is the fastest way to lift your accuracy.
@@ -284,9 +284,9 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
                 </>
               ) : hub.weakest ? (
                 <>
-                  <p className="text-sm leading-7 text-slate-700">
+                  <p className="text-sm leading-7 text-foreground/80">
                     Nothing is due for revision — nice. Your data says{' '}
-                    <span className="font-medium text-slate-950">
+                    <span className="font-medium text-foreground">
                       {[hub.weakest.subjectName, hub.weakest.topicName].filter(Boolean).join(' — ')}
                     </span>{' '}
                     is your weakest area ({hub.weakest.accuracy}% accuracy), so a focused set there is the best
@@ -298,7 +298,7 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
                 </>
               ) : (
                 <>
-                  <p className="text-sm leading-7 text-slate-700">
+                  <p className="text-sm leading-7 text-foreground/80">
                     Welcome! Start with a quick 10-question set — after a few sessions this card starts
                     recommending exactly what to practise next.
                   </p>
@@ -309,7 +309,7 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
           </Card>
 
           {/* -- Quick Practice -------------------------------------------- */}
-          <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+          <Card className="rounded-2xl shadow-sm ring-border">
             <CardHeader className="border-b border-border/70">
               <CardTitle>Quick practice</CardTitle>
               <CardDescription>
@@ -438,10 +438,10 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
 
         {/* -- Weak areas / Revision due / Mock exams ----------------------- */}
         <div className="grid gap-5 md:grid-cols-3">
-          <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+          <Card className="rounded-2xl shadow-sm ring-border">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <TrendingUpIcon className="size-4 text-cyan-700" />
+                <TrendingUpIcon className="size-4 text-brand" />
                 <CardTitle className="text-base">Weak areas</CardTitle>
               </div>
             </CardHeader>
@@ -471,15 +471,15 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
             </CardContent>
           </Card>
 
-          <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+          <Card className="rounded-2xl shadow-sm ring-border">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <BrainIcon className="size-4 text-cyan-700" />
+                <BrainIcon className="size-4 text-brand" />
                 <CardTitle className="text-base">Revision due</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-2xl font-semibold text-slate-950">{hub.revisionDueCount}</p>
+              <p className="text-2xl font-semibold text-foreground">{hub.revisionDueCount}</p>
               <p className="text-sm text-muted-foreground">
                 {hub.revisionDueCount === 0
                   ? 'Nothing due right now — mistakes you make in practice appear here for spaced review.'
@@ -494,10 +494,10 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
             </CardContent>
           </Card>
 
-          <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+          <Card className="rounded-2xl shadow-sm ring-border">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <TimerIcon className="size-4 text-cyan-700" />
+                <TimerIcon className="size-4 text-brand" />
                 <CardTitle className="text-base">Mock exams</CardTitle>
               </div>
             </CardHeader>
@@ -527,30 +527,30 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
 
     return (
       <div className="space-y-6">
-        <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+        <Card className="rounded-2xl shadow-sm ring-border">
           <CardHeader className="border-b border-border/70">
             <CardTitle>Practice results</CardTitle>
             <CardDescription>Your answers were saved. Here is how this set went.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pt-6">
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Score</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-950">
+                <p className="mt-1 text-2xl font-semibold text-foreground">
                   {correctCount}/{totalQuestions}
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Accuracy</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-950">{accuracy}%</p>
+                <p className="mt-1 text-2xl font-semibold text-foreground">{accuracy}%</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Incorrect</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-950">{incorrectCount}</p>
+                <p className="mt-1 text-2xl font-semibold text-foreground">{incorrectCount}</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Time</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-950">{formatSeconds(totalTimeSeconds)}</p>
+                <p className="mt-1 text-2xl font-semibold text-foreground">{formatSeconds(totalTimeSeconds)}</p>
               </div>
             </div>
 
@@ -570,7 +570,7 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
         </Card>
 
         {incorrectAnswers.length > 0 ? (
-          <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+          <Card className="rounded-2xl shadow-sm ring-border">
             <CardHeader className="border-b border-border/70">
               <CardTitle>Questions to review</CardTitle>
               <CardDescription>
@@ -579,8 +579,8 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
             </CardHeader>
             <CardContent className="space-y-4 pt-6">
               {incorrectAnswers.map((answer) => (
-                <div key={answer.question.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                  <p className="text-sm font-medium leading-7 text-slate-950">{answer.question.questionText}</p>
+                <div key={answer.question.id} className="rounded-2xl border border-border bg-muted/50 px-4 py-4">
+                  <p className="text-sm font-medium leading-7 text-foreground">{answer.question.questionText}</p>
                   <div className="mt-2 flex flex-wrap gap-4 text-sm">
                     <span className="text-amber-700">Your answer: {answer.selectedLabel}</span>
                     <span className="text-emerald-700">Correct answer: {answer.feedback.correctOptionLabel}</span>
@@ -589,7 +589,7 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Worked solution
                   </p>
-                  <p className="mt-1 text-sm leading-7 text-slate-700">{answer.feedback.workedSolution}</p>
+                  <p className="mt-1 text-sm leading-7 text-foreground/80">{answer.feedback.workedSolution}</p>
                   <div className="mt-2 flex justify-end">
                     <StudentQuestionReportButton
                       questionId={answer.question.id}
@@ -618,7 +618,7 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
   }
 
   return (
-    <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+    <Card className="rounded-2xl shadow-sm ring-border">
       <CardHeader className="space-y-4 border-b border-border/70">
         <div className="flex flex-wrap items-center gap-2">
           <Badge>{activeQuestion.examType}</Badge>
@@ -635,9 +635,9 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
       </CardHeader>
       <CardContent className="space-y-6 pt-6">
         <div className="space-y-4">
-          <p className="text-lg leading-8 text-slate-950">{activeQuestion.questionText}</p>
+          <p className="text-lg leading-8 text-foreground">{activeQuestion.questionText}</p>
           {activeQuestion.passageText ? (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700">
+            <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4 text-sm leading-7 text-foreground/80">
               {activeQuestion.passageText}
             </div>
           ) : null}
@@ -659,14 +659,14 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
                 aria-pressed={isSelected}
                 className={cn(
                   'flex w-full items-start gap-3 rounded-2xl border px-4 py-4 text-left transition-colors',
-                  'border-slate-200 bg-white hover:bg-slate-50 disabled:cursor-default',
-                  isSelected && !feedback && 'border-cyan-400 bg-cyan-50 text-cyan-950',
+                  'border-border bg-card hover:bg-muted/50 disabled:cursor-default',
+                  isSelected && !feedback && 'border-brand bg-brand-soft text-foreground',
                   feedback && isCorrect && 'border-emerald-300 bg-emerald-50 text-emerald-950',
                   isWrongSelection && 'border-amber-300 bg-amber-50 text-amber-950'
                 )}
                 onClick={() => setSelectedOption(option.label)}
               >
-                <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-950 text-xs font-semibold text-white">
+                <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                   {option.label}
                 </span>
                 <span className="whitespace-normal leading-7">{option.option_text}</span>
@@ -684,14 +684,14 @@ export function PracticeSession({ subjects, topics, hub }: PracticeSessionProps)
             <AlertDescription>
               <div className="mt-1 space-y-3 text-sm leading-7 text-foreground">
                 <div>
-                  <p className="font-semibold text-slate-950">Short explanation</p>
-                  <p className="text-slate-700">
+                  <p className="font-semibold text-foreground">Short explanation</p>
+                  <p className="text-foreground/80">
                     {feedback.shortExplanation ?? 'No short explanation was added for this question yet.'}
                   </p>
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-950">Worked solution</p>
-                  <p className="text-slate-700">{feedback.workedSolution}</p>
+                  <p className="font-semibold text-foreground">Worked solution</p>
+                  <p className="text-foreground/80">{feedback.workedSolution}</p>
                 </div>
               </div>
             </AlertDescription>

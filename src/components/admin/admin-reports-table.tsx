@@ -29,7 +29,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-AU', {
 export function AdminReportsTable({ reports, reviewers }: AdminReportsTableProps) {
   if (reports.length === 0) {
     return (
-      <Card className="border-dashed border-slate-300 bg-white/80">
+      <Card className="rounded-2xl border border-dashed border-border shadow-none ring-0">
         <CardContent className="py-10 text-center text-sm text-muted-foreground">
           No reports match the current filters. When students or tutors flag a question, it appears here.
         </CardContent>
@@ -38,7 +38,7 @@ export function AdminReportsTable({ reports, reviewers }: AdminReportsTableProps
   }
 
   return (
-    <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+    <Card className="rounded-2xl shadow-sm ring-border">
       <CardContent className="p-0">
         <Table>
           <TableHeader>
@@ -58,7 +58,7 @@ export function AdminReportsTable({ reports, reviewers }: AdminReportsTableProps
               <TableRow key={report.id}>
                 <TableCell className="max-w-[24rem] whitespace-normal align-top">
                   <div className="space-y-2">
-                    <p className="font-medium text-slate-950">{report.questionTextPreview}</p>
+                    <p className="font-medium text-foreground">{report.questionTextPreview}</p>
                     <div className="flex flex-wrap gap-1.5">
                       <Badge variant="secondary">{report.subjectName}</Badge>
                       <Badge variant="outline">{report.topicName}</Badge>
@@ -82,7 +82,7 @@ export function AdminReportsTable({ reports, reviewers }: AdminReportsTableProps
                   <ReportTypeBadge type={report.reportType} />
                 </TableCell>
                 <TableCell className="align-top">
-                  <span className="text-sm font-medium text-slate-950">
+                  <span className="text-sm font-medium text-foreground">
                     {report.questionOpenReportCount} open
                   </span>
                   <span className="text-xs text-muted-foreground"> / {report.questionReportCount}</span>

@@ -27,8 +27,8 @@ export default async function MockExamRunnerPage({ params }: MockExamRunnerPageP
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-700">Exam in progress</p>
-        <h2 className="mt-2 text-2xl font-semibold text-slate-950">{data.mockName}</h2>
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">Exam in progress</p>
+        <h2 className="mt-2 text-2xl font-semibold text-foreground">{data.mockName}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Answer every question you can. You can flag questions and come back before submitting.
         </p>

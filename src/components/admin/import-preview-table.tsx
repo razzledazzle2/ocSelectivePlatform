@@ -18,9 +18,17 @@ function StatusBadge({ status }: { status: ImportRowStatus }) {
     return <Badge variant="destructive">Error</Badge>
   }
   if (status === 'warning') {
-    return <Badge variant="secondary">Ready with warnings</Badge>
+    return (
+      <Badge variant="outline" className="border-transparent bg-warning-soft text-warning">
+        Ready with warnings
+      </Badge>
+    )
   }
-  return <Badge>Ready</Badge>
+  return (
+    <Badge variant="outline" className="border-transparent bg-success-soft text-success">
+      Ready
+    </Badge>
+  )
 }
 
 export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {

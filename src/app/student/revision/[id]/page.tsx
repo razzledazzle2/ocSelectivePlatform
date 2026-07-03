@@ -29,8 +29,8 @@ export default async function StudentRevisionDetailPage({ params }: StudentRevis
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-700">Revision Queue</p>
-          <h2 className="mt-2 text-3xl font-semibold text-slate-950">Review question</h2>
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">Revision Queue</p>
+          <h2 className="mt-2 text-3xl font-semibold text-foreground">Review question</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Use the worked solution and explanation to understand the original mistake before trying again.
           </p>

@@ -112,7 +112,7 @@ export function ReportDetailDialog({ questionId }: ReportDetailDialogProps) {
             />
 
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-slate-950">Reported question</h3>
+              <h3 className="text-sm font-semibold text-foreground">Reported question</h3>
               <Link
                 href={`/admin/questions/${questionId}/edit`}
                 className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
@@ -127,7 +127,7 @@ export function ReportDetailDialog({ questionId }: ReportDetailDialogProps) {
             <Separator />
 
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-slate-950">
+              <h3 className="text-sm font-semibold text-foreground">
                 Reports ({detail.reports.length})
               </h3>
               {detail.reports.map((report) => (
@@ -166,7 +166,7 @@ function ReportItem({
   const noteChanged = (report.internalNote ?? '') !== note.trim()
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+    <div className="rounded-2xl border border-border bg-white px-4 py-4">
       <div className="flex flex-wrap items-center gap-2">
         <ReportTypeBadge type={report.reportType} />
         <ReportStatusBadge status={report.status} />
@@ -177,7 +177,7 @@ function ReportItem({
       </div>
 
       {report.message ? (
-        <p className="mt-3 text-sm leading-7 text-slate-700">{report.message}</p>
+        <p className="mt-3 text-sm leading-7 text-foreground/80">{report.message}</p>
       ) : (
         <p className="mt-3 text-sm italic text-muted-foreground">No message was added.</p>
       )}

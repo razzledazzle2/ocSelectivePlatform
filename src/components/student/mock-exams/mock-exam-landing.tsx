@@ -111,7 +111,7 @@ export function MockExamLanding({ subjects, recentExams, defaultExamType }: Mock
 
   return (
     <div className="space-y-6">
-      <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+      <Card className="rounded-2xl shadow-sm ring-border">
         <CardHeader className="border-b border-border/70">
           <CardTitle>Choose your exam</CardTitle>
           <CardDescription>
@@ -124,7 +124,7 @@ export function MockExamLanding({ subjects, recentExams, defaultExamType }: Mock
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Exam type
             </span>
-            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+            <div className="inline-flex rounded-lg border border-border bg-muted p-1">
               {EXAM_TYPES.map((value) => (
                 <button
                   key={value}
@@ -133,8 +133,8 @@ export function MockExamLanding({ subjects, recentExams, defaultExamType }: Mock
                   className={cn(
                     'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
                     examType === value
-                      ? 'bg-white text-slate-950 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
                   {value}
@@ -161,13 +161,13 @@ export function MockExamLanding({ subjects, recentExams, defaultExamType }: Mock
       </div>
 
       {recentExams.length > 0 ? (
-        <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+        <Card className="rounded-2xl shadow-sm ring-border">
           <CardHeader className="border-b border-border/70">
             <CardTitle>Recent mock exams</CardTitle>
             <CardDescription>Resume an exam in progress or review a completed one.</CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-border/70">
               {recentExams.map((exam) => {
                 const href =
                   exam.status === 'in_progress'
@@ -180,7 +180,7 @@ export function MockExamLanding({ subjects, recentExams, defaultExamType }: Mock
                   >
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-medium text-slate-950">{exam.mockName}</p>
+                        <p className="text-sm font-medium text-foreground">{exam.mockName}</p>
                         <Badge variant={statusBadgeVariant(exam.status)}>
                           {statusLabel(exam.status)}
                         </Badge>

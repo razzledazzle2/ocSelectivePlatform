@@ -8,6 +8,7 @@ import type {
   QuestionOptionLabel,
   QuestionOptionRecord,
   QuestionRecord,
+  QuestionStatus,
   QuestionTypeRecord,
   SubjectRecord,
   TopicRecord,
@@ -226,6 +227,31 @@ export async function getAdminQuestions(filters: AdminQuestionFilters = {}): Pro
     publishedAt: question.published_at,
     archivedAt: question.archived_at,
   }))
+}
+
+export interface QuestionStatusCounts {
+  total: number
+  published: number
+  draft: number
+  archived: number
+}
+
+/** Whole-bank counts by status for the Question Bank metric chips (ignores filters). */
+export async function getQuestionStatusCounts(): Promise<QuestionStatusCounts> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('questions').select('status')
+
+  if (error) {
+    throw new Error('Unable to load question status counts.')
+  }
+
+  const rows = (data ?? []) as Array<{ status: QuestionStatus }>
+  return {
+    total: rows.length,
+    published: rows.filter((row) => row.status === 'published').length,
+    draft: rows.filter((row) => row.status === 'draft').length,
+    archived: rows.filter((row) => row.status === 'archived').length,
+  }
 }
 
 export async function getExistingQuestionTexts(): Promise<string[]> {

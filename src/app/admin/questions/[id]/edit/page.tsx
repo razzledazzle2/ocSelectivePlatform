@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 
+import { PageHeader } from '@/components/layout/page-header'
 import { QuestionForm } from '@/components/admin/question-form'
 import { questionDetailToFormValues } from '@/lib/questions/form-values'
 import {
@@ -30,13 +31,11 @@ export default async function EditAdminQuestionPage({ params }: EditAdminQuestio
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-700">Question Bank</p>
-        <h2 className="mt-2 text-3xl font-semibold text-slate-950">Edit question</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Refine wording, answers, and publishing status without losing the question history.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Question Bank"
+        title="Edit question"
+        description="Refine wording, answers, and publishing status without losing the question history."
+      />
 
       <QuestionForm
         mode="edit"

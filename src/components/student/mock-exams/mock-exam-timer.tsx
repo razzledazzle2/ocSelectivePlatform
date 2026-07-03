@@ -47,7 +47,7 @@ export function MockExamTimer({ deadlineMs, onExpire }: MockExamTimerProps) {
         'inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 font-mono text-base font-semibold tabular-nums transition-colors',
         isLow
           ? 'border-destructive/40 bg-destructive/10 text-destructive'
-          : 'border-slate-200 bg-slate-50 text-slate-900'
+          : 'border-border bg-muted/50 text-foreground'
       )}
     >
       <AlarmClockIcon className={cn('size-4', isLow && 'animate-pulse')} />

@@ -12,7 +12,7 @@ interface RecommendedActionCardProps {
 
 export function RecommendedActionCard({ recommendations }: RecommendedActionCardProps) {
   return (
-    <Card className="border-border/70 bg-card">
+    <Card className="rounded-2xl shadow-sm ring-border">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <LightbulbIcon className="size-4 text-muted-foreground" />

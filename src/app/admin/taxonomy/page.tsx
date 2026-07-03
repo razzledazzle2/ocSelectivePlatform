@@ -16,8 +16,8 @@ export default async function AdminTaxonomyPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-700">Content structure</p>
-        <h2 className="mt-2 text-3xl font-semibold text-slate-950">Question Taxonomy</h2>
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">Content structure</p>
+        <h2 className="mt-2 text-3xl font-semibold text-foreground">Question Taxonomy</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Manage the subjects, topics and question types that questions are filed under. Bulk import can also
           create topics and question types automatically — this is where you review and tidy them.

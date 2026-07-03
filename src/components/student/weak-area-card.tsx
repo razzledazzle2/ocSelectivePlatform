@@ -42,7 +42,7 @@ function AreaRow({
 
 export function WeakAreaCard({ insights }: WeakAreaCardProps) {
   return (
-    <Card className="border-border/70 bg-card">
+    <Card className="rounded-2xl shadow-sm ring-border">
       <CardHeader>
         <CardTitle>Strengths & focus areas</CardTitle>
         <CardDescription>Based on your real practice accuracy by topic.</CardDescription>

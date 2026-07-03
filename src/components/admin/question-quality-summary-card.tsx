@@ -12,9 +12,9 @@ interface QuestionQualitySummaryCardProps {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+    <div className="rounded-xl border border-border bg-muted/50 px-3 py-2.5">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-slate-950">{value}</p>
+      <p className="mt-1 text-lg font-semibold text-foreground">{value}</p>
     </div>
   )
 }
@@ -33,7 +33,7 @@ export function QuestionQualitySummaryCard({
   const averageTime = getAverageTimeSeconds(stats)
 
   return (
-    <Card className="border-white/70 bg-white/94">
+    <Card className="rounded-2xl ring-border">
       <CardHeader className="border-b border-border/70 pb-3">
         <CardTitle className="text-base">Quality snapshot</CardTitle>
       </CardHeader>

@@ -23,7 +23,7 @@ function getParam(
 
 function CountTile({ label, value, accent }: { label: string; value: number; accent: string }) {
   return (
-    <Card className="border-white/70 bg-white/94 shadow-sm shadow-slate-200/40">
+    <Card className="rounded-2xl shadow-sm ring-border">
       <CardContent className="px-4 py-4">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
         <p className={`mt-1 text-2xl font-semibold ${accent}`}>{value}</p>
@@ -56,8 +56,8 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-700">Content quality control</p>
-        <h2 className="mt-2 text-3xl font-semibold text-slate-950">Question Reports</h2>
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">Content quality control</p>
+        <h2 className="mt-2 text-3xl font-semibold text-foreground">Question Reports</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Review issues raised by students and tutors, act on the ones that matter, and protect the quality of the
           question bank.
@@ -68,7 +68,7 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
         <CountTile label="Open" value={counts.open} accent="text-amber-700" />
         <CountTile label="In review" value={counts.inReview} accent="text-sky-700" />
         <CountTile label="Resolved" value={counts.resolved} accent="text-emerald-700" />
-        <CountTile label="Dismissed" value={counts.dismissed} accent="text-slate-600" />
+        <CountTile label="Dismissed" value={counts.dismissed} accent="text-muted-foreground" />
       </div>
 
       <ReportFilters

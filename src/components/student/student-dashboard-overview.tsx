@@ -1,15 +1,23 @@
 import Link from 'next/link'
-import { BookCheckIcon, CalendarClockIcon, FlameIcon, TargetIcon } from 'lucide-react'
+import {
+  ArrowRightIcon,
+  BookCheckIcon,
+  CalendarClockIcon,
+  FlameIcon,
+  TargetIcon,
+} from 'lucide-react'
 
 import { ActivityCalendar } from '@/components/student/activity-calendar'
 import { DashboardEmptyState } from '@/components/student/dashboard-empty-state'
-import { DashboardMetricCard } from '@/components/student/dashboard-metric-card'
 import { RecentActivityList } from '@/components/student/recent-activity-list'
 import { RecommendedActionCard } from '@/components/student/recommended-action-card'
 import { RevisionDueCard } from '@/components/student/revision-due-card'
 import { StreakSummaryCard } from '@/components/student/streak-summary-card'
 import { WeakAreaCard } from '@/components/student/weak-area-card'
 import { buttonVariants } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ProgressRing } from '@/components/ui/progress-ring'
+import { StatCard } from '@/components/ui/stat-card'
 import { cn } from '@/lib/utils'
 import type { AppProfile, StudentDashboardData } from '@/lib/types'
 
@@ -18,30 +26,104 @@ interface StudentDashboardOverviewProps {
   data: StudentDashboardData
 }
 
+function greeting(): string {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
 export function StudentDashboardOverview({ profile, data }: StudentDashboardOverviewProps) {
   const { metrics } = data
+  const firstName = profile.full_name?.split(' ')[0] || 'there'
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Dashboard</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            Welcome back, {profile.full_name?.split(' ')[0] || 'student'}
-          </h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            A clear view of your progress: what you have practised, where you are improving, and what to study
-            next.
-          </p>
+    <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[1.55fr_1fr]">
+        {/* Welcome hero */}
+        <div className="relative overflow-hidden rounded-3xl bg-primary px-6 py-8 text-primary-foreground shadow-lg sm:px-8">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-16 -top-24 size-72 rounded-full bg-white/5"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-28 right-24 size-56 rounded-full bg-gold/10"
+          />
+          <div className="relative max-w-xl space-y-4">
+            <p className="text-sm font-medium text-primary-foreground/70">
+              {greeting()}, {firstName} 👋
+            </p>
+            <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+              Small steps today,
+              <br />
+              stronger tomorrow.
+            </h1>
+            <p className="text-sm leading-6 text-primary-foreground/70">
+              Stay consistent and keep building your edge. You&apos;ve got this!
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Link
+                href="/student/practice"
+                className={cn(
+                  buttonVariants({ size: 'lg' }),
+                  'rounded-xl bg-white px-4 text-primary hover:bg-white/90'
+                )}
+              >
+                Continue learning
+                <ArrowRightIcon className="size-4" />
+              </Link>
+              {metrics.revisionDueToday > 0 ? (
+                <Link
+                  href="/student/revision"
+                  className={cn(
+                    buttonVariants({ variant: 'ghost', size: 'lg' }),
+                    'rounded-xl border border-white/20 px-4 text-primary-foreground hover:bg-white/10 hover:text-primary-foreground'
+                  )}
+                >
+                  Review {metrics.revisionDueToday} due
+                </Link>
+              ) : null}
+            </div>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/student/practice" className={cn(buttonVariants({ variant: 'default' }))}>
-            Start practice
-          </Link>
-          <Link href="/student/revision" className={cn(buttonVariants({ variant: 'outline' }))}>
-            Revision
-          </Link>
-        </div>
+
+        {/* Progress snapshot */}
+        <Card className="rounded-3xl shadow-sm ring-border">
+          <CardHeader>
+            <CardTitle>Your progress</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center gap-6">
+            <ProgressRing value={metrics.overallAccuracy ?? 0} size={116}>
+              <span className="text-2xl font-semibold text-foreground">
+                {metrics.overallAccuracy === null ? '—' : `${metrics.overallAccuracy}%`}
+              </span>
+              <span className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
+                Accuracy
+              </span>
+            </ProgressRing>
+            <dl className="min-w-0 flex-1 space-y-3 text-sm">
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-muted-foreground">This week</dt>
+                <dd className="whitespace-nowrap font-semibold tabular-nums text-foreground">
+                  {metrics.questionsThisWeek} questions
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-muted-foreground">Streak</dt>
+                <dd className="whitespace-nowrap font-semibold tabular-nums text-foreground">
+                  {metrics.currentStreak} day{metrics.currentStreak === 1 ? '' : 's'}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-muted-foreground">Revision due</dt>
+                <dd className="whitespace-nowrap font-semibold tabular-nums text-foreground">
+                  {metrics.revisionDueToday}
+                </dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
       </div>
 
       {!data.hasActivity ? (
@@ -49,29 +131,33 @@ export function StudentDashboardOverview({ profile, data }: StudentDashboardOver
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <DashboardMetricCard
+            <StatCard
               label="Questions this week"
               value={String(metrics.questionsThisWeek)}
               hint="Answered in the current week"
               icon={BookCheckIcon}
+              tone="brand"
             />
-            <DashboardMetricCard
+            <StatCard
               label="Overall accuracy"
               value={metrics.overallAccuracy === null ? '—' : `${metrics.overallAccuracy}%`}
               hint="Across all saved attempts"
               icon={TargetIcon}
+              tone="success"
             />
-            <DashboardMetricCard
+            <StatCard
               label="Current streak"
               value={`${metrics.currentStreak} day${metrics.currentStreak === 1 ? '' : 's'}`}
               hint="Consecutive active days"
               icon={FlameIcon}
+              tone="gold"
             />
-            <DashboardMetricCard
+            <StatCard
               label="Revision due today"
               value={String(metrics.revisionDueToday)}
               hint="Questions ready to review"
               icon={CalendarClockIcon}
+              tone="warning"
             />
           </div>
 
