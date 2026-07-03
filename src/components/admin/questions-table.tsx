@@ -11,6 +11,7 @@ import {
   publishQuestionAction,
   unpublishQuestionAction,
 } from '@/app/admin/questions/actions'
+import { QuestionDuplicateActions } from '@/components/admin/question-duplicate-actions'
 import { QuestionPreviewDialog } from '@/components/admin/question-preview-dialog'
 import {
   AlertDialog,
@@ -202,6 +203,8 @@ export function QuestionsTable({ questions }: QuestionsTableProps) {
                       disabled={isPending || question.status === 'archived'}
                       onConfirm={() => runAction(() => archiveQuestionAction(question.id))}
                     />
+
+                    <QuestionDuplicateActions questionId={question.id} />
                   </div>
                 </TableCell>
               </TableRow>

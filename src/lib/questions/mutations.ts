@@ -291,3 +291,85 @@ export async function unpublishQuestion(questionId: string, actorId: string): Pr
     throw new Error('Unable to move the question back to draft.')
   }
 }
+
+/**
+ * Copies an existing question (and its four options) into a new draft.
+ * 'duplicate' prefixes the text with "Copy of "; 'similar' keeps the text for the admin to edit.
+ * The original question is never modified.
+ */
+export async function duplicateQuestion(
+  questionId: string,
+  actorId: string,
+  mode: 'duplicate' | 'similar'
+): Promise<string> {
+  const supabase = await createClient()
+
+  const { data: original, error: loadError } = await supabase
+    .from('questions')
+    .select(
+      'subject_id, topic_id, question_type_id, exam_type, year_level, difficulty, question_text, passage_text, short_explanation, worked_solution, correct_option_label'
+    )
+    .eq('id', questionId)
+    .maybeSingle()
+
+  if (loadError || !original) {
+    throw new Error('Unable to load the original question.')
+  }
+
+  const { data: options, error: optionsLoadError } = await supabase
+    .from('question_options')
+    .select('label, option_text, sort_order')
+    .eq('question_id', questionId)
+    .order('sort_order', { ascending: true })
+
+  if (optionsLoadError) {
+    throw new Error('Unable to load the original options.')
+  }
+
+  const questionText = mode === 'duplicate' ? `Copy of ${original.question_text}` : original.question_text
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('questions')
+    .insert({
+      subject_id: original.subject_id,
+      topic_id: original.topic_id,
+      question_type_id: original.question_type_id,
+      exam_type: original.exam_type,
+      year_level: original.year_level,
+      difficulty: original.difficulty,
+      question_text: questionText,
+      passage_text: original.passage_text,
+      short_explanation: original.short_explanation,
+      worked_solution: original.worked_solution,
+      correct_option_label: original.correct_option_label,
+      status: 'draft',
+      created_by: actorId,
+      updated_by: actorId,
+      published_at: null,
+      archived_at: null,
+    })
+    .select('id')
+    .single()
+
+  if (insertError || !inserted) {
+    throw new Error('Unable to create the copied question.')
+  }
+
+  const optionRows = ((options ?? []) as Array<{ label: string; option_text: string; sort_order: number }>).map(
+    (option) => ({
+      question_id: inserted.id,
+      label: option.label,
+      option_text: option.option_text,
+      sort_order: option.sort_order,
+    })
+  )
+
+  if (optionRows.length > 0) {
+    const { error: optionsInsertError } = await supabase.from('question_options').insert(optionRows)
+    if (optionsInsertError) {
+      throw new Error('The question was copied, but its options could not be saved.')
+    }
+  }
+
+  return inserted.id
+}

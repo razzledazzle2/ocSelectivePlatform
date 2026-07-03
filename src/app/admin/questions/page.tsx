@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import { QuestionFilters } from '@/components/admin/question-filters'
+import { QuestionImportPanel } from '@/components/admin/question-import-panel'
 import { QuestionsTable } from '@/components/admin/questions-table'
 import { buttonVariants } from '@/components/ui/button'
 import { getAdminQuestions, getSubjects, getTopicsBySubject } from '@/lib/questions/queries'
@@ -51,6 +52,7 @@ export default async function AdminQuestionsPage({ searchParams }: AdminQuestion
         </Link>
       </div>
 
+      <QuestionImportPanel />
       <QuestionFilters filters={filters} subjects={subjects} topics={topics} />
       <QuestionsTable questions={questions} />
     </div>

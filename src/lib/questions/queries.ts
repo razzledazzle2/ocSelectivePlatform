@@ -211,6 +211,17 @@ export async function getAdminQuestions(filters: AdminQuestionFilters = {}): Pro
   }))
 }
 
+export async function getExistingQuestionTexts(): Promise<string[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('questions').select('question_text')
+
+  if (error) {
+    throw new Error('Unable to load existing questions for duplicate detection.')
+  }
+
+  return ((data ?? []) as Array<{ question_text: string }>).map((row) => row.question_text)
+}
+
 export async function validateQuestionTaxonomy(
   subjectId: string,
   topicId: string,
