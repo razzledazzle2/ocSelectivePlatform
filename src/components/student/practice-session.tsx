@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StudentQuestionReportButton } from '@/components/student/student-question-report-button'
 import { cn } from '@/lib/utils'
 import {
   EXAM_TYPES,
@@ -375,6 +376,13 @@ export function PracticeSession({ subjects, topics }: PracticeSessionProps) {
                     Worked solution
                   </p>
                   <p className="mt-1 text-sm leading-7 text-slate-700">{answer.feedback.workedSolution}</p>
+                  <div className="mt-2 flex justify-end">
+                    <StudentQuestionReportButton
+                      questionId={answer.question.id}
+                      variant="ghost"
+                      className="text-muted-foreground"
+                    />
+                  </div>
                 </div>
               ))}
             </CardContent>
@@ -489,6 +497,11 @@ export function PracticeSession({ subjects, topics }: PracticeSessionProps) {
           <Button variant="ghost" onClick={resetToSetup}>
             Change filters
           </Button>
+          <StudentQuestionReportButton
+            questionId={activeQuestion.id}
+            variant="ghost"
+            className="ml-auto text-muted-foreground"
+          />
         </div>
       </CardContent>
     </Card>

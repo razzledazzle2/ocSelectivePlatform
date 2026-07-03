@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   BookOpenIcon,
   ClipboardListIcon,
+  FlagIcon,
   GaugeIcon,
   GraduationCapIcon,
   MenuIcon,
@@ -37,6 +38,7 @@ const navigationIcons: Record<NavigationIconName, LucideIcon> = {
   'clipboard-list': ClipboardListIcon,
   timer: TimerIcon,
   users: UsersIcon,
+  flag: FlagIcon,
 }
 
 interface ShellNavProps {

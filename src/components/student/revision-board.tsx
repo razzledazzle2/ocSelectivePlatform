@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StudentQuestionReportButton } from '@/components/student/student-question-report-button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import {
@@ -272,6 +273,11 @@ function MistakeCard({ mistake, now }: { mistake: StudentMistakeQuestion; now: n
               Mark understood
             </Button>
           ) : null}
+          <StudentQuestionReportButton
+            questionId={mistake.questionId}
+            variant="ghost"
+            className="ml-auto text-muted-foreground"
+          />
         </div>
       </CardContent>
 

@@ -37,6 +37,7 @@ export type NavigationIconName =
   | 'clipboard-list'
   | 'timer'
   | 'users'
+  | 'flag'
 
 export interface NavigationItem {
   href: string
@@ -447,6 +448,117 @@ export interface AdminStudentRow {
   accuracy: number | null
   activeMistakes: number
   latestAttemptAt: string | null
+}
+
+// -- Phase 9: Question reports & quality control -------------------------------
+
+export const REPORT_TYPES = [
+  'wrong_answer',
+  'unclear_solution',
+  'typo',
+  'multiple_correct_answers',
+  'confusing_wording',
+  'image_or_diagram_issue',
+  'other',
+] as const
+
+export const REPORT_STATUSES = ['open', 'in_review', 'resolved', 'dismissed'] as const
+
+export type ReportType = (typeof REPORT_TYPES)[number]
+export type ReportStatus = (typeof REPORT_STATUSES)[number]
+
+/** Tone used to colour quality-signal and status badges. */
+export type QualitySignalTone = 'critical' | 'warning' | 'neutral'
+
+export type QualitySignalType =
+  | 'multiple_reports'
+  | 'low_accuracy'
+  | 'common_wrong_answer'
+  | 'high_avg_time'
+
+export interface QualitySignal {
+  type: QualitySignalType
+  label: string
+  detail: string
+  tone: QualitySignalTone
+}
+
+/**
+ * Aggregated, real practice-attempt data for a single question. Built only from
+ * rows that actually exist in question_attempts — never fabricated.
+ */
+export interface QuestionAttemptStats {
+  totalAttempts: number
+  correctAttempts: number
+  incorrectAttempts: number
+  totalTimeSeconds: number
+  /** Count of each selected option label among INCORRECT attempts only. */
+  wrongAnswerCounts: Partial<Record<QuestionOptionLabel, number>>
+}
+
+export interface ReportFilters {
+  status?: string
+  reportType?: string
+  subjectId?: string
+  topicId?: string
+  questionTypeId?: string
+  questionStatus?: string
+  assignedTo?: string
+}
+
+export interface AdminReportListItem {
+  id: string
+  questionId: string
+  questionTextPreview: string
+  subjectName: string
+  topicName: string
+  questionTypeName: string | null
+  questionStatus: QuestionStatus
+  reportType: ReportType
+  message: string | null
+  status: ReportStatus
+  reporterName: string | null
+  assignedToId: string | null
+  assignedToName: string | null
+  createdAt: string
+  resolvedAt: string | null
+  /** Total reports (any status) attached to this question. */
+  questionReportCount: number
+  /** Open reports attached to this question. */
+  questionOpenReportCount: number
+  qualitySignals: QualitySignal[]
+}
+
+export interface QuestionReportDetailItem {
+  id: string
+  reportType: ReportType
+  message: string | null
+  status: ReportStatus
+  reporterName: string | null
+  assignedToName: string | null
+  internalNote: string | null
+  createdAt: string
+  resolvedAt: string | null
+}
+
+export interface ReportDetail {
+  question: QuestionDetail
+  reports: QuestionReportDetailItem[]
+  qualitySignals: QualitySignal[]
+  stats: QuestionAttemptStats
+}
+
+export interface ReviewerOption {
+  id: string
+  name: string
+}
+
+export interface ReportQueueCounts {
+  open: number
+  inReview: number
+  resolved: number
+  dismissed: number
+  total: number
 }
 
 // CSV/import types now live in src/lib/import/types.ts (unified import pipeline).
