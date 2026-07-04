@@ -150,13 +150,65 @@ export interface QuestionDetail extends QuestionRecord {
   options: QuestionOptionRecord[]
 }
 
+export const ADMIN_QUESTION_PAGE_SIZES = [10, 25, 50, 100] as const
+export const DEFAULT_ADMIN_QUESTION_PAGE_SIZE = 25
+
+export const ADMIN_QUESTION_SORTS = [
+  'updated_desc',
+  'updated_asc',
+  'created_desc',
+  'created_asc',
+  'difficulty_desc',
+  'difficulty_asc',
+  'accuracy_asc',
+  'accuracy_desc',
+  'attempts_desc',
+] as const
+export type AdminQuestionSort = (typeof ADMIN_QUESTION_SORTS)[number]
+
+export const ADMIN_QUESTION_SORT_LABELS: Record<AdminQuestionSort, string> = {
+  updated_desc: 'Updated (newest)',
+  updated_asc: 'Updated (oldest)',
+  created_desc: 'Created (newest)',
+  created_asc: 'Created (oldest)',
+  difficulty_desc: 'Difficulty (high → low)',
+  difficulty_asc: 'Difficulty (low → high)',
+  accuracy_asc: 'Wrong % (highest first)',
+  accuracy_desc: 'Correct % (highest first)',
+  attempts_desc: 'Most attempted',
+}
+
 export interface AdminQuestionFilters {
   examType?: string
   subjectId?: string
   topicId?: string
+  questionTypeId?: string
+  tag?: string
   difficulty?: string
   status?: string
   query?: string
+  sort?: string
+  page?: string
+  pageSize?: string
+}
+
+/**
+ * Aggregated, real attempt data for one question shown in the admin bank.
+ * Built only from rows that exist in question_attempts — never fabricated.
+ */
+export interface AdminQuestionStats {
+  totalAttempts: number
+  correctAttempts: number
+  incorrectAttempts: number
+  /** 0–1; null when there are no attempts. */
+  accuracy: number | null
+  /** null when there are no attempts. */
+  averageTimeSeconds: number | null
+  lastAttemptedAt: string | null
+  /** Distribution of ALL selected answers (correct and wrong). */
+  optionCounts: Partial<Record<QuestionOptionLabel, number>>
+  /** Total reports (any status) filed against this question. */
+  reportCount: number
 }
 
 export interface AdminQuestionListItem {
@@ -175,6 +227,17 @@ export interface AdminQuestionListItem {
   updatedAt: string
   publishedAt: string | null
   archivedAt: string | null
+  /** Attached for the visible page only; null until stats are hydrated. */
+  stats: AdminQuestionStats | null
+}
+
+export interface AdminQuestionsPage {
+  items: AdminQuestionListItem[]
+  totalCount: number
+  /** 1-based, already clamped to the last available page. */
+  page: number
+  pageSize: number
+  pageCount: number
 }
 
 export interface QuestionFormValues {

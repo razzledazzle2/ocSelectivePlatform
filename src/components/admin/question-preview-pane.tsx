@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 
 import { QuestionPreview } from '@/components/questions/question-preview'
+import { QuestionStatsPanel } from '@/components/admin/question-stats-panel'
 import { QuestionStatusBadge } from '@/components/admin/question-status-badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -193,6 +194,11 @@ export function QuestionPreviewPane({
               ))}
             </div>
           ) : null}
+          <QuestionStatsPanel
+            stats={item.stats}
+            options={detail.options}
+            correctOptionLabel={detail.correct_option_label}
+          />
           <p className="text-xs text-muted-foreground">
             Last updated {updatedFormatter.format(new Date(detail.updated_at))}
           </p>

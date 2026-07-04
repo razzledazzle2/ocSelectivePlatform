@@ -7,6 +7,9 @@ import {
   createQuestionType,
   createSubject,
   createTopic,
+  mergeTopics,
+  renameTagEverywhere,
+  renameTaxonomyItem,
   setTaxonomyActive,
 } from '@/lib/questions/taxonomy-mutations'
 import { ADMIN_PORTAL_ROLES, type ActionResult } from '@/lib/types'
@@ -91,8 +94,51 @@ export async function toggleTaxonomyActiveAction(
   try {
     await setTaxonomyActive(table, id, isActive)
     revalidateTaxonomy()
-    return { success: true, message: isActive ? 'Enabled.' : 'Disabled.' }
+    return { success: true, message: isActive ? 'Restored.' : 'Archived.' }
   } catch (error) {
     return { success: false, message: error instanceof Error ? error.message : 'Unable to update the item.' }
+  }
+}
+
+export async function renameTaxonomyAction(
+  table: 'subjects' | 'topics' | 'question_types',
+  id: string,
+  name: string
+): Promise<ActionResult> {
+  await requireProfile({ allowedRoles: [...ADMIN_PORTAL_ROLES] })
+
+  try {
+    await renameTaxonomyItem(table, id, name)
+    revalidateTaxonomy()
+    return { success: true, message: `Renamed to "${name.trim()}".` }
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : 'Unable to rename the item.' }
+  }
+}
+
+export async function mergeTopicsAction(sourceTopicId: string, targetTopicId: string): Promise<ActionResult> {
+  await requireProfile({ allowedRoles: [...ADMIN_PORTAL_ROLES] })
+
+  try {
+    await mergeTopics(sourceTopicId, targetTopicId)
+    revalidateTaxonomy()
+    return { success: true, message: 'Topics merged. The source topic is archived.' }
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : 'Unable to merge the topics.' }
+  }
+}
+
+export async function renameTagAction(oldTag: string, newTag: string): Promise<ActionResult> {
+  await requireProfile({ allowedRoles: [...ADMIN_PORTAL_ROLES] })
+
+  try {
+    const affected = await renameTagEverywhere(oldTag, newTag)
+    revalidateTaxonomy()
+    return {
+      success: true,
+      message: `Tag updated on ${affected} question${affected === 1 ? '' : 's'}.`,
+    }
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : 'Unable to rename the tag.' }
   }
 }

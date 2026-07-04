@@ -168,3 +168,129 @@ export async function setTaxonomyActive(
     throw new Error('Unable to update the taxonomy item.')
   }
 }
+
+/**
+ * Renames a taxonomy row and re-derives its slug. Existing questions keep
+ * pointing at the same row (they reference by id), so a rename instantly
+ * flows through the whole bank.
+ */
+export async function renameTaxonomyItem(table: TaxonomyTable, id: string, name: string): Promise<void> {
+  const supabase = await createClient()
+  const cleanName = name.trim()
+
+  if (!cleanName) {
+    throw new Error('Enter a name.')
+  }
+
+  const { error } = await supabase
+    .from(table)
+    .update({ name: cleanName, slug: slugify(cleanName) })
+    .eq('id', id)
+
+  if (error) {
+    throw new Error(`Unable to rename to "${cleanName}". An item with this name may already exist.`)
+  }
+}
+
+/**
+ * Merges one topic into another (same subject): every question and question
+ * type on the source topic is repointed at the target, then the source topic
+ * is deactivated (kept for history, hidden from pickers). Nothing is deleted.
+ */
+export async function mergeTopics(sourceTopicId: string, targetTopicId: string): Promise<void> {
+  if (sourceTopicId === targetTopicId) {
+    throw new Error('Choose two different topics to merge.')
+  }
+
+  const supabase = await createClient()
+  const { data: rows, error: readError } = await supabase
+    .from('topics')
+    .select('id, subject_id, name')
+    .in('id', [sourceTopicId, targetTopicId])
+
+  if (readError || (rows ?? []).length !== 2) {
+    throw new Error('Unable to load the topics to merge.')
+  }
+
+  const source = rows!.find((row) => row.id === sourceTopicId)!
+  const target = rows!.find((row) => row.id === targetTopicId)!
+
+  if (source.subject_id !== target.subject_id) {
+    throw new Error('Topics can only be merged within the same subject.')
+  }
+
+  const { error: questionsError } = await supabase
+    .from('questions')
+    .update({ topic_id: targetTopicId })
+    .eq('topic_id', sourceTopicId)
+
+  if (questionsError) {
+    throw new Error('Unable to move questions to the target topic.')
+  }
+
+  const { error: typesError } = await supabase
+    .from('question_types')
+    .update({ topic_id: targetTopicId })
+    .eq('topic_id', sourceTopicId)
+
+  if (typesError) {
+    throw new Error('Questions were moved, but question types could not be repointed.')
+  }
+
+  const { error: deactivateError } = await supabase
+    .from('topics')
+    .update({ is_active: false })
+    .eq('id', sourceTopicId)
+
+  if (deactivateError) {
+    throw new Error(`Questions were moved, but "${source.name}" could not be archived.`)
+  }
+}
+
+/**
+ * Renames a tag across every question (merging when the new tag already
+ * exists on a question). Prefers the admin_rename_tag SQL function; while that
+ * migration is pending it falls back to per-question updates in app code.
+ * Returns the number of questions touched.
+ */
+export async function renameTagEverywhere(oldTag: string, newTag: string): Promise<number> {
+  const cleanOld = oldTag.trim()
+  const cleanNew = newTag.trim()
+
+  if (!cleanOld || !cleanNew) {
+    throw new Error('Both the current and new tag are required.')
+  }
+  if (cleanOld === cleanNew) {
+    throw new Error('The new tag matches the current tag.')
+  }
+
+  const supabase = await createClient()
+  const { data: rpcCount, error: rpcError } = await supabase.rpc('admin_rename_tag', {
+    p_old_tag: cleanOld,
+    p_new_tag: cleanNew,
+  })
+
+  if (!rpcError) {
+    return Number(rpcCount ?? 0)
+  }
+
+  // Fallback while the admin_rename_tag migration is pending.
+  const { data: rows, error: readError } = await supabase
+    .from('questions')
+    .select('id, tags')
+    .contains('tags', [cleanOld])
+
+  if (readError) {
+    throw new Error('Unable to load questions using this tag.')
+  }
+
+  for (const row of (rows ?? []) as Array<{ id: string; tags: string[] }>) {
+    const nextTags = [...new Set(row.tags.map((tag) => (tag === cleanOld ? cleanNew : tag)))]
+    const { error: updateError } = await supabase.from('questions').update({ tags: nextTags }).eq('id', row.id)
+    if (updateError) {
+      throw new Error('Some questions could not be updated — re-run the rename to finish.')
+    }
+  }
+
+  return rows?.length ?? 0
+}

@@ -23,13 +23,59 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
-import type { AdminQuestionListItem } from '@/lib/types'
+import { OPTION_STATS_MIN_ATTEMPTS, type AdminQuestionListItem } from '@/lib/types'
 
 const rowDateFormatter = new Intl.DateTimeFormat('en-AU', {
   day: 'numeric',
   month: 'short',
   year: 'numeric',
 })
+
+/**
+ * Compact real-attempt stats line. Percentages are held back until enough
+ * attempts exist; with zero attempts it says so instead of showing 0%.
+ */
+function QuestionRowStats({ stats }: { stats: AdminQuestionListItem['stats'] }) {
+  if (!stats) {
+    return null
+  }
+
+  if (stats.totalAttempts === 0) {
+    return <p className="text-xs text-muted-foreground/70">No attempts yet</p>
+  }
+
+  if (stats.totalAttempts < OPTION_STATS_MIN_ATTEMPTS) {
+    return (
+      <p className="text-xs text-muted-foreground/70">
+        {stats.totalAttempts} attempt{stats.totalAttempts === 1 ? '' : 's'} · not enough data yet
+      </p>
+    )
+  }
+
+  const correctPct = Math.round((stats.accuracy ?? 0) * 100)
+  const averageSeconds = Math.round(stats.averageTimeSeconds ?? 0)
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 text-xs tabular-nums text-muted-foreground">
+      <span>{stats.totalAttempts} attempts</span>
+      <span aria-hidden>·</span>
+      <span className={correctPct < 40 ? 'font-medium text-warning' : 'text-success'}>
+        {correctPct}% correct
+      </span>
+      <span aria-hidden>·</span>
+      <span>{100 - correctPct}% wrong</span>
+      <span aria-hidden>·</span>
+      <span>{averageSeconds}s avg</span>
+      {stats.reportCount > 0 ? (
+        <>
+          <span aria-hidden>·</span>
+          <span className="font-medium text-warning">
+            {stats.reportCount} report{stats.reportCount === 1 ? '' : 's'}
+          </span>
+        </>
+      ) : null}
+    </p>
+  )
+}
 
 interface QuestionListRowProps {
   question: AdminQuestionListItem
@@ -119,6 +165,8 @@ export function QuestionListRow({
             Ans <span className="font-semibold text-foreground/80">{question.correctOptionLabel}</span>
           </span>
         </div>
+
+        <QuestionRowStats stats={question.stats} />
       </div>
 
       <div onClick={(event) => event.stopPropagation()}>

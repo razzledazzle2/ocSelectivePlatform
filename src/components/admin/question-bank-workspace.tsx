@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PaginationControls } from '@/components/ui/pagination-controls'
 import {
   Select,
   SelectContent,
@@ -50,12 +51,16 @@ import {
 import { exportQuestionsCsv } from '@/lib/questions/export-csv'
 import type { QuestionStatusCounts } from '@/lib/questions/queries'
 import {
+  ADMIN_QUESTION_SORT_LABELS,
+  DEFAULT_ADMIN_QUESTION_PAGE_SIZE,
   EXAM_TYPES,
   QUESTION_STATUSES,
   type ActionResult,
   type AdminQuestionFilters,
   type AdminQuestionListItem,
+  type AdminQuestionsPage,
   type QuestionDetail,
+  type QuestionTypeRecord,
   type SubjectRecord,
   type TopicRecord,
 } from '@/lib/types'
@@ -63,46 +68,59 @@ import {
 const ALL = 'all'
 const difficultyValues = ['1', '2', '3', '4', '5'] as const
 
-type SortOrder = 'newest' | 'oldest'
-
-const SORT_ITEMS: Record<SortOrder, string> = {
-  newest: 'Updated (newest)',
-  oldest: 'Updated (oldest)',
-}
-
 interface QuestionBankWorkspaceProps {
-  questions: AdminQuestionListItem[]
+  data: AdminQuestionsPage
   subjects: SubjectRecord[]
   topics: TopicRecord[]
+  questionTypes: QuestionTypeRecord[]
+  /** Distinct tags across the bank, for the tag filter. */
+  tags: string[]
   filters: AdminQuestionFilters
   statusCounts: QuestionStatusCounts
 }
 
 /**
- * Hybrid question bank: a scannable, filterable list on the left and a sticky
- * student-style preview of the selected question on the right.
+ * Hybrid question bank: a scannable, filterable, PAGINATED list on the left
+ * and a sticky student-style preview of the selected question on the right.
+ * All filters, the sort and the page live in the URL so pagination preserves
+ * them and filter changes reset to page 1.
  */
 export function QuestionBankWorkspace({
-  questions,
+  data,
   subjects,
   topics,
+  questionTypes,
+  tags,
   filters,
   statusCounts,
 }: QuestionBankWorkspaceProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [isNavigating, startNavigation] = useTransition()
+
+  const questions = data.items
 
   // -- URL-driven filters (server filtering preserved) -----------------------
   const [query, setQuery] = useState(filters.query ?? '')
   const examType = filters.examType ?? ALL
   const subjectId = filters.subjectId ?? ALL
   const topicId = filters.topicId ?? ALL
+  const questionTypeId = filters.questionTypeId ?? ALL
+  const tag = filters.tag ?? ALL
   const difficulty = filters.difficulty ?? ALL
   const status = filters.status ?? ALL
+  const sort = filters.sort && filters.sort in ADMIN_QUESTION_SORT_LABELS ? filters.sort : 'updated_desc'
 
   const filteredTopics = useMemo(
     () => (subjectId === ALL ? topics : topics.filter((topic) => topic.subject_id === subjectId)),
     [topics, subjectId]
+  )
+  const filteredQuestionTypes = useMemo(
+    () =>
+      subjectId === ALL
+        ? questionTypes
+        : questionTypes.filter((type) => type.subject_id === subjectId),
+    [questionTypes, subjectId]
   )
 
   // base-ui Select needs value->label maps so triggers show names, not raw ids/values.
@@ -123,46 +141,68 @@ export function QuestionBankWorkspace({
     () => ({ [ALL]: 'All topics', ...Object.fromEntries(filteredTopics.map((t) => [t.id, t.name])) }),
     [filteredTopics]
   )
+  const questionTypeItems = useMemo(
+    () => ({
+      [ALL]: 'All question types',
+      ...Object.fromEntries(filteredQuestionTypes.map((t) => [t.id, t.name])),
+    }),
+    [filteredQuestionTypes]
+  )
+  const tagItems = useMemo(
+    () => ({ [ALL]: 'All tags', ...Object.fromEntries(tags.map((t) => [t, t])) }),
+    [tags]
+  )
 
+  function navigate(params: URLSearchParams) {
+    const queryString = params.toString()
+    startNavigation(() => {
+      router.push(queryString ? `/admin/questions?${queryString}` : '/admin/questions')
+    })
+  }
+
+  /** Merge filter changes into the URL. Any filter/sort change resets to page 1. */
   function pushFilters(next: Partial<Record<keyof AdminQuestionFilters, string>>) {
-    const merged = {
+    const merged: Record<string, string> = {
       query: query.trim(),
       examType,
       subjectId,
       topicId,
+      questionTypeId,
+      tag,
       difficulty,
       status,
+      sort,
+      pageSize: filters.pageSize ?? '',
       ...next,
     }
     const params = new URLSearchParams()
     for (const [key, value] of Object.entries(merged)) {
-      if (value && value !== ALL) {
-        params.set(key, value)
-      }
+      if (!value || value === ALL) continue
+      if (key === 'sort' && value === 'updated_desc') continue
+      if (key === 'pageSize' && Number(value) === DEFAULT_ADMIN_QUESTION_PAGE_SIZE) continue
+      params.set(key, value)
     }
-    const queryString = params.toString()
-    router.push(queryString ? `/admin/questions?${queryString}` : '/admin/questions')
+    navigate(params)
+  }
+
+  function goToPage(page: number) {
+    const params = new URLSearchParams(window.location.search)
+    if (page <= 1) {
+      params.delete('page')
+    } else {
+      params.set('page', String(page))
+    }
+    navigate(params)
   }
 
   function resetFilters() {
     setQuery('')
-    router.push('/admin/questions')
+    navigate(new URLSearchParams())
   }
 
   const hasActiveFilters =
     Boolean(filters.query) ||
-    [examType, subjectId, topicId, difficulty, status].some((value) => value !== ALL)
-
-  // -- Sorting (client-side) --------------------------------------------------
-  const [sortOrder, setSortOrder] = useState<SortOrder>('newest')
-  const sortedQuestions = useMemo(() => {
-    const copy = [...questions]
-    copy.sort((a, b) => {
-      const diff = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-      return sortOrder === 'newest' ? -diff : diff
-    })
-    return copy
-  }, [questions, sortOrder])
+    [examType, subjectId, topicId, questionTypeId, tag, difficulty, status].some((value) => value !== ALL)
 
   // -- Selection (preview) + bulk checkboxes ----------------------------------
   const [previewId, setPreviewId] = useState<string | null>(null)
@@ -170,21 +210,21 @@ export function QuestionBankWorkspace({
   const [sheetOpen, setSheetOpen] = useState(false)
 
   useEffect(() => {
-    if (sortedQuestions.length === 0) {
+    if (questions.length === 0) {
       setPreviewId(null)
       return
     }
-    if (!previewId || !sortedQuestions.some((question) => question.id === previewId)) {
-      setPreviewId(sortedQuestions[0].id)
+    if (!previewId || !questions.some((question) => question.id === previewId)) {
+      setPreviewId(questions[0].id)
     }
-  }, [sortedQuestions, previewId])
+  }, [questions, previewId])
 
-  const previewItem = sortedQuestions.find((question) => question.id === previewId) ?? null
-  const checkedQuestions = sortedQuestions.filter((question) => checkedIds.has(question.id))
-  const allChecked = sortedQuestions.length > 0 && checkedQuestions.length === sortedQuestions.length
+  const previewItem = questions.find((question) => question.id === previewId) ?? null
+  const checkedQuestions = questions.filter((question) => checkedIds.has(question.id))
+  const allChecked = questions.length > 0 && checkedQuestions.length === questions.length
 
   function toggleAllChecked() {
-    setCheckedIds(allChecked ? new Set() : new Set(sortedQuestions.map((question) => question.id)))
+    setCheckedIds(allChecked ? new Set() : new Set(questions.map((question) => question.id)))
   }
 
   function setChecked(id: string, checked: boolean) {
@@ -348,7 +388,7 @@ export function QuestionBankWorkspace({
             ) : null}
           </form>
 
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <Select value={examType} onValueChange={(value) => pushFilters({ examType: value })} items={examItems}>
               <SelectTrigger className="w-full" aria-label="Exam type">
                 <SelectValue placeholder="All exam types" />
@@ -364,7 +404,7 @@ export function QuestionBankWorkspace({
 
             <Select
               value={subjectId}
-              onValueChange={(value) => pushFilters({ subjectId: value, topicId: ALL })}
+              onValueChange={(value) => pushFilters({ subjectId: value, topicId: ALL, questionTypeId: ALL })}
               items={subjectItems}
             >
               <SelectTrigger className="w-full" aria-label="Subject">
@@ -385,6 +425,36 @@ export function QuestionBankWorkspace({
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(topicItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={questionTypeId}
+              onValueChange={(value) => pushFilters({ questionTypeId: value })}
+              items={questionTypeItems}
+            >
+              <SelectTrigger className="w-full" aria-label="Question type">
+                <SelectValue placeholder="All question types" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(questionTypeItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={tag} onValueChange={(value) => pushFilters({ tag: value })} items={tagItems}>
+              <SelectTrigger className="w-full" aria-label="Tag">
+                <SelectValue placeholder="All tags" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(tagItems).map(([value, label]) => (
                   <SelectItem key={value} value={value}>
                     {label}
                   </SelectItem>
@@ -415,6 +485,19 @@ export function QuestionBankWorkspace({
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(statusItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={sort} onValueChange={(value) => pushFilters({ sort: value })} items={ADMIN_QUESTION_SORT_LABELS}>
+              <SelectTrigger className="w-full" aria-label="Sort order">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(ADMIN_QUESTION_SORT_LABELS).map(([value, label]) => (
                   <SelectItem key={value} value={value}>
                     {label}
                   </SelectItem>
@@ -487,14 +570,15 @@ export function QuestionBankWorkspace({
             <div className="flex items-center gap-3">
               <input
                 type="checkbox"
-                aria-label="Select all questions"
+                aria-label="Select all questions on this page"
                 className="size-4 accent-primary"
                 checked={allChecked}
                 onChange={toggleAllChecked}
               />
               <p className="text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">{sortedQuestions.length}</span> question
-                {sortedQuestions.length === 1 ? '' : 's'}
+                <span className="font-medium text-foreground">{data.totalCount}</span> question
+                {data.totalCount === 1 ? '' : 's'}
+                {hasActiveFilters ? ' match' : ''}
                 <span className="hidden sm:inline">
                   {' '}
                   · {statusCounts.published} published · {statusCounts.draft} draft ·{' '}
@@ -502,43 +586,38 @@ export function QuestionBankWorkspace({
                 </span>
               </p>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Select
-                value={sortOrder}
-                onValueChange={(value) => setSortOrder(value as SortOrder)}
-                items={SORT_ITEMS}
-              >
-                <SelectTrigger className="h-7 text-xs" aria-label="Sort order">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(SORT_ITEMS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-muted-foreground"
-                onClick={() => exportQuestionsCsv(sortedQuestions)}
-              >
-                <DownloadIcon className="size-3.5" />
-                CSV
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground"
+              onClick={() => exportQuestionsCsv(questions)}
+            >
+              <DownloadIcon className="size-3.5" />
+              Export page
+            </Button>
           </div>
 
-          {sortedQuestions.length === 0 ? (
-            <div className="px-6 py-12 text-center text-sm text-muted-foreground">
-              No questions match the current filters. Adjust the filters above, or import questions
-              to get started.
+          {questions.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <p className="text-sm font-medium text-foreground">No questions found</p>
+              <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+                {hasActiveFilters
+                  ? 'No questions match the current filters. Adjust or reset the filters above.'
+                  : 'The bank is empty. Add a question manually or import a CSV to get started.'}
+              </p>
+              {hasActiveFilters ? (
+                <Button variant="outline" size="sm" className="mt-4" onClick={resetFilters}>
+                  Reset filters
+                </Button>
+              ) : null}
             </div>
           ) : (
-            <div className="space-y-1 p-2">
-              {sortedQuestions.map((question) => (
+            <div
+              className={
+                isNavigating ? 'space-y-1 p-2 opacity-50 transition-opacity' : 'space-y-1 p-2 transition-opacity'
+              }
+            >
+              {questions.map((question) => (
                 <QuestionListRow
                   key={question.id}
                   question={question}
@@ -557,6 +636,20 @@ export function QuestionBankWorkspace({
               ))}
             </div>
           )}
+
+          {/* Pagination footer */}
+          <div className="border-t border-border px-4 py-3">
+            <PaginationControls
+              page={data.page}
+              pageCount={data.pageCount}
+              totalCount={data.totalCount}
+              pageSize={data.pageSize}
+              itemLabel="question"
+              disabled={isNavigating}
+              onPageChange={goToPage}
+              onPageSizeChange={(size) => pushFilters({ pageSize: String(size) })}
+            />
+          </div>
         </div>
       </div>
 
