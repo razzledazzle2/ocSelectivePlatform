@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
+import { PlusIcon, XIcon } from 'lucide-react'
 
 import { createQuestionAction, updateQuestionAction } from '@/app/admin/questions/actions'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -19,10 +20,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  checkOptionCount,
+  getOptionRuleForSubject,
+  labelsForCount,
+  MAX_OPTION_COUNT,
+} from '@/lib/questions/option-rules'
 import { cn } from '@/lib/utils'
 import {
   EXAM_TYPES,
-  QUESTION_OPTION_LABELS,
   type ActionResult,
   type QuestionFormValues,
   type QuestionTypeRecord,
@@ -40,7 +46,6 @@ interface QuestionFormProps {
   initialValues: QuestionFormValues
 }
 
-const optionKeys = ['optionA', 'optionB', 'optionC', 'optionD'] as const
 const difficultyValues = ['1', '2', '3', '4', '5'] as const
 
 const emptyResult: ActionResult<{ redirectTo: string }> = {
@@ -97,10 +102,50 @@ export function QuestionForm({
   )
   const difficultyItems = Object.fromEntries(difficultyValues.map((value) => [value, `Difficulty ${value}`]))
   const statusItems = { draft: 'Draft', published: 'Published' }
-  const correctOptionItems = Object.fromEntries(QUESTION_OPTION_LABELS.map((label) => [label, `Option ${label}`]))
+
+  // Flexible options: labels follow the current count (A, B, C, D[, E]).
+  const optionLabels = labelsForCount(values.options.length)
+  const correctOptionItems = Object.fromEntries(optionLabels.map((label) => [label, `Option ${label}`]))
+  const selectedSubjectName = subjects.find((subject) => subject.id === values.subjectId)?.name ?? null
+  const optionRule = getOptionRuleForSubject(selectedSubjectName)
+  const minOptionsForSubject = Math.min(...optionRule.allowedCounts)
+  const optionCountCheck = checkOptionCount(selectedSubjectName, values.options.length)
 
   function updateValue<Key extends keyof QuestionFormValues>(key: Key, value: QuestionFormValues[Key]) {
     setValues((current) => ({ ...current, [key]: value }))
+  }
+
+  function updateOption(index: number, text: string) {
+    setValues((current) => ({
+      ...current,
+      options: current.options.map((option, optionIndex) => (optionIndex === index ? text : option)),
+    }))
+  }
+
+  function addOption() {
+    setValues((current) =>
+      current.options.length >= MAX_OPTION_COUNT
+        ? current
+        : { ...current, options: [...current.options, ''] }
+    )
+  }
+
+  function removeOption(index: number) {
+    setValues((current) => {
+      if (current.options.length <= minOptionsForSubject) {
+        return current
+      }
+      const nextOptions = current.options.filter((_, optionIndex) => optionIndex !== index)
+      const nextLabels = labelsForCount(nextOptions.length)
+      return {
+        ...current,
+        options: nextOptions,
+        // Keep the correct answer valid when the removed option shifts labels.
+        correctOptionLabel: nextLabels.includes(current.correctOptionLabel)
+          ? current.correctOptionLabel
+          : 'A',
+      }
+    })
   }
 
   function handleSubjectChange(nextSubjectId: string) {
@@ -112,14 +157,27 @@ export function QuestionForm({
       (questionType) => questionType.topic_id === nextTopicId || questionType.subject_id === nextSubjectId
     )
 
-    setValues((current) => ({
-      ...current,
-      subjectId: nextSubjectId,
-      topicId: nextTopicId,
-      questionTypeId: nextTypes.some((questionType) => questionType.id === current.questionTypeId)
-        ? current.questionTypeId
-        : '',
-    }))
+    setValues((current) => {
+      // If no option text has been written yet, snap to the new subject's
+      // preferred option count (e.g. 5 for Mathematical Reasoning).
+      const nextSubjectName = subjects.find((subject) => subject.id === nextSubjectId)?.name ?? null
+      const preferredCount = getOptionRuleForSubject(nextSubjectName).preferredCount
+      const allEmpty = current.options.every((option) => !option.trim())
+      const nextOptions = allEmpty ? Array.from({ length: preferredCount }, () => '') : current.options
+
+      return {
+        ...current,
+        subjectId: nextSubjectId,
+        topicId: nextTopicId,
+        questionTypeId: nextTypes.some((questionType) => questionType.id === current.questionTypeId)
+          ? current.questionTypeId
+          : '',
+        options: nextOptions,
+        correctOptionLabel: labelsForCount(nextOptions.length).includes(current.correctOptionLabel)
+          ? current.correctOptionLabel
+          : 'A',
+      }
+    })
   }
 
   function handleTopicChange(nextTopicId: string) {
@@ -162,7 +220,7 @@ export function QuestionForm({
   const fieldErrors = result.fieldErrors ?? {}
 
   return (
-    <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+    <Card className="rounded-2xl shadow-sm ring-border">
       <CardHeader className="space-y-4 border-b border-border/70">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{mode === 'create' ? 'New question' : 'Edit question'}</Badge>
@@ -352,28 +410,63 @@ export function QuestionForm({
           </div>
 
           <div className="space-y-4">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">Answer options</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Every question must have four options from A to D.</p>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-brand">Answer options</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {optionRule.label === 'General'
+                    ? 'Questions can have four or five options (A–E).'
+                    : `${optionRule.label} questions usually have ${optionRule.preferredCount} options.`}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={values.options.length >= MAX_OPTION_COUNT}
+                onClick={addOption}
+              >
+                <PlusIcon className="size-3.5" />
+                {values.options.length < MAX_OPTION_COUNT
+                  ? `Add option ${String.fromCharCode(65 + values.options.length)}`
+                  : 'Max options reached'}
+              </Button>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              {optionKeys.map((optionKey) => {
-                const label = optionKey.slice(-1) as 'A' | 'B' | 'C' | 'D'
+              {values.options.map((optionText, index) => {
+                const label = optionLabels[index]
 
                 return (
                   <div key={label} className="space-y-2">
-                    <Label htmlFor={optionKey}>Option {label}</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor={`option${label}`}>Option {label}</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-muted-foreground"
+                        disabled={values.options.length <= minOptionsForSubject}
+                        onClick={() => removeOption(index)}
+                        aria-label={`Remove option ${label}`}
+                      >
+                        <XIcon className="size-3.5" />
+                      </Button>
+                    </div>
                     <Input
-                      id={optionKey}
-                      name={optionKey}
-                      value={values[optionKey]}
-                      onChange={(event) => updateValue(optionKey, event.target.value)}
+                      id={`option${label}`}
+                      name={`option${label}`}
+                      value={optionText}
+                      onChange={(event) => updateOption(index, event.target.value)}
                     />
-                    <FieldError message={fieldErrors[optionKey]} />
+                    <FieldError message={fieldErrors[`option${label}`]} />
                   </div>
                 )
               })}
             </div>
+            {optionCountCheck.warning ? (
+              <p className="text-xs font-medium text-amber-700">{optionCountCheck.warning}</p>
+            ) : null}
+            <FieldError message={optionCountCheck.error ?? fieldErrors.options} />
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -390,7 +483,7 @@ export function QuestionForm({
                   <SelectValue placeholder="Choose the correct option" />
                 </SelectTrigger>
                 <SelectContent>
-                  {QUESTION_OPTION_LABELS.map((label) => (
+                  {optionLabels.map((label) => (
                     <SelectItem key={label} value={label}>
                       Option {label}
                     </SelectItem>
@@ -409,6 +502,18 @@ export function QuestionForm({
                 placeholder="A quick explanation for instant feedback"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tags">Tags</Label>
+            <Input
+              id="tags"
+              name="tags"
+              value={values.tags}
+              onChange={(event) => updateValue('tags', event.target.value)}
+              placeholder="Comma separated, e.g. percentages, arithmetic"
+            />
+            <p className="text-xs text-muted-foreground">Optional labels for filtering and CSV export.</p>
           </div>
 
           <div className="space-y-2">

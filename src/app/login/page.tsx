@@ -34,24 +34,24 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <Card className="hidden border-white/80 bg-white/85 shadow-2xl shadow-slate-200/60 backdrop-blur lg:flex">
+        <Card className="hidden rounded-2xl shadow-lg ring-border backdrop-blur lg:flex">
           <CardContent className="flex h-full flex-col justify-between p-10">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-cyan-800">
+              <div className="inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand-soft px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-brand">
                 <BookOpenCheckIcon className="size-3.5" />
                 Product foundation
               </div>
-              <h1 className="mt-6 max-w-lg text-4xl font-semibold tracking-tight text-slate-950">
+              <h1 className="mt-6 max-w-lg text-4xl font-semibold tracking-tight text-foreground">
                 A clean, secure base for OC and Selective exam preparation.
               </h1>
-              <p className="mt-4 max-w-xl text-base text-slate-600">
+              <p className="mt-4 max-w-xl text-base text-muted-foreground">
                 Phase 0 focuses on the essential layers: authentication, role-based access, profiles,
                 protected routes, and the dashboard shell for students, tutors, and admins.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {['Student portal', 'Tutor visibility', 'Admin controls'].map((item) => (
-                <div key={item} className="rounded-2xl border border-border/80 bg-slate-50 p-4 text-sm font-medium text-slate-700">
+                <div key={item} className="rounded-2xl border border-border/80 bg-muted/50 p-4 text-sm font-medium text-foreground/80">
                   {item}
                 </div>
               ))}
@@ -59,7 +59,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </CardContent>
         </Card>
 
-        <Card className="border-white/80 bg-white/92 shadow-2xl shadow-slate-200/60 backdrop-blur">
+        <Card className="rounded-2xl shadow-lg ring-border backdrop-blur">
           <CardHeader className="space-y-3">
             <div>
               <CardTitle className="text-3xl">Login</CardTitle>
@@ -67,7 +67,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 Sign in with your Supabase email and password to access the correct dashboard.
               </CardDescription>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            <div className="rounded-2xl border border-border bg-muted/50 px-4 py-3 text-sm text-foreground/80">
               Admins, tutors, and students all use this same login page. Staff accounts are routed from
               `profiles.role`, so once an account is promoted in Supabase it will land in the admin area
               automatically after sign-in.
@@ -98,18 +98,18 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </form>
             <p className="mt-6 text-sm text-muted-foreground">
               New here?{' '}
-              <Link href="/signup" className="font-medium text-slate-950 underline-offset-4 hover:underline">
+              <Link href="/signup" className="font-medium text-foreground underline-offset-4 hover:underline">
                 Create a student account
               </Link>
             </p>
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-              <p className="font-medium text-slate-950">Create an admin account</p>
+            <div className="mt-6 rounded-2xl border border-border bg-muted/50 p-4 text-sm text-foreground/80">
+              <p className="font-medium text-foreground">Create an admin account</p>
               <p className="mt-2">
                 1. Create the user in Supabase Auth.
                 <br />
                 2. Run this SQL in Supabase:
               </p>
-              <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">
+              <pre className="mt-3 overflow-x-auto rounded-xl bg-primary p-3 text-xs text-primary-foreground">
                 <code>{`update public.profiles
 set role = 'admin'
 where email = 'admin@example.com';`}</code>

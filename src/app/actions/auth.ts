@@ -17,6 +17,35 @@ function createRedirectPath(
   return `${pathname}?${params.toString()}`
 }
 
+// Supabase auth errors sometimes stringify to an opaque "{}". Prefer a real
+// message, then the error code/status, then a readable fallback.
+function describeAuthError(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object') {
+    const { message, code, status } = error as {
+      message?: unknown
+      code?: unknown
+      status?: unknown
+    }
+
+    if (typeof message === 'string') {
+      const trimmed = message.trim()
+      if (trimmed && trimmed !== '{}') {
+        return trimmed
+      }
+    }
+
+    if (typeof code === 'string' && code.trim()) {
+      return `${fallback} (${code.trim()})`
+    }
+
+    if (typeof status === 'number') {
+      return `${fallback} (status ${status})`
+    }
+  }
+
+  return fallback
+}
+
 export async function signInAction(formData: FormData): Promise<never> {
   const supabase = await createClient()
   const email = String(formData.get('email') ?? '').trim()
@@ -29,7 +58,7 @@ export async function signInAction(formData: FormData): Promise<never> {
   })
 
   if (error) {
-    redirect(createRedirectPath('/login', 'error', error.message))
+    redirect(createRedirectPath('/login', 'error', describeAuthError(error, 'Unable to sign in.')))
   }
 
   const { data: profile } = await supabase
@@ -52,25 +81,19 @@ export async function signUpAction(formData: FormData): Promise<never> {
   const fullName = String(formData.get('full_name') ?? '').trim()
   const email = String(formData.get('email') ?? '').trim()
   const password = String(formData.get('password') ?? '')
-  const targetExam = String(formData.get('target_exam') ?? '').trim()
-  const yearLevelValue = String(formData.get('year_level') ?? '').trim()
-  const yearLevel = yearLevelValue ? Number(yearLevelValue) : null
-
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         full_name: fullName,
-        target_exam: targetExam || null,
-        year_level: Number.isNaN(yearLevel) ? null : yearLevel,
         role: 'student',
       },
     },
   })
 
   if (error) {
-    redirect(createRedirectPath('/signup', 'error', error.message))
+    redirect(createRedirectPath('/signup', 'error', describeAuthError(error, 'Unable to create your account.')))
   }
 
   if (!data.session) {

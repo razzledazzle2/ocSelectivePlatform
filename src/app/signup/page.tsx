@@ -28,22 +28,22 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <Card className="border-white/80 bg-white/85 shadow-2xl shadow-slate-200/60 backdrop-blur">
+        <Card className="rounded-2xl shadow-lg ring-border backdrop-blur">
           <CardContent className="flex h-full flex-col justify-between p-8 sm:p-10">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-slate-700">
+              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-foreground/80">
                 <SparklesIcon className="size-3.5" />
                 Student onboarding
               </div>
-              <h1 className="mt-6 text-3xl font-semibold text-slate-950">Create a student account</h1>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <h1 className="mt-6 text-3xl font-semibold text-foreground">Create a student account</h1>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 New signups land as students by default. Their profile row is created automatically from
                 Supabase Auth metadata so the platform can route them into the correct experience.
               </p>
             </div>
-            <div className="rounded-3xl border border-border/80 bg-slate-950 p-5 text-slate-100">
+            <div className="rounded-3xl border border-border/80 bg-primary p-5 text-primary-foreground">
               <p className="text-sm font-medium">What is included in Phase 0?</p>
-              <ul className="mt-3 space-y-2 text-sm text-slate-300">
+              <ul className="mt-3 space-y-2 text-sm text-primary-foreground/70">
                 <li>Secure email/password authentication</li>
                 <li>Role-aware redirects and protected dashboards</li>
                 <li>Profile scaffolding for later learning features</li>
@@ -52,7 +52,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
           </CardContent>
         </Card>
 
-        <Card className="border-white/80 bg-white/92 shadow-2xl shadow-slate-200/60 backdrop-blur">
+        <Card className="rounded-2xl shadow-lg ring-border backdrop-blur">
           <CardHeader className="space-y-3">
             <div>
               <CardTitle className="text-3xl">Sign up</CardTitle>
@@ -78,14 +78,6 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
                 <Label htmlFor="password">Password</Label>
                 <Input id="password" name="password" type="password" placeholder="Create a password" required />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="target_exam">Target exam</Label>
-                <Input id="target_exam" name="target_exam" placeholder="Selective" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="year_level">Year level</Label>
-                <Input id="year_level" name="year_level" type="number" min="3" max="12" placeholder="5" />
-              </div>
               <div className="sm:col-span-2">
                 <Button type="submit" size="lg" className="h-11 w-full rounded-2xl">
                   Create account
@@ -94,7 +86,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
             </form>
             <p className="mt-6 text-sm text-muted-foreground">
               Already have an account?{' '}
-              <Link href="/login" className="font-medium text-slate-950 underline-offset-4 hover:underline">
+              <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
                 Back to login
               </Link>
             </p>

@@ -6,8 +6,11 @@ import { STUDENT_PORTAL_ROLES, type NavigationItem } from '@/lib/types'
 
 const navigation: NavigationItem[] = [
   { href: '/student/dashboard', label: 'Dashboard', icon: 'gauge' },
+  { href: '/student/library', label: 'Skill Library', icon: 'layers' },
   { href: '/student/practice', label: 'Practice', icon: 'book-open' },
   { href: '/student/revision', label: 'Revision', icon: 'revision' },
+  { href: '/student/mock-exams', label: 'Mocks', icon: 'timer' },
+  { href: '/student/progress', label: 'Progress', icon: 'chart' },
 ]
 
 interface StudentLayoutProps {
@@ -22,7 +25,7 @@ export default async function StudentLayout({ children }: StudentLayoutProps) {
   return (
     <AppShell
       title="Student Portal"
-      description="A focused home for dashboard metrics, practice, and upcoming revision workflows."
+      description="Practice, revise, and track your progress."
       navigation={navigation}
       profile={profile}
     >

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { scheduleAfterIncorrect } from '@/lib/revision/scheduling'
+import { scheduleAfterCorrectRetry, scheduleAfterIncorrect } from '@/lib/revision/scheduling'
+import { getQuestionOptionStats } from '@/lib/questions/option-stats'
 import type {
   AttemptFeedback,
   PracticeSessionSummary,
@@ -65,7 +66,7 @@ export async function upsertMistakeQuestion(input: UpsertMistakeQuestionInput): 
   const supabase = await createClient()
   const { data: existing, error: loadError } = await supabase
     .from('student_mistake_questions')
-    .select('id, times_incorrect, times_correct_after_mistake, status')
+    .select('id, times_incorrect, times_correct_after_mistake, status, correct_streak, next_review_at')
     .eq('student_id', input.studentId)
     .eq('question_id', input.questionId)
     .maybeSingle()
@@ -135,14 +136,31 @@ export async function upsertMistakeQuestion(input: UpsertMistakeQuestionInput): 
     return
   }
 
-  // Existing record answered correctly during normal practice: record the win but leave the
-  // spaced-repetition status progression to the dedicated revision retry flow.
+  // Existing record answered correctly. If the review was due, this counts as a
+  // completed review and advances the spaced-repetition ladder; answering early
+  // (before the due date) records the win without shortcutting the intervals.
+  const isDue =
+    existing.status !== 'mastered' &&
+    existing.next_review_at !== null &&
+    new Date(existing.next_review_at).getTime() <= now.getTime()
+
+  const correctUpdate: Record<string, unknown> = {
+    last_attempted_at: timestamp,
+    times_correct_after_mistake: existing.times_correct_after_mistake + 1,
+  }
+
+  if (isDue) {
+    const schedule = scheduleAfterCorrectRetry(existing.correct_streak ?? 0, now)
+    correctUpdate.status = schedule.status
+    correctUpdate.correct_streak = schedule.correctStreak
+    correctUpdate.next_review_at = schedule.nextReviewAt
+    correctUpdate.mastered_at = schedule.masteredAt
+    correctUpdate.last_reviewed_at = timestamp
+  }
+
   const { error: correctUpdateError } = await supabase
     .from('student_mistake_questions')
-    .update({
-      last_attempted_at: timestamp,
-      times_correct_after_mistake: existing.times_correct_after_mistake + 1,
-    })
+    .update(correctUpdate)
     .eq('id', existing.id)
 
   if (correctUpdateError) {
@@ -216,6 +234,7 @@ export async function saveQuestionAttempt(input: SaveQuestionAttemptInput): Prom
     correctOptionLabel: question.correct_option_label,
     shortExplanation: question.short_explanation,
     workedSolution: question.worked_solution,
+    optionStats: await getQuestionOptionStats(input.questionId),
   }
 }
 

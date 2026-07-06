@@ -3,9 +3,12 @@ import type { LucideIcon } from 'lucide-react'
 export const APP_ROLES = ['student', 'admin', 'tutor', 'parent', 'external_customer', 'super_admin'] as const
 export const EXAM_TYPES = ['OC', 'Selective'] as const
 export const QUESTION_STATUSES = ['draft', 'published', 'archived'] as const
-export const QUESTION_OPTION_LABELS = ['A', 'B', 'C', 'D'] as const
+export const QUESTION_OPTION_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
+export const QUESTION_SOURCES = ['manual', 'csv', 'bulk_paste'] as const
 export const PRACTICE_MODES = ['practice'] as const
-export const MISTAKE_STATUSES = ['needs_review', 'learning', 'improving', 'mastered'] as const
+export const ATTEMPT_MODES = ['practice', 'revision', 'mock'] as const
+export const MISTAKE_STATUSES = ['needs_review', 'learning', 'improving', 'almost_mastered', 'mastered'] as const
+export const PRACTICE_SET_MODES = ['new', 'mistakes', 'mixed'] as const
 export const ADMIN_PORTAL_ROLES = ['tutor', 'admin', 'super_admin'] as const
 export const STUDENT_PORTAL_ROLES = ['student', 'parent', 'external_customer'] as const
 
@@ -13,8 +16,29 @@ export type AppRole = (typeof APP_ROLES)[number]
 export type ExamType = (typeof EXAM_TYPES)[number]
 export type QuestionStatus = (typeof QUESTION_STATUSES)[number]
 export type QuestionOptionLabel = (typeof QUESTION_OPTION_LABELS)[number]
+export type QuestionSource = (typeof QUESTION_SOURCES)[number]
 export type PracticeMode = (typeof PRACTICE_MODES)[number]
+export type AttemptMode = (typeof ATTEMPT_MODES)[number]
 export type MistakeStatus = (typeof MISTAKE_STATUSES)[number]
+export type PracticeSetMode = (typeof PRACTICE_SET_MODES)[number]
+
+/** Student-facing labels for spaced-repetition stages. */
+export const MISTAKE_STATUS_LABELS: Record<MistakeStatus, string> = {
+  needs_review: 'Needs review',
+  learning: 'Learning',
+  improving: 'Improving',
+  almost_mastered: 'Almost mastered',
+  mastered: 'Mastered',
+}
+
+/** Minimum attempts before option response distributions are shown to students. */
+export const OPTION_STATS_MIN_ATTEMPTS = 5
+
+/** Aggregated option response distribution for one question (post-answer only). */
+export interface OptionStats {
+  totalAttempts: number
+  counts: Partial<Record<QuestionOptionLabel, number>>
+}
 export type AdminPortalRole = (typeof ADMIN_PORTAL_ROLES)[number]
 export type StudentPortalRole = (typeof STUDENT_PORTAL_ROLES)[number]
 
@@ -23,11 +47,6 @@ export interface AppProfile {
   email: string | null
   full_name: string | null
   role: AppRole
-  year_level: number | null
-  target_exam: string | null
-  school: string | null
-  avatar_url: string | null
-  is_active: boolean
 }
 
 export type NavigationIconName =
@@ -35,7 +54,12 @@ export type NavigationIconName =
   | 'book-open'
   | 'revision'
   | 'clipboard-list'
+  | 'timer'
   | 'users'
+  | 'flag'
+  | 'layers'
+  | 'chart'
+  | 'upload'
 
 export interface NavigationItem {
   href: string
@@ -109,6 +133,8 @@ export interface QuestionRecord {
   worked_solution: string
   correct_option_label: QuestionOptionLabel
   status: QuestionStatus
+  source: QuestionSource
+  tags: string[]
   created_by: string | null
   updated_by: string | null
   published_at: string | null
@@ -124,13 +150,65 @@ export interface QuestionDetail extends QuestionRecord {
   options: QuestionOptionRecord[]
 }
 
+export const ADMIN_QUESTION_PAGE_SIZES = [10, 25, 50, 100] as const
+export const DEFAULT_ADMIN_QUESTION_PAGE_SIZE = 25
+
+export const ADMIN_QUESTION_SORTS = [
+  'updated_desc',
+  'updated_asc',
+  'created_desc',
+  'created_asc',
+  'difficulty_desc',
+  'difficulty_asc',
+  'accuracy_asc',
+  'accuracy_desc',
+  'attempts_desc',
+] as const
+export type AdminQuestionSort = (typeof ADMIN_QUESTION_SORTS)[number]
+
+export const ADMIN_QUESTION_SORT_LABELS: Record<AdminQuestionSort, string> = {
+  updated_desc: 'Updated (newest)',
+  updated_asc: 'Updated (oldest)',
+  created_desc: 'Created (newest)',
+  created_asc: 'Created (oldest)',
+  difficulty_desc: 'Difficulty (high → low)',
+  difficulty_asc: 'Difficulty (low → high)',
+  accuracy_asc: 'Wrong % (highest first)',
+  accuracy_desc: 'Correct % (highest first)',
+  attempts_desc: 'Most attempted',
+}
+
 export interface AdminQuestionFilters {
   examType?: string
   subjectId?: string
   topicId?: string
+  questionTypeId?: string
+  tag?: string
   difficulty?: string
   status?: string
   query?: string
+  sort?: string
+  page?: string
+  pageSize?: string
+}
+
+/**
+ * Aggregated, real attempt data for one question shown in the admin bank.
+ * Built only from rows that exist in question_attempts — never fabricated.
+ */
+export interface AdminQuestionStats {
+  totalAttempts: number
+  correctAttempts: number
+  incorrectAttempts: number
+  /** 0–1; null when there are no attempts. */
+  accuracy: number | null
+  /** null when there are no attempts. */
+  averageTimeSeconds: number | null
+  lastAttemptedAt: string | null
+  /** Distribution of ALL selected answers (correct and wrong). */
+  optionCounts: Partial<Record<QuestionOptionLabel, number>>
+  /** Total reports (any status) filed against this question. */
+  reportCount: number
 }
 
 export interface AdminQuestionListItem {
@@ -142,10 +220,24 @@ export interface AdminQuestionListItem {
   examType: ExamType
   difficulty: number
   status: QuestionStatus
+  optionsCount: number
+  correctOptionLabel: QuestionOptionLabel
+  tags: string[]
   createdAt: string
   updatedAt: string
   publishedAt: string | null
   archivedAt: string | null
+  /** Attached for the visible page only; null until stats are hydrated. */
+  stats: AdminQuestionStats | null
+}
+
+export interface AdminQuestionsPage {
+  items: AdminQuestionListItem[]
+  totalCount: number
+  /** 1-based, already clamped to the last available page. */
+  page: number
+  pageSize: number
+  pageCount: number
 }
 
 export interface QuestionFormValues {
@@ -157,13 +249,13 @@ export interface QuestionFormValues {
   difficulty: string
   questionText: string
   passageText: string
-  optionA: string
-  optionB: string
-  optionC: string
-  optionD: string
+  /** Option texts in label order (index 0 = A, 1 = B, ...). Length 4–5. */
+  options: string[]
   correctOptionLabel: QuestionOptionLabel
   shortExplanation: string
   workedSolution: string
+  /** Comma-separated in the form; split into text[] on write. */
+  tags: string
   status: Extract<QuestionStatus, 'draft' | 'published'>
 }
 
@@ -180,6 +272,7 @@ export interface QuestionWriteInput {
   correctOptionLabel: QuestionOptionLabel
   shortExplanation: string | null
   workedSolution: string
+  tags: string[]
   status: Extract<QuestionStatus, 'draft' | 'published'>
 }
 
@@ -225,6 +318,8 @@ export interface AttemptFeedback {
   correctOptionLabel: QuestionOptionLabel
   shortExplanation: string | null
   workedSolution: string
+  /** Aggregated distribution across all students; null when unavailable. */
+  optionStats: OptionStats | null
 }
 
 /**
@@ -307,6 +402,7 @@ export type RevisionMode =
   | 'needs_review'
   | 'learning'
   | 'improving'
+  | 'almost_mastered'
   | 'mastered'
 
 export interface RevisionFilters {
@@ -322,6 +418,8 @@ export interface RevisionRetryFeedback {
   workedSolution: string
   status: MistakeStatus
   nextReviewAt: string | null
+  /** Aggregated distribution across all students; null when unavailable. */
+  optionStats: OptionStats | null
 }
 
 export interface RecentAttempt {
@@ -354,6 +452,71 @@ export interface StudentDashboardStats {
   weakestTopic: string | null
 }
 
+export interface DashboardMetrics {
+  questionsThisWeek: number
+  overallAccuracy: number | null
+  currentStreak: number
+  revisionDueToday: number
+}
+
+export interface StreakSummary {
+  currentStreak: number
+  longestStreak: number
+  activeDaysThisMonth: number
+  questionsThisWeek: number
+}
+
+export interface ActivityCalendarDay {
+  date: string
+  count: number
+  active: boolean
+}
+
+export interface ActivityCalendar {
+  monthLabel: string
+  firstWeekday: number
+  days: ActivityCalendarDay[]
+}
+
+export interface AreaInsight {
+  subjectName: string
+  topicName: string | null
+  questionTypeName: string | null
+  attempts: number
+  correct: number
+  accuracy: number
+}
+
+export interface WeakStrongInsights {
+  hasEnoughData: boolean
+  strongest: AreaInsight | null
+  weakest: AreaInsight | null
+}
+
+export interface RevisionDueSummary {
+  dueCount: number
+  topAreas: Array<{ name: string; count: number }>
+}
+
+export interface DashboardRecommendation {
+  id: string
+  title: string
+  description: string
+  href: string
+  ctaLabel: string
+}
+
+export interface StudentDashboardData {
+  hasActivity: boolean
+  metrics: DashboardMetrics
+  streak: StreakSummary
+  calendar: ActivityCalendar
+  insights: WeakStrongInsights
+  revisionDue: RevisionDueSummary
+  recentSessions: RecentPracticeSession[]
+  recommendations: DashboardRecommendation[]
+}
+
 export interface AdminDashboardStats {
   totalStudents: number
   totalStaff: number
@@ -371,9 +534,6 @@ export interface AdminStudentRow {
   fullName: string | null
   email: string | null
   role: AppRole
-  yearLevel: number | null
-  targetExam: string | null
-  school: string | null
   createdAt: string
   questionsCompleted: number
   correctAnswers: number
@@ -383,69 +543,115 @@ export interface AdminStudentRow {
   latestAttemptAt: string | null
 }
 
-export interface CsvRowError {
-  field: string
-  message: string
+// -- Phase 9: Question reports & quality control -------------------------------
+
+export const REPORT_TYPES = [
+  'wrong_answer',
+  'unclear_solution',
+  'typo',
+  'multiple_correct_answers',
+  'confusing_wording',
+  'image_or_diagram_issue',
+  'other',
+] as const
+
+export const REPORT_STATUSES = ['open', 'in_review', 'resolved', 'dismissed'] as const
+
+export type ReportType = (typeof REPORT_TYPES)[number]
+export type ReportStatus = (typeof REPORT_STATUSES)[number]
+
+/** Tone used to colour quality-signal and status badges. */
+export type QualitySignalTone = 'critical' | 'warning' | 'neutral'
+
+export type QualitySignalType =
+  | 'multiple_reports'
+  | 'low_accuracy'
+  | 'common_wrong_answer'
+  | 'high_avg_time'
+
+export interface QualitySignal {
+  type: QualitySignalType
+  label: string
+  detail: string
+  tone: QualitySignalTone
 }
 
-export interface CsvQuestionRowPreview {
-  rowNumber: number
-  examType: string
-  yearLevel: string
-  subjectSlug: string
-  topicSlug: string
-  questionTypeSlug: string
-  difficulty: string
-  questionText: string
-  passageText: string
-  optionA: string
-  optionB: string
-  optionC: string
-  optionD: string
-  correctOptionLabel: string
-  shortExplanation: string
-  workedSolution: string
-  status: string
-  errors: CsvRowError[]
+/**
+ * Aggregated, real practice-attempt data for a single question. Built only from
+ * rows that actually exist in question_attempts — never fabricated.
+ */
+export interface QuestionAttemptStats {
+  totalAttempts: number
+  correctAttempts: number
+  incorrectAttempts: number
+  totalTimeSeconds: number
+  /** Count of each selected option label among INCORRECT attempts only. */
+  wrongAnswerCounts: Partial<Record<QuestionOptionLabel, number>>
 }
 
-export interface CsvImportableQuestion {
-  rowNumber: number
-  examType: ExamType
-  yearLevel: number | null
-  subjectId: string
-  subjectSlug: string
-  topicId: string
-  topicSlug: string
-  questionTypeId: string | null
-  questionTypeSlug: string
-  difficulty: number
-  questionText: string
-  passageText: string | null
-  optionA: string
-  optionB: string
-  optionC: string
-  optionD: string
-  correctOptionLabel: QuestionOptionLabel
-  shortExplanation: string | null
-  workedSolution: string
-  status: Extract<QuestionStatus, 'draft' | 'published' | 'archived'>
+export interface ReportFilters {
+  status?: string
+  reportType?: string
+  subjectId?: string
+  topicId?: string
+  questionTypeId?: string
+  questionStatus?: string
+  assignedTo?: string
 }
 
-export interface QuestionCsvPreviewResult {
-  fileName: string
-  totalRows: number
-  validRows: CsvImportableQuestion[]
-  previewRows: CsvQuestionRowPreview[]
+export interface AdminReportListItem {
+  id: string
+  questionId: string
+  questionTextPreview: string
+  subjectName: string
+  topicName: string
+  questionTypeName: string | null
+  questionStatus: QuestionStatus
+  reportType: ReportType
+  message: string | null
+  status: ReportStatus
+  reporterName: string | null
+  assignedToId: string | null
+  assignedToName: string | null
+  createdAt: string
+  resolvedAt: string | null
+  /** Total reports (any status) attached to this question. */
+  questionReportCount: number
+  /** Open reports attached to this question. */
+  questionOpenReportCount: number
+  qualitySignals: QualitySignal[]
 }
 
-export interface QuestionCsvImportSummary {
-  importedCount: number
-  skippedDuplicateCount: number
-  importedQuestionIds: string[]
-  rowMessages: Array<{
-    rowNumber: number
-    message: string
-    status: 'imported' | 'skipped'
-  }>
+export interface QuestionReportDetailItem {
+  id: string
+  reportType: ReportType
+  message: string | null
+  status: ReportStatus
+  reporterName: string | null
+  assignedToName: string | null
+  internalNote: string | null
+  createdAt: string
+  resolvedAt: string | null
 }
+
+export interface ReportDetail {
+  question: QuestionDetail
+  reports: QuestionReportDetailItem[]
+  qualitySignals: QualitySignal[]
+  stats: QuestionAttemptStats
+}
+
+export interface ReviewerOption {
+  id: string
+  name: string
+}
+
+export interface ReportQueueCounts {
+  open: number
+  inReview: number
+  resolved: number
+  dismissed: number
+  total: number
+}
+
+// CSV/import types now live in src/lib/import/types.ts (unified import pipeline).

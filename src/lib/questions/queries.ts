@@ -1,16 +1,22 @@
+import { getAdminQuestionStats } from '@/lib/questions/stats'
 import { createClient } from '@/lib/supabase/server'
-import type {
-  AdminQuestionFilters,
-  AdminQuestionListItem,
-  PracticeQuestionFilters,
-  PracticeQuestionItem,
-  QuestionDetail,
-  QuestionOptionLabel,
-  QuestionOptionRecord,
-  QuestionRecord,
-  QuestionTypeRecord,
-  SubjectRecord,
-  TopicRecord,
+import {
+  ADMIN_QUESTION_PAGE_SIZES,
+  ADMIN_QUESTION_SORTS,
+  DEFAULT_ADMIN_QUESTION_PAGE_SIZE,
+  type AdminQuestionFilters,
+  type AdminQuestionListItem,
+  type AdminQuestionsPage,
+  type AdminQuestionSort,
+  type PracticeQuestionFilters,
+  type PracticeQuestionItem,
+  type QuestionDetail,
+  type QuestionOptionLabel,
+  type QuestionOptionRecord,
+  type QuestionRecord,
+  type QuestionTypeRecord,
+  type SubjectRecord,
+  type TopicRecord,
 } from '@/lib/types'
 
 function getRelationValue<T>(value: T | T[] | null): T | null {
@@ -136,66 +142,46 @@ export async function getQuestionTypesByTopic(topicId: string): Promise<Question
   return (data ?? []) as QuestionTypeRecord[]
 }
 
-export async function getAdminQuestions(filters: AdminQuestionFilters = {}): Promise<AdminQuestionListItem[]> {
-  const supabase = await createClient()
-  let query = supabase
-    .from('questions')
-    .select(`
-      id,
-      question_text,
-      exam_type,
-      difficulty,
-      status,
-      created_at,
-      updated_at,
-      published_at,
-      archived_at,
-      subject:subjects(name),
-      topic:topics(name),
-      question_type:question_types(name)
-    `)
-    .order('created_at', { ascending: false })
+type AdminQuestionRawRow = Pick<
+  QuestionRecord,
+  | 'id'
+  | 'question_text'
+  | 'exam_type'
+  | 'difficulty'
+  | 'status'
+  | 'correct_option_label'
+  | 'created_at'
+  | 'updated_at'
+  | 'published_at'
+  | 'archived_at'
+> & {
+  tags: string[] | null
+  subject: { name: string }[] | { name: string } | null
+  topic: { name: string }[] | { name: string } | null
+  question_type: { name: string }[] | { name: string } | null
+  options: { count: number }[] | { count: number } | null
+}
 
-  if (filters.examType) {
-    query = query.eq('exam_type', filters.examType)
-  }
+const ADMIN_QUESTION_LIST_SELECT = `
+  id,
+  question_text,
+  exam_type,
+  difficulty,
+  status,
+  correct_option_label,
+  tags,
+  created_at,
+  updated_at,
+  published_at,
+  archived_at,
+  subject:subjects(name),
+  topic:topics(name),
+  question_type:question_types(name),
+  options:question_options(count)
+`
 
-  if (filters.subjectId) {
-    query = query.eq('subject_id', filters.subjectId)
-  }
-
-  if (filters.topicId) {
-    query = query.eq('topic_id', filters.topicId)
-  }
-
-  if (filters.difficulty) {
-    query = query.eq('difficulty', Number(filters.difficulty))
-  }
-
-  if (filters.status) {
-    query = query.eq('status', filters.status)
-  }
-
-  if (filters.query) {
-    query = query.ilike('question_text', `%${filters.query.trim()}%`)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    throw new Error('Unable to load admin questions.')
-  }
-
-  return ((data ?? []) as unknown as Array<
-    Pick<
-      QuestionRecord,
-      'id' | 'question_text' | 'exam_type' | 'difficulty' | 'status' | 'created_at' | 'updated_at' | 'published_at' | 'archived_at'
-    > & {
-      subject: { name: string }[] | { name: string } | null
-      topic: { name: string }[] | { name: string } | null
-      question_type: { name: string }[] | { name: string } | null
-    }
-  >).map((question) => ({
+function mapAdminQuestionRow(question: AdminQuestionRawRow): AdminQuestionListItem {
+  return {
     id: question.id,
     questionTextPreview: buildQuestionPreview(question.question_text),
     subjectName: getRelationValue(question.subject)?.name ?? 'Unassigned subject',
@@ -204,11 +190,271 @@ export async function getAdminQuestions(filters: AdminQuestionFilters = {}): Pro
     examType: question.exam_type,
     difficulty: question.difficulty,
     status: question.status,
+    optionsCount: getRelationValue(question.options)?.count ?? 0,
+    correctOptionLabel: question.correct_option_label,
+    tags: question.tags ?? [],
     createdAt: question.created_at,
     updatedAt: question.updated_at,
     publishedAt: question.published_at,
     archivedAt: question.archived_at,
-  }))
+    stats: null,
+  }
+}
+
+/** Structural view of a PostgREST filter builder — just the methods the shared filters need. */
+interface QuestionFilterBuilder {
+  eq(column: string, value: unknown): QuestionFilterBuilder
+  ilike(column: string, pattern: string): QuestionFilterBuilder
+  contains(column: string, value: unknown): QuestionFilterBuilder
+}
+
+/** Applies the shared admin bank filters to any questions query builder. */
+function applyAdminQuestionFilters<T>(query: T, filters: AdminQuestionFilters): T {
+  let next = query as unknown as QuestionFilterBuilder
+  if (filters.examType) {
+    next = next.eq('exam_type', filters.examType)
+  }
+  if (filters.subjectId) {
+    next = next.eq('subject_id', filters.subjectId)
+  }
+  if (filters.topicId) {
+    next = next.eq('topic_id', filters.topicId)
+  }
+  if (filters.questionTypeId) {
+    next = next.eq('question_type_id', filters.questionTypeId)
+  }
+  if (filters.tag) {
+    next = next.contains('tags', [filters.tag])
+  }
+  if (filters.difficulty) {
+    next = next.eq('difficulty', Number(filters.difficulty))
+  }
+  if (filters.status) {
+    next = next.eq('status', filters.status)
+  }
+  if (filters.query) {
+    next = next.ilike('question_text', `%${filters.query.trim()}%`)
+  }
+  return next as unknown as T
+}
+
+function parseSort(value: string | undefined): AdminQuestionSort {
+  return (ADMIN_QUESTION_SORTS as readonly string[]).includes(value ?? '')
+    ? (value as AdminQuestionSort)
+    : 'updated_desc'
+}
+
+function parsePageSize(value: string | undefined): number {
+  const parsed = Number(value)
+  return (ADMIN_QUESTION_PAGE_SIZES as readonly number[]).includes(parsed)
+    ? parsed
+    : DEFAULT_ADMIN_QUESTION_PAGE_SIZE
+}
+
+const STAT_SORTS = ['accuracy_asc', 'accuracy_desc', 'attempts_desc'] as const satisfies readonly AdminQuestionSort[]
+type StatSort = (typeof STAT_SORTS)[number]
+
+const COLUMN_SORTS: Record<Exclude<AdminQuestionSort, StatSort>, { column: string; ascending: boolean }> = {
+  updated_desc: { column: 'updated_at', ascending: false },
+  updated_asc: { column: 'updated_at', ascending: true },
+  created_desc: { column: 'created_at', ascending: false },
+  created_asc: { column: 'created_at', ascending: true },
+  difficulty_desc: { column: 'difficulty', ascending: false },
+  difficulty_asc: { column: 'difficulty', ascending: true },
+}
+
+/**
+ * One page of the admin question bank. Filtering, counting and pagination all
+ * happen in Postgres; only the visible page's rows are fetched. Stat-based
+ * sorts (accuracy / attempts) can't be expressed as a column order, so they
+ * sort a lightweight id list against the whole-bank attempt summary first,
+ * then hydrate just the requested slice.
+ */
+export async function getAdminQuestionsPage(filters: AdminQuestionFilters = {}): Promise<AdminQuestionsPage> {
+  const supabase = await createClient()
+  const sort = parseSort(filters.sort)
+  const pageSize = parsePageSize(filters.pageSize)
+  const requestedPage = Math.max(1, Number(filters.page) || 1)
+
+  if ((STAT_SORTS as readonly AdminQuestionSort[]).includes(sort)) {
+    return getAdminQuestionsPageByStats(filters, sort, requestedPage, pageSize)
+  }
+
+  // Count first so an out-of-range page (e.g. filters narrowed while on page 9)
+  // clamps to the last page instead of erroring with an unsatisfiable range.
+  const countQuery = applyAdminQuestionFilters(
+    supabase.from('questions').select('id', { count: 'exact', head: true }),
+    filters
+  )
+  const { count, error: countError } = await countQuery
+
+  if (countError) {
+    throw new Error('Unable to count admin questions.')
+  }
+
+  const totalCount = count ?? 0
+  const pageCount = Math.max(1, Math.ceil(totalCount / pageSize))
+  const page = Math.min(requestedPage, pageCount)
+
+  if (totalCount === 0) {
+    return { items: [], totalCount: 0, page: 1, pageSize, pageCount: 1 }
+  }
+
+  const order = COLUMN_SORTS[sort as keyof typeof COLUMN_SORTS]
+  const from = (page - 1) * pageSize
+  const dataQuery = applyAdminQuestionFilters(
+    supabase.from('questions').select(ADMIN_QUESTION_LIST_SELECT),
+    filters
+  )
+    .order(order.column, { ascending: order.ascending })
+    .order('id', { ascending: true })
+    .range(from, from + pageSize - 1)
+
+  const { data, error } = await dataQuery
+
+  if (error) {
+    throw new Error('Unable to load admin questions.')
+  }
+
+  return {
+    items: ((data ?? []) as unknown as AdminQuestionRawRow[]).map(mapAdminQuestionRow),
+    totalCount,
+    page,
+    pageSize,
+    pageCount,
+  }
+}
+
+/** Stat-sorted page: order matching ids by the whole-bank attempt summary, then hydrate the slice. */
+async function getAdminQuestionsPageByStats(
+  filters: AdminQuestionFilters,
+  sort: AdminQuestionSort,
+  requestedPage: number,
+  pageSize: number
+): Promise<AdminQuestionsPage> {
+  const supabase = await createClient()
+
+  const idQuery = applyAdminQuestionFilters(supabase.from('questions').select('id'), filters)
+  const [{ data: idRows, error: idError }, statsSummary] = await Promise.all([
+    idQuery,
+    getAdminQuestionStats(null),
+  ])
+
+  if (idError) {
+    throw new Error('Unable to load admin questions.')
+  }
+
+  const ids = ((idRows ?? []) as Array<{ id: string }>).map((row) => row.id)
+  const sorted = [...ids].sort((a, b) => {
+    const statsA = statsSummary.get(a)
+    const statsB = statsSummary.get(b)
+    if (sort === 'attempts_desc') {
+      return (statsB?.totalAttempts ?? 0) - (statsA?.totalAttempts ?? 0)
+    }
+    // Accuracy sorts: questions without attempts always sink to the bottom.
+    const accuracyA = statsA?.accuracy ?? null
+    const accuracyB = statsB?.accuracy ?? null
+    if (accuracyA === null && accuracyB === null) return 0
+    if (accuracyA === null) return 1
+    if (accuracyB === null) return -1
+    return sort === 'accuracy_asc' ? accuracyA - accuracyB : accuracyB - accuracyA
+  })
+
+  const totalCount = sorted.length
+  const pageCount = Math.max(1, Math.ceil(totalCount / pageSize))
+  const page = Math.min(requestedPage, pageCount)
+
+  if (totalCount === 0) {
+    return { items: [], totalCount: 0, page: 1, pageSize, pageCount: 1 }
+  }
+
+  const pageIds = sorted.slice((page - 1) * pageSize, page * pageSize)
+  const { data, error } = await supabase
+    .from('questions')
+    .select(ADMIN_QUESTION_LIST_SELECT)
+    .in('id', pageIds)
+
+  if (error) {
+    throw new Error('Unable to load admin questions.')
+  }
+
+  const byId = new Map(
+    ((data ?? []) as unknown as AdminQuestionRawRow[]).map((row) => [row.id, mapAdminQuestionRow(row)])
+  )
+  const items = pageIds
+    .map((id) => byId.get(id))
+    .filter((item): item is AdminQuestionListItem => Boolean(item))
+
+  return { items, totalCount, page, pageSize, pageCount }
+}
+
+export interface QuestionStatusCounts {
+  total: number
+  published: number
+  draft: number
+  archived: number
+}
+
+/** Whole-bank counts by status for the Question Bank metric chips (ignores filters). */
+export async function getQuestionStatusCounts(): Promise<QuestionStatusCounts> {
+  const supabase = await createClient()
+
+  const countByStatus = (status?: string) => {
+    let query = supabase.from('questions').select('id', { count: 'exact', head: true })
+    if (status) {
+      query = query.eq('status', status)
+    }
+    return query
+  }
+
+  const [total, published, draft, archived] = await Promise.all([
+    countByStatus(),
+    countByStatus('published'),
+    countByStatus('draft'),
+    countByStatus('archived'),
+  ])
+
+  if (total.error || published.error || draft.error || archived.error) {
+    throw new Error('Unable to load question status counts.')
+  }
+
+  return {
+    total: total.count ?? 0,
+    published: published.count ?? 0,
+    draft: draft.count ?? 0,
+    archived: archived.count ?? 0,
+  }
+}
+
+export async function getExistingQuestionTexts(): Promise<string[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('questions').select('question_text')
+
+  if (error) {
+    throw new Error('Unable to load existing questions for duplicate detection.')
+  }
+
+  return ((data ?? []) as Array<{ question_text: string }>).map((row) => row.question_text)
+}
+
+/** Distinct tags already used across the bank — powers the "new tag" import warning. */
+export async function getExistingTags(): Promise<string[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('questions').select('tags')
+
+  if (error) {
+    throw new Error('Unable to load existing tags.')
+  }
+
+  const tags = new Set<string>()
+  for (const row of (data ?? []) as Array<{ tags: string[] | null }>) {
+    for (const tag of row.tags ?? []) {
+      if (tag.trim()) {
+        tags.add(tag.trim())
+      }
+    }
+  }
+  return [...tags]
 }
 
 export async function validateQuestionTaxonomy(
@@ -406,7 +652,14 @@ export async function getPublishedPracticeQuestion(questionId: string): Promise<
   }
 }
 
-export async function getPracticeQuestions(filters: PracticeQuestionFilters): Promise<PracticeQuestionItem[]> {
+/**
+ * Fetches the candidate pool (up to 100 published questions, without options)
+ * matching the practice filters. Callers pick from the pool (mode logic lives in
+ * the practice action) and hydrate the selection via hydratePracticeQuestions.
+ */
+export async function getPracticeQuestionPool(
+  filters: Omit<PracticeQuestionFilters, 'limit'>
+): Promise<Array<Omit<PracticeQuestionItem, 'options'>>> {
   const supabase = await createClient()
   let query = supabase
     .from('questions')
@@ -453,10 +706,8 @@ export async function getPracticeQuestions(filters: PracticeQuestionFilters): Pr
       question_type: { name: string }[] | { name: string } | null
     }
   >
-  const selectedQuestions = shuffleArray(questions).slice(0, filters.limit)
-  const optionsMap = await getQuestionOptionsMap(selectedQuestions.map((question) => question.id))
 
-  return selectedQuestions.map((question) => ({
+  return questions.map((question) => ({
     id: question.id,
     subjectId: question.subject_id,
     subjectName: getRelationValue(question.subject)?.name ?? 'Subject',
@@ -468,6 +719,24 @@ export async function getPracticeQuestions(filters: PracticeQuestionFilters): Pr
     difficulty: question.difficulty,
     questionText: question.question_text,
     passageText: question.passage_text,
+  }))
+}
+
+/** Attaches answer options to a picked set of pool questions. */
+export async function hydratePracticeQuestions(
+  questions: Array<Omit<PracticeQuestionItem, 'options'>>
+): Promise<PracticeQuestionItem[]> {
+  const optionsMap = await getQuestionOptionsMap(questions.map((question) => question.id))
+
+  return questions.map((question) => ({
+    ...question,
     options: optionsMap.get(question.id) ?? [],
   }))
 }
+
+export async function getPracticeQuestions(filters: PracticeQuestionFilters): Promise<PracticeQuestionItem[]> {
+  const pool = await getPracticeQuestionPool(filters)
+  return hydratePracticeQuestions(shuffleArray(pool).slice(0, filters.limit))
+}
+
+export { shuffleArray }

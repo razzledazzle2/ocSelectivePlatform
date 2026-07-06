@@ -1,131 +1,139 @@
+import {
+  buildActivityCalendar,
+  computeCurrentStreak,
+  computeLongestStreak,
+  countActiveDaysThisMonth,
+  countQuestionsThisWeek,
+  summariseActivity,
+  type AttemptActivityInput,
+} from '@/lib/dashboard/activity'
+import { buildRecommendations, computeWeakStrong, formatAreaLabel } from '@/lib/dashboard/analysis'
 import { getRecentPracticeSessions, getStudentMistakeQuestions } from '@/lib/practice/queries'
 import { createClient } from '@/lib/supabase/server'
-import type { RecentAttempt, StudentDashboardStats } from '@/lib/types'
+import type { RevisionDueSummary, StudentDashboardData } from '@/lib/types'
 
-function getRelationName(value: { name: string }[] | { name: string } | null): string | null {
+function relationName(value: { name: string }[] | { name: string } | null): string | null {
   if (Array.isArray(value)) {
     return value[0]?.name ?? null
   }
   return value?.name ?? null
 }
 
-async function getRecentAttempts(studentId: string): Promise<RecentAttempt[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('question_attempts')
-    .select(`
-      id,
-      is_correct,
-      attempted_at,
-      question:questions(question_text),
-      subject:subjects(name),
-      topic:topics(name)
-    `)
-    .eq('student_id', studentId)
-    .order('attempted_at', { ascending: false })
-    .limit(6)
-
-  if (error) {
-    throw new Error('Unable to load recent attempts.')
-  }
-
-  return ((data ?? []) as unknown as Array<{
-    id: string
-    is_correct: boolean
-    attempted_at: string
-    question: { question_text: string }[] | { question_text: string } | null
-    subject: { name: string }[] | { name: string } | null
-    topic: { name: string }[] | { name: string } | null
-  }>).map((attempt) => {
-    const question = Array.isArray(attempt.question) ? attempt.question[0] : attempt.question
-    return {
-      id: attempt.id,
-      questionText: question?.question_text ?? 'Question unavailable',
-      subjectName: getRelationName(attempt.subject),
-      topicName: getRelationName(attempt.topic),
-      isCorrect: attempt.is_correct,
-      attemptedAt: attempt.attempted_at,
-    }
-  })
+interface AttemptRow {
+  is_correct: boolean
+  attempted_at: string
+  session_id: string | null
+  subject: { name: string }[] | { name: string } | null
+  topic: { name: string }[] | { name: string } | null
+  question_type: { name: string }[] | { name: string } | null
 }
 
-export async function getStudentDashboardStats(studentId: string): Promise<StudentDashboardStats> {
+export async function getStudentDashboardData(studentId: string): Promise<StudentDashboardData> {
   const supabase = await createClient()
-  const [{ data: attempts, error: attemptsError }, recentSessions, recentAttempts, allMistakes] =
-    await Promise.all([
-      supabase
-        .from('question_attempts')
-        .select(`
-          is_correct,
-          subject:subjects(name),
-          topic:topics(name)
-        `)
-        .eq('student_id', studentId),
-      getRecentPracticeSessions(studentId),
-      getRecentAttempts(studentId),
-      getStudentMistakeQuestions(studentId),
-    ])
+
+  const [{ data: attemptsData, error: attemptsError }, recentSessions, mistakes] = await Promise.all([
+    supabase
+      .from('question_attempts')
+      .select(`
+        is_correct,
+        attempted_at,
+        session_id,
+        subject:subjects(name),
+        topic:topics(name),
+        question_type:question_types(name)
+      `)
+      .eq('student_id', studentId)
+      .order('attempted_at', { ascending: false }),
+    getRecentPracticeSessions(studentId),
+    getStudentMistakeQuestions(studentId),
+  ])
 
   if (attemptsError) {
-    throw new Error('Unable to load dashboard statistics.')
+    throw new Error('Unable to load dashboard data.')
   }
 
-  const completedQuestions = attempts?.length ?? 0
-  const correctAnswers = (attempts ?? []).filter((attempt) => attempt.is_correct).length
-  const incorrectAnswers = completedQuestions - correctAnswers
+  const attempts = (attemptsData ?? []) as unknown as AttemptRow[]
+  const now = new Date()
+
+  // -- Activity, streaks, calendar ----------------------------------------
+  const activityInput: AttemptActivityInput[] = attempts.map((attempt) => ({
+    attemptedAt: attempt.attempted_at,
+    isRevision: attempt.session_id === null,
+  }))
+  const summary = summariseActivity(activityInput)
+  const currentStreak = computeCurrentStreak(summary.activeDays, now)
+  const longestStreak = computeLongestStreak(summary.activeDays)
+  const activeDaysThisMonth = countActiveDaysThisMonth(summary.activeDays, now)
+  const questionsThisWeek = countQuestionsThisWeek(activityInput, now)
+  const calendar = buildActivityCalendar(summary, now)
+
+  // -- Accuracy -----------------------------------------------------------
+  const totalAttempts = attempts.length
+  const correctAttempts = attempts.filter((attempt) => attempt.is_correct).length
   const overallAccuracy =
-    completedQuestions > 0 ? Number(((correctAnswers / completedQuestions) * 100).toFixed(1)) : null
+    totalAttempts > 0 ? Number(((correctAttempts / totalAttempts) * 100).toFixed(1)) : null
 
-  const subjectCounts = new Map<string, number>()
-  const topicCounts = new Map<string, number>()
+  // -- Weak / strong areas ------------------------------------------------
+  const insights = computeWeakStrong(
+    attempts.map((attempt) => ({
+      subjectName: relationName(attempt.subject),
+      topicName: relationName(attempt.topic),
+      questionTypeName: relationName(attempt.question_type),
+      isCorrect: attempt.is_correct,
+    }))
+  )
 
-  for (const attempt of (attempts ?? []) as Array<{
-    is_correct: boolean
-    subject: { name: string }[] | { name: string } | null
-    topic: { name: string }[] | { name: string } | null
-  }>) {
-    if (attempt.is_correct) {
-      continue
-    }
-
-    const subjectName = getRelationName(attempt.subject)
-    const topicName = getRelationName(attempt.topic)
-
-    if (subjectName) {
-      subjectCounts.set(subjectName, (subjectCounts.get(subjectName) ?? 0) + 1)
-    }
-    if (topicName) {
-      topicCounts.set(topicName, (topicCounts.get(topicName) ?? 0) + 1)
-    }
-  }
-
-  const weakestSubject =
-    incorrectAnswers >= 3
-      ? [...subjectCounts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? null
-      : null
-  const weakestTopic =
-    incorrectAnswers >= 3
-      ? [...topicCounts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? null
-      : null
-
-  const now = Date.now()
-  const revisionDueToday = allMistakes.filter(
+  // -- Revision due today -------------------------------------------------
+  const nowMs = now.getTime()
+  const dueMistakes = mistakes.filter(
     (mistake) =>
       mistake.status !== 'mastered' &&
       mistake.nextReviewAt !== null &&
-      new Date(mistake.nextReviewAt).getTime() <= now
-  ).length
+      new Date(mistake.nextReviewAt).getTime() <= nowMs
+  )
+  const dueAreaCounts = new Map<string, number>()
+  for (const mistake of dueMistakes) {
+    const label = [mistake.subjectName, mistake.topicName].filter(Boolean).join(' — ') || 'General revision'
+    dueAreaCounts.set(label, (dueAreaCounts.get(label) ?? 0) + 1)
+  }
+  const revisionDue: RevisionDueSummary = {
+    dueCount: dueMistakes.length,
+    topAreas: [...dueAreaCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, count]) => ({ name, count })),
+  }
+
+  // -- Recommendations ----------------------------------------------------
+  const hasActivity = totalAttempts > 0
+  const recommendations = buildRecommendations({
+    hasActivity,
+    revisionDueCount: revisionDue.dueCount,
+    currentStreak,
+    weakest: insights.weakest,
+  })
 
   return {
-    questionsCompleted: completedQuestions,
-    correctAnswers,
-    incorrectAnswers,
-    overallAccuracy,
-    revisionDueToday,
+    hasActivity,
+    metrics: {
+      questionsThisWeek,
+      overallAccuracy,
+      currentStreak,
+      revisionDueToday: revisionDue.dueCount,
+    },
+    streak: {
+      currentStreak,
+      longestStreak,
+      activeDaysThisMonth,
+      questionsThisWeek,
+    },
+    calendar,
+    insights,
+    revisionDue,
     recentSessions,
-    recentAttempts,
-    recentMistakes: allMistakes.slice(0, 6),
-    weakestSubject,
-    weakestTopic,
+    recommendations,
   }
 }
+
+// Re-exported for any callers that want the raw label formatting.
+export { formatAreaLabel }

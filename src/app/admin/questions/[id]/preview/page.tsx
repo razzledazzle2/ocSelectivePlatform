@@ -24,8 +24,8 @@ export default async function PreviewAdminQuestionPage({ params }: PreviewAdminQ
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-700">Question Bank</p>
-          <h2 className="mt-2 text-3xl font-semibold text-slate-950">Preview question</h2>
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">Question Bank</p>
+          <h2 className="mt-2 text-3xl font-semibold text-foreground">Preview question</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Review the student-facing experience before you publish or update this question.
           </p>

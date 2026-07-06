@@ -17,7 +17,7 @@ interface AdminStudentTableProps {
 
 export function AdminStudentTable({ students }: AdminStudentTableProps) {
   return (
-    <Card className="border-white/70 bg-white/94 shadow-lg shadow-slate-200/50">
+    <Card className="rounded-2xl shadow-sm ring-border">
       <CardHeader className="border-b border-border/70">
         <CardTitle>Student progress overview</CardTitle>
         <CardDescription>
@@ -34,7 +34,7 @@ export function AdminStudentTable({ students }: AdminStudentTableProps) {
             <TableHeader>
               <TableRow>
                 <TableHead>Student</TableHead>
-                <TableHead>Target</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead>Attempts</TableHead>
                 <TableHead>Accuracy</TableHead>
                 <TableHead>Mistakes</TableHead>
@@ -47,26 +47,19 @@ export function AdminStudentTable({ students }: AdminStudentTableProps) {
                 <TableRow key={student.id}>
                   <TableCell className="align-top">
                     <div className="space-y-1">
-                      <p className="font-medium text-slate-950">
+                      <p className="font-medium text-foreground">
                         {student.fullName || student.email || 'Student account'}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {student.email || 'No email saved'}
                       </p>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline">student</Badge>
-                        {student.yearLevel ? <Badge variant="secondary">Year {student.yearLevel}</Badge> : null}
-                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="space-y-1 text-sm text-slate-700">
-                      <p>{student.targetExam || 'Not set'}</p>
-                      <p className="text-muted-foreground">{student.school || 'School not set'}</p>
-                    </div>
+                    <Badge variant="outline">{student.role}</Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="space-y-1 text-sm text-slate-700">
+                    <div className="space-y-1 text-sm text-foreground/80">
                       <p>{student.questionsCompleted} total</p>
                       <p className="text-muted-foreground">
                         {student.correctAnswers} correct / {student.incorrectAnswers} incorrect

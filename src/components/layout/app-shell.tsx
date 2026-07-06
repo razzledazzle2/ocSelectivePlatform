@@ -4,12 +4,16 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   BookOpenIcon,
+  ChartNoAxesColumnIcon,
   ClipboardListIcon,
+  FlagIcon,
   GaugeIcon,
   GraduationCapIcon,
+  LayersIcon,
   MenuIcon,
   RotateCcwIcon,
-  SparklesIcon,
+  TimerIcon,
+  UploadCloudIcon,
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react'
@@ -17,8 +21,7 @@ import type { ReactNode } from 'react'
 
 import { SignOutButton } from '@/components/layout/sign-out-button'
 import { UserNav } from '@/components/layout/user-nav'
-import { Button, buttonVariants } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
 import {
   Sheet,
   SheetContent,
@@ -34,44 +37,43 @@ const navigationIcons: Record<NavigationIconName, LucideIcon> = {
   'book-open': BookOpenIcon,
   revision: RotateCcwIcon,
   'clipboard-list': ClipboardListIcon,
+  timer: TimerIcon,
   users: UsersIcon,
+  flag: FlagIcon,
+  layers: LayersIcon,
+  chart: ChartNoAxesColumnIcon,
+  upload: UploadCloudIcon,
 }
 
 interface ShellNavProps {
   navigation: NavigationItem[]
   pathname: string
   profile: AppProfile
-  mobile?: boolean
+  portalLabel: string
 }
 
-function ShellNav({ navigation, pathname, profile, mobile = false }: ShellNavProps) {
+function ShellNav({ navigation, pathname, profile, portalLabel }: ShellNavProps) {
   return (
-    <div className="flex h-full flex-col">
-      <div className={cn('space-y-4', mobile ? 'px-4 pb-4' : 'px-5 pb-5 pt-5')}>
-        <div className="flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-300/60">
-            <GraduationCapIcon className="size-5" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground">OC Selective Platform</p>
-            <p className="text-xs text-muted-foreground">Phase 0 foundation</p>
-          </div>
+    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+      {/* Brand */}
+      <div className="flex items-center gap-3 px-5 pb-6 pt-6">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
+          <GraduationCapIcon className="size-5" />
         </div>
-        <div className="rounded-3xl border border-border/80 bg-slate-950 px-4 py-4 text-slate-100">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-slate-300">
-            <SparklesIcon className="size-3.5" />
-            Active role
-          </div>
-          <p className="mt-3 text-lg font-semibold capitalize">{profile.role.replace('_', ' ')}</p>
-          <p className="mt-1 text-sm text-slate-300">
-            {profile.full_name || profile.email || 'Signed-in user'}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold tracking-wide text-white">MINERVA</p>
+          <p className="text-[0.7rem] font-medium uppercase tracking-[0.22em] text-sidebar-foreground/60">
+            Education
           </p>
         </div>
       </div>
 
-      <Separator />
+      <p className="px-5 pb-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-sidebar-foreground/50">
+        {portalLabel}
+      </p>
 
-      <nav className="flex-1 space-y-2 px-4 py-5">
+      {/* Navigation */}
+      <nav className="flex-1 space-y-1 px-3">
         {navigation.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
           const Icon = navigationIcons[item.icon]
@@ -80,24 +82,48 @@ function ShellNav({ navigation, pathname, profile, mobile = false }: ShellNavPro
             <Link
               key={item.href}
               href={item.href}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
-                buttonVariants({
-                  variant: isActive ? 'secondary' : 'ghost',
-                  size: 'lg',
-                }),
-                'h-11 w-full justify-start rounded-2xl px-4 text-sm',
-                isActive && 'bg-white text-slate-950 shadow-sm'
+                'group relative flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
+                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground'
               )}
             >
-              <Icon className="size-4" />
+              {isActive ? (
+                <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary" />
+              ) : null}
+              <Icon className={cn('size-4 shrink-0', isActive && 'text-sidebar-primary')} />
               {item.label}
             </Link>
           )
         })}
       </nav>
 
-      <div className="px-4 pb-4">
-        <SignOutButton variant="outline" />
+      {/* Signed-in user */}
+      <div className="space-y-3 border-t border-sidebar-border px-4 py-4">
+        <div className="flex items-center gap-3 rounded-xl bg-sidebar-accent/50 px-3 py-2.5">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
+            {(profile.full_name || profile.email || 'U')
+              .split(' ')
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((part) => part[0]?.toUpperCase())
+              .join('')}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-white">
+              {profile.full_name || 'Signed-in user'}
+            </p>
+            <p className="truncate text-xs capitalize text-sidebar-foreground/60">
+              {profile.role.replace('_', ' ')}
+            </p>
+          </div>
+        </div>
+        <SignOutButton
+          variant="ghost"
+          buttonClassName="text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-white"
+        />
       </div>
     </div>
   )
@@ -115,42 +141,48 @@ export function AppShell({ title, description, navigation, profile, children }: 
   const pathname = usePathname()
 
   return (
-    <div className="min-h-screen px-4 py-4 sm:px-6">
-      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-7xl gap-6">
-        <aside className="hidden w-80 shrink-0 overflow-hidden rounded-[2rem] border border-white/70 bg-white/80 shadow-xl shadow-slate-200/60 backdrop-blur lg:block">
-          <ShellNav navigation={navigation} pathname={pathname} profile={profile} />
-        </aside>
+    <div className="flex min-h-screen">
+      {/* Desktop sidebar */}
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 lg:block">
+        <ShellNav navigation={navigation} pathname={pathname} profile={profile} portalLabel={title} />
+      </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col gap-4">
-          <header className="sticky top-4 z-20 rounded-[2rem] border border-white/70 bg-white/80 px-4 py-4 shadow-lg shadow-slate-200/50 backdrop-blur sm:px-6">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <Sheet>
-                  <SheetTrigger render={<Button variant="outline" size="icon-lg" className="lg:hidden" />}>
-                    <MenuIcon className="size-4" />
-                    <span className="sr-only">Open navigation</span>
-                  </SheetTrigger>
-                  <SheetContent side="left" className="w-[20rem] bg-white/95 p-0">
-                    <SheetHeader className="sr-only">
-                      <SheetTitle>Portal navigation</SheetTitle>
-                    </SheetHeader>
-                    <ShellNav navigation={navigation} pathname={pathname} profile={profile} mobile />
-                  </SheetContent>
-                </Sheet>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-700">Minerva internal</p>
-                  <h1 className="truncate text-2xl font-semibold text-slate-950">{title}</h1>
-                  <p className="hidden text-sm text-muted-foreground sm:block">{description}</p>
-                </div>
-              </div>
-              <div className="hidden sm:block">
-                <UserNav profile={profile} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Top bar */}
+        <header className="sticky top-0 z-20 border-b border-border bg-card/90 backdrop-blur">
+          <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+            <div className="flex min-w-0 items-center gap-3">
+              <Sheet>
+                <SheetTrigger render={<Button variant="outline" size="icon-lg" className="lg:hidden" />}>
+                  <MenuIcon className="size-4" />
+                  <span className="sr-only">Open navigation</span>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-72 border-sidebar-border bg-sidebar p-0">
+                  <SheetHeader className="sr-only">
+                    <SheetTitle>Portal navigation</SheetTitle>
+                  </SheetHeader>
+                  <ShellNav
+                    navigation={navigation}
+                    pathname={pathname}
+                    profile={profile}
+                    portalLabel={title}
+                  />
+                </SheetContent>
+              </Sheet>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">{title}</p>
+                <p className="hidden truncate text-xs text-muted-foreground sm:block">{description}</p>
               </div>
             </div>
-          </header>
+            <div className="hidden sm:block">
+              <UserNav profile={profile} />
+            </div>
+          </div>
+        </header>
 
-          <main className="flex-1">{children}</main>
-        </div>
+        <main className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-6xl">{children}</div>
+        </main>
       </div>
     </div>
   )
