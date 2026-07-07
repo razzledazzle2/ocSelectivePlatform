@@ -28,6 +28,8 @@ import {
 } from '@/lib/questions/option-rules'
 import { cn } from '@/lib/utils'
 import {
+  ANSWER_FORMAT_LABELS,
+  ANSWER_FORMATS,
   EXAM_TYPES,
   type ActionResult,
   type QuestionFormValues,
@@ -35,6 +37,7 @@ import {
   type SubjectRecord,
   type TopicRecord,
 } from '@/lib/types'
+import type { StimulusPickerItem } from '@/lib/stimuli/queries'
 import { toast } from 'sonner'
 
 interface QuestionFormProps {
@@ -43,10 +46,27 @@ interface QuestionFormProps {
   subjects: SubjectRecord[]
   topics: TopicRecord[]
   questionTypes: QuestionTypeRecord[]
+  /** Stimuli available to link, fetched by the server page. */
+  stimuli: StimulusPickerItem[]
   initialValues: QuestionFormValues
 }
 
 const difficultyValues = ['1', '2', '3', '4', '5'] as const
+
+/** Sentinel for "no linked stimulus" (base-ui Select cannot use '' as a value). */
+const NO_STIMULUS = 'none'
+
+const RUBRIC_PLACEHOLDER = `{
+  "textType": "persuasive",
+  "criteria": [
+    { "name": "Ideas & argument", "description": "Clear position with convincing reasons", "maxMarks": 10 },
+    { "name": "Structure & cohesion", "maxMarks": 5 }
+  ],
+  "scoreBands": [
+    { "band": "Top", "range": "13-15", "descriptor": "Sustained, persuasive and well organised" }
+  ],
+  "planningHints": ["State your position in the opening paragraph"]
+}`
 
 const emptyResult: ActionResult<{ redirectTo: string }> = {
   success: false,
@@ -67,6 +87,7 @@ export function QuestionForm({
   subjects,
   topics,
   questionTypes,
+  stimuli,
   initialValues,
 }: QuestionFormProps) {
   const router = useRouter()
@@ -101,7 +122,21 @@ export function QuestionForm({
     [filteredQuestionTypes]
   )
   const difficultyItems = Object.fromEntries(difficultyValues.map((value) => [value, `Difficulty ${value}`]))
-  const statusItems = { draft: 'Draft', published: 'Published' }
+  const statusItems = { draft: 'Draft', reviewed: 'Reviewed', published: 'Published' }
+  const stimulusItems = useMemo(
+    () => ({
+      [NO_STIMULUS]: '(none)',
+      ...Object.fromEntries(
+        stimuli.map((stimulus) => [
+          stimulus.id,
+          `${stimulus.title} (${stimulus.stimulusType.replace(/_/g, ' ')})`,
+        ])
+      ),
+    }),
+    [stimuli]
+  )
+
+  const isWritingPrompt = values.answerFormat === 'extended_response'
 
   // Flexible options: labels follow the current count (A, B, C, D[, E]).
   const optionLabels = labelsForCount(values.options.length)
@@ -224,12 +259,14 @@ export function QuestionForm({
       <CardHeader className="space-y-4 border-b border-border/70">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{mode === 'create' ? 'New question' : 'Edit question'}</Badge>
-          <Badge variant="secondary">Multiple choice</Badge>
+          <Badge variant="secondary">{ANSWER_FORMAT_LABELS[values.answerFormat]}</Badge>
         </div>
         <div>
           <CardTitle>{mode === 'create' ? 'Create a question' : 'Update question'}</CardTitle>
           <CardDescription>
-            Add clear options, a reliable answer key, and enough explanation for students to learn from the result.
+            {isWritingPrompt
+              ? 'Set a clear writing task and a marking rubric so students know exactly what a strong response looks like.'
+              : 'Add clear options, a reliable answer key, and enough explanation for students to learn from the result.'}
           </CardDescription>
         </div>
       </CardHeader>
@@ -242,9 +279,13 @@ export function QuestionForm({
           <input type="hidden" name="questionTypeId" value={values.questionTypeId} />
           <input type="hidden" name="difficulty" value={values.difficulty} />
           <input type="hidden" name="status" value={values.status} />
-          <input type="hidden" name="correctOptionLabel" value={values.correctOptionLabel} />
+          <input type="hidden" name="answerFormat" value={values.answerFormat} />
+          <input type="hidden" name="stimulusId" value={values.stimulusId} />
+          {!isWritingPrompt ? (
+            <input type="hidden" name="correctOptionLabel" value={values.correctOptionLabel} />
+          ) : null}
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <div className="space-y-2">
               <Label>Exam type</Label>
               <Select
@@ -263,6 +304,29 @@ export function QuestionForm({
                 </SelectContent>
               </Select>
               <FieldError message={fieldErrors.examType} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Answer format</Label>
+              <Select
+                value={values.answerFormat}
+                onValueChange={(value) =>
+                  updateValue('answerFormat', value as QuestionFormValues['answerFormat'])
+                }
+                items={ANSWER_FORMAT_LABELS}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Choose answer format" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ANSWER_FORMATS.map((format) => (
+                    <SelectItem key={format} value={format}>
+                      {ANSWER_FORMAT_LABELS[format]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError message={fieldErrors.answerFormat} />
             </div>
 
             <div className="space-y-2">
@@ -329,7 +393,7 @@ export function QuestionForm({
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-5">
             <div className="space-y-2">
               <Label htmlFor="yearLevel">Year level</Label>
               <Input
@@ -343,6 +407,34 @@ export function QuestionForm({
                 placeholder="Optional"
               />
               <FieldError message={fieldErrors.yearLevel} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="marks">Marks</Label>
+              <Input
+                id="marks"
+                name="marks"
+                type="number"
+                min="1"
+                value={values.marks}
+                onChange={(event) => updateValue('marks', event.target.value)}
+                placeholder="1"
+              />
+              <FieldError message={fieldErrors.marks} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="timeLimitSeconds">Time limit (seconds)</Label>
+              <Input
+                id="timeLimitSeconds"
+                name="timeLimitSeconds"
+                type="number"
+                min="1"
+                value={values.timeLimitSeconds}
+                onChange={(event) => updateValue('timeLimitSeconds', event.target.value)}
+                placeholder="Optional"
+              />
+              <FieldError message={fieldErrors.timeLimitSeconds} />
             </div>
 
             <div className="space-y-2">
@@ -377,8 +469,11 @@ export function QuestionForm({
                   <SelectValue placeholder="Choose status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="published">Published</SelectItem>
+                  {Object.entries(statusItems).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <FieldError message={fieldErrors.status} />
@@ -398,17 +493,49 @@ export function QuestionForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="passageText">Passage text</Label>
-            <Textarea
-              id="passageText"
-              name="passageText"
-              rows={5}
-              value={values.passageText}
-              onChange={(event) => updateValue('passageText', event.target.value)}
-              placeholder="Optional passage or prompt"
-            />
+            <Label>Stimulus</Label>
+            <Select
+              value={values.stimulusId || NO_STIMULUS}
+              onValueChange={(value) => updateValue('stimulusId', value === NO_STIMULUS ? '' : value)}
+              items={stimulusItems}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="(none)" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(stimulusItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Link a shared passage, poem, chart or writing context. Students see the linked stimulus above the
+              question.
+            </p>
+            <FieldError message={fieldErrors.stimulusId} />
           </div>
 
+          {!isWritingPrompt ? (
+            <div className="space-y-2">
+              <Label htmlFor="passageText">Passage text</Label>
+              <Textarea
+                id="passageText"
+                name="passageText"
+                rows={5}
+                value={values.passageText}
+                onChange={(event) => updateValue('passageText', event.target.value)}
+                placeholder="Optional passage or prompt"
+              />
+              <p className="text-xs text-muted-foreground">
+                For a one-off passage only — prefer a linked stimulus when several questions share it.
+              </p>
+            </div>
+          ) : null}
+
+          {!isWritingPrompt ? (
+          <>
           <div className="space-y-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
@@ -503,17 +630,70 @@ export function QuestionForm({
               />
             </div>
           </div>
+          </>
+          ) : (
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-brand">Writing rubric</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Extended response questions have no answer options — they are marked against this rubric instead.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rubricJson">Rubric JSON</Label>
+              <Textarea
+                id="rubricJson"
+                name="rubricJson"
+                rows={10}
+                value={values.rubricJson}
+                onChange={(event) => updateValue('rubricJson', event.target.value)}
+                placeholder={RUBRIC_PLACEHOLDER}
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                Optional, but recommended. Must be a JSON object with a &quot;criteria&quot; array — each criterion
+                needs a name and a positive maxMarks. textType, scoreBands, planningHints and sampleAnswerNotes are
+                also supported.
+              </p>
+              <FieldError message={fieldErrors.rubricJson} />
+            </div>
+          </div>
+          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="tags">Tags</Label>
-            <Input
-              id="tags"
-              name="tags"
-              value={values.tags}
-              onChange={(event) => updateValue('tags', event.target.value)}
-              placeholder="Comma separated, e.g. percentages, arithmetic"
-            />
-            <p className="text-xs text-muted-foreground">Optional labels for filtering and CSV export.</p>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="tags">Tags</Label>
+              <Input
+                id="tags"
+                name="tags"
+                value={values.tags}
+                onChange={(event) => updateValue('tags', event.target.value)}
+                placeholder="Comma separated, e.g. percentages, arithmetic"
+              />
+              <p className="text-xs text-muted-foreground">Optional labels for filtering and CSV export.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="skillTags">Skill tags</Label>
+              <Input
+                id="skillTags"
+                name="skillTags"
+                value={values.skillTags}
+                onChange={(event) => updateValue('skillTags', event.target.value)}
+                placeholder="Comma separated, e.g. inference, main-idea"
+              />
+              <p className="text-xs text-muted-foreground">Optional skills the question exercises.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="conceptTags">Concept tags</Label>
+              <Input
+                id="conceptTags"
+                name="conceptTags"
+                value={values.conceptTags}
+                onChange={(event) => updateValue('conceptTags', event.target.value)}
+                placeholder="Comma separated, e.g. fractions, ratio"
+              />
+              <p className="text-xs text-muted-foreground">Optional concepts the question covers.</p>
+            </div>
           </div>
 
           <div className="space-y-2">

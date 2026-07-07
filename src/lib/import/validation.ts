@@ -1,12 +1,19 @@
 import { parseTags } from '@/lib/questions/mutations'
 import { checkOptionCount, labelsForCount } from '@/lib/questions/option-rules'
+import { parseWritingRubric } from '@/lib/questions/rubric'
 import {
+  ANSWER_FORMATS,
   EXAM_TYPES,
   QUESTION_OPTION_LABELS,
   QUESTION_STATUSES,
+  STIMULUS_TYPES,
+  type AnswerFormat,
   type ExamType,
   type QuestionOptionLabel,
+  type QuestionPresentation,
+  type QuestionSourceInfo,
   type QuestionStatus,
+  type StimulusType,
 } from '@/lib/types'
 import type {
   ImportFormat,
@@ -16,6 +23,7 @@ import type {
   ImportValidationResult,
   QuestionImportRow,
   ResolvedImportQuestion,
+  ResolvedImportStimulus,
   ValidatedImportRow,
 } from '@/lib/import/types'
 
@@ -25,6 +33,11 @@ export function normalizeQuestionText(value: string): string {
 
 function normalizeExamType(value: string): ExamType | null {
   const match = EXAM_TYPES.find((exam) => exam.toLowerCase() === value.trim().toLowerCase())
+  return match ?? null
+}
+
+function normalizeStimulusType(value: string): StimulusType | null {
+  const match = STIMULUS_TYPES.find((type) => type === value.trim().toLowerCase())
   return match ?? null
 }
 
@@ -43,11 +56,49 @@ export function deriveShortExplanation(workedSolution: string): string | null {
   return candidate
 }
 
+/**
+ * Parses a JSON cell keyed by option label ({"A": "...", "B": "..."}).
+ * Returns null for an empty cell, and an error flag for anything that is not
+ * a flat object of string values keyed A–E.
+ */
+function parseLabelKeyedJson(cell: string): {
+  map: Partial<Record<QuestionOptionLabel, string>> | null
+  invalid: boolean
+} {
+  if (!cell.trim()) {
+    return { map: null, invalid: false }
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(cell)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { map: null, invalid: true }
+    }
+
+    const map: Partial<Record<QuestionOptionLabel, string>> = {}
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      const label = key.trim().toUpperCase()
+      if (!QUESTION_OPTION_LABELS.includes(label as QuestionOptionLabel) || typeof value !== 'string') {
+        return { map: null, invalid: true }
+      }
+      if (value.trim()) {
+        map[label as QuestionOptionLabel] = value.trim()
+      }
+    }
+    return { map, invalid: false }
+  } catch {
+    return { map: null, invalid: true }
+  }
+}
+
 interface ReferenceMaps {
   subjectByKey: Map<string, ImportReference['subjects'][number]>
   topicByKey: Map<string, ImportReference['topics'][number]>
   questionTypeByKey: Map<string, ImportReference['questionTypes'][number]>
+  variantByKey: Map<string, ImportReference['questionVariants'][number]>
   existingTags: Set<string>
+  existingStimulusRefs: Set<string>
+  existingExternalIds: Set<string>
 }
 
 function buildReferenceMaps(reference: ImportReference): ReferenceMaps {
@@ -69,12 +120,63 @@ function buildReferenceMaps(reference: ImportReference): ReferenceMaps {
     questionTypeByKey.set(`${questionType.subject_id}:${questionType.slug.toLowerCase()}`, questionType)
   }
 
+  const variantByKey = new Map<string, ImportReference['questionVariants'][number]>()
+  for (const variant of reference.questionVariants) {
+    variantByKey.set(`${variant.question_type_id}:${variant.name.toLowerCase()}`, variant)
+    variantByKey.set(`${variant.question_type_id}:${variant.slug.toLowerCase()}`, variant)
+  }
+
   return {
     subjectByKey,
     topicByKey,
     questionTypeByKey,
+    variantByKey,
     existingTags: new Set(reference.existingTags.map((tag) => tag.trim().toLowerCase())),
+    existingStimulusRefs: new Set(reference.existingStimulusRefs),
+    existingExternalIds: new Set(reference.existingExternalIds),
   }
+}
+
+interface StimulusGroup {
+  title: string
+  stimulusType: string
+  bodyMarkdown: string
+  assetRefs: string[]
+  hasDefinition: boolean
+}
+
+/**
+ * Merges the stimulus definition columns across every row sharing one
+ * stimulus ref — the definition may live on any single row of the group.
+ */
+function buildStimulusGroups(rows: QuestionImportRow[]): Map<string, StimulusGroup> {
+  const groups = new Map<string, StimulusGroup>()
+
+  for (const row of rows) {
+    const ref = row.stimulusId.trim()
+    if (!ref) continue
+
+    const group = groups.get(ref) ?? {
+      title: '',
+      stimulusType: '',
+      bodyMarkdown: '',
+      assetRefs: [],
+      hasDefinition: false,
+    }
+    if (!group.title && row.stimulusTitle.trim()) group.title = row.stimulusTitle.trim()
+    if (!group.stimulusType && row.stimulusType.trim()) group.stimulusType = row.stimulusType.trim()
+    if (!group.bodyMarkdown && row.stimulusText.trim()) group.bodyMarkdown = row.stimulusText.trim()
+    for (const assetRef of row.stimulusAssetRefs) {
+      if (!group.assetRefs.includes(assetRef)) {
+        group.assetRefs.push(assetRef)
+      }
+    }
+    group.hasDefinition =
+      group.hasDefinition || Boolean(group.title || group.stimulusType || group.bodyMarkdown)
+    groups.set(ref, group)
+  }
+
+  return groups
 }
 
 interface ValidateOptions {
@@ -90,8 +192,10 @@ export function validateQuestionImportRows(
 ): ImportValidationResult {
   const { settings } = options
   const maps = buildReferenceMaps(options.reference)
+  const stimulusGroups = buildStimulusGroups(rows)
   const existingTextSet = new Set(options.existingQuestionTexts.map(normalizeQuestionText))
   const seenInFile = new Set<string>()
+  const seenExternalIds = new Set<string>()
   const validatedRows: ValidatedImportRow[] = []
 
   for (const row of rows) {
@@ -163,54 +267,148 @@ export function validateQuestionImportRows(
       }
     }
 
+    // -- Variant (optional; resolved under the question type) ---------------
+    let variantId: string | null = null
+    let variantName: string | null = row.variantType.trim() || null
+
+    if (variantName && !questionTypeName) {
+      warnings.push({
+        field: 'variant_type',
+        message: `Variant "${variantName}" ignored — it needs an essential question type.`,
+      })
+      variantName = null
+    } else if (variantName) {
+      const existingVariant = questionTypeId
+        ? maps.variantByKey.get(`${questionTypeId}:${variantName.toLowerCase()}`) ?? null
+        : null
+
+      if (existingVariant) {
+        variantId = existingVariant.id
+        variantName = existingVariant.name
+      } else if (settings.createMissingQuestionTypes) {
+        warnings.push({
+          field: 'variant_type',
+          message: `New variant "${variantName}" will be created under ${questionTypeName}.`,
+        })
+      } else {
+        warnings.push({
+          field: 'variant_type',
+          message: `Variant "${variantName}" was not found — importing without a variant.`,
+        })
+        variantName = null
+      }
+    }
+
+    // -- Answer format -------------------------------------------------------
+    const rawAnswerFormat = row.answerFormat.trim().toLowerCase()
+    let answerFormat: AnswerFormat = 'single_choice'
+    if (rawAnswerFormat && !ANSWER_FORMATS.includes(rawAnswerFormat as AnswerFormat)) {
+      errors.push({
+        field: 'answer_format',
+        message: `Answer format must be one of ${ANSWER_FORMATS.join(', ')}.`,
+      })
+    } else if (rawAnswerFormat) {
+      answerFormat = rawAnswerFormat as AnswerFormat
+    }
+    const isSingleChoice = answerFormat === 'single_choice'
+
     // -- Core content -------------------------------------------------------
     if (!row.questionText.trim()) {
       errors.push({ field: 'question_text', message: 'Question text is required.' })
     }
 
-    // -- Options (flexible A–E, subject-aware count rules) ------------------
-    const optionTexts = row.options.map((option) => option.trim())
-    const optionLabels = labelsForCount(optionTexts.length)
+    // -- Per-option asset refs / explanations (JSON keyed by label) ---------
+    const optionAssetRefsParsed = parseLabelKeyedJson(row.optionAssetRefsJson)
+    if (optionAssetRefsParsed.invalid) {
+      errors.push({
+        field: 'option_asset_refs_json',
+        message: 'option_asset_refs_json must be a JSON object keyed by option label (e.g. {"A": "a.svg"}).',
+      })
+    }
+    const optionExplanationsParsed = parseLabelKeyedJson(row.optionExplanationsJson)
+    if (optionExplanationsParsed.invalid) {
+      errors.push({
+        field: 'option_explanations_json',
+        message: 'option_explanations_json must be a JSON object keyed by option label.',
+      })
+    }
+    const optionAssetRefMap = optionAssetRefsParsed.map ?? {}
+    const optionExplanationMap = optionExplanationsParsed.map ?? {}
 
-    optionTexts.forEach((text, index) => {
-      if (!text) {
+    // -- Options (flexible A–E, subject-aware count rules) ------------------
+    let optionTexts = row.options.map((option) => option.trim())
+
+    if (isSingleChoice) {
+      // Visual-only options: a label may have an asset ref instead of text —
+      // pad the positional list so those labels count as real options.
+      const assetLabelIndexes = Object.keys(optionAssetRefMap).map((label) =>
+        (QUESTION_OPTION_LABELS as readonly string[]).indexOf(label)
+      )
+      const highestAssetIndex = Math.max(-1, ...assetLabelIndexes)
+      while (optionTexts.length < highestAssetIndex + 1) {
+        optionTexts.push('')
+      }
+
+      const optionLabels = labelsForCount(optionTexts.length)
+
+      optionTexts.forEach((text, index) => {
+        const label = optionLabels[index]
+        if (!text && !(label && optionAssetRefMap[label])) {
+          errors.push({
+            field: `option_${label?.toLowerCase() ?? index + 1}`,
+            message: `Option ${label ?? index + 1} is empty.`,
+          })
+        }
+      })
+
+      if (optionTexts.length === 0) {
+        errors.push({ field: 'options', message: 'No answer options were parsed for this question.' })
+      } else {
+        const countCheck = checkOptionCount(subject?.name ?? row.subject, optionTexts.length, answerFormat)
+        if (countCheck.error) {
+          errors.push({ field: 'options', message: countCheck.error })
+        } else if (countCheck.warning) {
+          warnings.push({ field: 'options', message: countCheck.warning })
+        }
+      }
+
+      const filledOptions = optionTexts.map((text) => text.toLowerCase()).filter(Boolean)
+      if (new Set(filledOptions).size !== filledOptions.length) {
+        errors.push({ field: 'options', message: 'Options must be unique within a question.' })
+      }
+    } else {
+      if (optionTexts.some(Boolean) || Object.keys(optionAssetRefMap).length > 0) {
         errors.push({
-          field: `option_${optionLabels[index]?.toLowerCase() ?? index + 1}`,
-          message: `Option ${optionLabels[index] ?? index + 1} is empty.`,
+          field: 'options',
+          message: 'Extended response questions must not have answer options.',
         })
       }
-    })
-
-    if (optionTexts.length === 0) {
-      errors.push({ field: 'options', message: 'No answer options were parsed for this question.' })
-    } else {
-      const countCheck = checkOptionCount(subject?.name ?? row.subject, optionTexts.length)
-      if (countCheck.error) {
-        errors.push({ field: 'options', message: countCheck.error })
-      } else if (countCheck.warning) {
-        warnings.push({ field: 'options', message: countCheck.warning })
-      }
+      optionTexts = []
     }
 
-    const filledOptions = optionTexts.map((text) => text.toLowerCase()).filter(Boolean)
-    if (new Set(filledOptions).size !== filledOptions.length) {
-      errors.push({ field: 'options', message: 'Options must be unique within a question.' })
-    }
-
+    // -- Correct answer -------------------------------------------------------
     const correctOptionLabel = row.correctAnswer.trim().toUpperCase()
-    if (!correctOptionLabel) {
-      errors.push({ field: 'correct_answer', message: 'Correct answer is required.' })
-    } else if (!QUESTION_OPTION_LABELS.includes(correctOptionLabel as QuestionOptionLabel)) {
+    if (isSingleChoice) {
+      const optionLabels = labelsForCount(optionTexts.length)
+      if (!correctOptionLabel) {
+        errors.push({ field: 'correct_answer', message: 'Correct answer is required.' })
+      } else if (!QUESTION_OPTION_LABELS.includes(correctOptionLabel as QuestionOptionLabel)) {
+        errors.push({
+          field: 'correct_answer',
+          message: `Correct answer must be one of ${QUESTION_OPTION_LABELS.join(', ')}.`,
+        })
+      } else if (optionTexts.length > 0 && !optionLabels.includes(correctOptionLabel as QuestionOptionLabel)) {
+        errors.push({
+          field: 'correct_answer',
+          message: `Correct answer is ${correctOptionLabel} but only ${optionLabels[0]}–${
+            optionLabels[optionLabels.length - 1]
+          } options were parsed.`,
+        })
+      }
+    } else if (correctOptionLabel) {
       errors.push({
         field: 'correct_answer',
-        message: `Correct answer must be one of ${QUESTION_OPTION_LABELS.join(', ')}.`,
-      })
-    } else if (optionTexts.length > 0 && !optionLabels.includes(correctOptionLabel as QuestionOptionLabel)) {
-      errors.push({
-        field: 'correct_answer',
-        message: `Correct answer is ${correctOptionLabel} but only ${optionLabels[0]}–${
-          optionLabels[optionLabels.length - 1]
-        } options were parsed.`,
+        message: 'Extended response questions must not have a correct answer letter.',
       })
     }
 
@@ -236,9 +434,43 @@ export function validateQuestionImportRows(
       }
     }
 
-    // -- Worked solution (soft: recommended, stored empty if absent) --------
+    let marks = 1
+    if (row.marks.trim()) {
+      const parsedMarks = Number(row.marks)
+      if (!Number.isInteger(parsedMarks) || parsedMarks < 1) {
+        errors.push({ field: 'marks', message: 'Marks must be a positive whole number when provided.' })
+      } else {
+        marks = parsedMarks
+      }
+    }
+
+    let timeLimitSeconds: number | null = null
+    if (row.timeLimitSeconds.trim()) {
+      const parsedTimeLimit = Number(row.timeLimitSeconds)
+      if (!Number.isInteger(parsedTimeLimit) || parsedTimeLimit < 1) {
+        errors.push({
+          field: 'time_limit_seconds',
+          message: 'Time limit must be a positive whole number of seconds when provided.',
+        })
+      } else {
+        timeLimitSeconds = parsedTimeLimit
+      }
+    }
+
+    // -- Rubric (required for extended response) -----------------------------
+    const { rubric, error: rubricError } = parseWritingRubric(row.rubricJson)
+    if (!isSingleChoice && !row.rubricJson.trim()) {
+      errors.push({
+        field: 'rubric_json',
+        message: 'Extended response questions need a rubric_json with at least one marking criterion.',
+      })
+    } else if (rubricError) {
+      errors.push({ field: 'rubric_json', message: rubricError })
+    }
+
+    // -- Worked solution (soft for MCQ, optional for extended response) -----
     const workedSolution = row.workedSolution.trim()
-    if (!workedSolution) {
+    if (isSingleChoice && !workedSolution) {
       warnings.push({ field: 'solution', message: 'No worked solution — students will not see a full explanation.' })
     }
 
@@ -247,7 +479,7 @@ export function validateQuestionImportRows(
     if (!shortExplanation) {
       if (settings.requireShortExplanation) {
         errors.push({ field: 'short_explanation', message: 'A short explanation is required.' })
-      } else {
+      } else if (isSingleChoice) {
         shortExplanation = deriveShortExplanation(workedSolution)
         warnings.push({
           field: 'short_explanation',
@@ -258,8 +490,79 @@ export function validateQuestionImportRows(
       }
     }
 
+    // -- Stimulus (grouped by external ref; definition may be on any row) ---
+    const stimulusExternalRef = row.stimulusId.trim() || null
+    let stimulusDefinition: ResolvedImportStimulus | null = null
+    if (stimulusExternalRef) {
+      const group = stimulusGroups.get(stimulusExternalRef)
+      const existsInDb = maps.existingStimulusRefs.has(stimulusExternalRef)
+
+      if (group?.hasDefinition && existsInDb) {
+        warnings.push({
+          field: 'stimulus_id',
+          message: `Stimulus "${stimulusExternalRef}" already exists in the bank — the existing stimulus will be reused and the CSV stimulus text ignored.`,
+        })
+      } else if (group?.hasDefinition) {
+        const stimulusType = normalizeStimulusType(group.stimulusType)
+        if (!stimulusType) {
+          errors.push({
+            field: 'stimulus_type',
+            message: group.stimulusType
+              ? `Stimulus type "${group.stimulusType}" must be one of ${STIMULUS_TYPES.join(', ')}.`
+              : `Stimulus "${stimulusExternalRef}" needs a stimulus_type (${STIMULUS_TYPES.join(', ')}).`,
+          })
+        } else {
+          stimulusDefinition = {
+            externalRef: stimulusExternalRef,
+            title: group.title || stimulusExternalRef,
+            stimulusType,
+            bodyMarkdown: group.bodyMarkdown || null,
+            assetRefs: group.assetRefs,
+          }
+        }
+      } else if (!existsInDb) {
+        errors.push({
+          field: 'stimulus_id',
+          message: `Stimulus "${stimulusExternalRef}" is not defined in this file and was not found in the bank.`,
+        })
+      }
+    }
+
+    // -- Presentation hints ---------------------------------------------------
+    const presentation: QuestionPresentation = {}
+    if (row.inputMethod.trim()) {
+      presentation.inputMethod = row.inputMethod.trim()
+    }
+    if (row.displayMode.trim()) {
+      presentation.displayMode = row.displayMode.trim()
+    }
+    if (row.answerValidationJson.trim()) {
+      try {
+        const parsed: unknown = JSON.parse(row.answerValidationJson)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('not an object')
+        }
+        presentation.answerValidation = parsed as Record<string, unknown>
+      } catch {
+        errors.push({
+          field: 'answer_validation_json',
+          message: 'answer_validation_json must be a JSON object.',
+        })
+      }
+    }
+
+    // -- Provenance -----------------------------------------------------------
+    const sourceInfo: QuestionSourceInfo = {}
+    if (row.sourceName.trim()) sourceInfo.sourceName = row.sourceName.trim()
+    if (row.sourcePaper.trim()) sourceInfo.sourcePaper = row.sourcePaper.trim()
+    if (row.sourceSection.trim()) sourceInfo.sourceSection = row.sourceSection.trim()
+    if (row.sourceQuestionNumber.trim()) sourceInfo.sourceQuestionNumber = row.sourceQuestionNumber.trim()
+    if (row.licenseNotes.trim()) sourceInfo.licenseNotes = row.licenseNotes.trim()
+
     // -- Tags (soft: brand-new tags are a heads-up, never blocking) ---------
     const tags = parseTags(row.tags)
+    const skillTags = parseTags(row.skillTags)
+    const conceptTags = parseTags(row.conceptTags)
     const newTags = tags.filter((tag) => !maps.existingTags.has(tag.toLowerCase()))
     if (newTags.length > 0) {
       warnings.push({ field: 'tags', message: `New tag${newTags.length === 1 ? '' : 's'}: ${newTags.join(', ')}.` })
@@ -293,26 +596,65 @@ export function validateQuestionImportRows(
       }
     }
 
+    const externalId = row.externalId.trim() || null
+    if (externalId) {
+      if (seenExternalIds.has(externalId)) {
+        errors.push({ field: 'external_id', message: `external_id "${externalId}" is duplicated within the import.` })
+      } else {
+        seenExternalIds.add(externalId)
+      }
+      if (maps.existingExternalIds.has(externalId)) {
+        isDuplicate = true
+        const message = `A question with external_id "${externalId}" already exists in the bank.`
+        if (settings.blockDuplicates) {
+          errors.push({ field: 'external_id', message: `${message} Duplicates are set to block.` })
+        } else {
+          warnings.push({ field: 'external_id', message: `${message} It will be skipped at import time.` })
+        }
+      }
+    }
+
     const isImportable = errors.length === 0
 
+    const optionLabels = labelsForCount(optionTexts.length)
     const resolved: ResolvedImportQuestion | null =
       isImportable && subject && examType
         ? {
+            externalId,
             subjectId: subject.id,
             topicId,
             topicName,
+            strand: row.strand.trim() || null,
             questionTypeId,
             questionTypeName,
+            variantId,
+            variantName,
             examType,
             difficulty,
             yearLevel,
+            marks,
+            timeLimitSeconds,
+            answerFormat,
             questionText: row.questionText.trim(),
             passageText: row.passageText.trim() || null,
             options: optionTexts,
-            correctOptionLabel: correctOptionLabel as QuestionOptionLabel,
+            optionAssetRefs: optionLabels.map((label) => optionAssetRefMap[label] ?? null),
+            optionExplanations: optionLabels.map((label) => optionExplanationMap[label] ?? null),
+            correctOptionLabel: isSingleChoice ? (correctOptionLabel as QuestionOptionLabel) : null,
             workedSolution,
             shortExplanation,
+            stimulusExternalRef,
+            stimulusDefinition,
+            questionAssetRefs: row.questionAssetRefs,
+            solutionAssetRefs: row.solutionAssetRefs,
+            rubric,
+            presentation,
+            sourceInfo,
+            assetGenerationPrompt: row.assetGenerationPrompt.trim() || null,
+            assetAltText: row.assetAltText.trim() || null,
             tags,
+            skillTags,
+            conceptTags,
             status: resolvedStatus,
           }
         : null

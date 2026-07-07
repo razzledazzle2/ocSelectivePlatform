@@ -191,6 +191,12 @@ export async function saveQuestionAttempt(input: SaveQuestionAttemptInput): Prom
     throw new Error('Unable to load the question for this attempt.')
   }
 
+  // Practice is MCQ-only; a row without an answer key (e.g. a writing prompt)
+  // cannot be graded, so treat the attempt as invalid instead of guessing.
+  if (!question.correct_option_label) {
+    throw new Error('This question cannot be answered in practice mode.')
+  }
+
   const isCorrect = question.correct_option_label === input.selectedOptionLabel
 
   const { data: attempt, error: attemptError } = await supabase
@@ -233,7 +239,8 @@ export async function saveQuestionAttempt(input: SaveQuestionAttemptInput): Prom
     isCorrect,
     correctOptionLabel: question.correct_option_label,
     shortExplanation: question.short_explanation,
-    workedSolution: question.worked_solution,
+    // worked_solution is nullable in v2 — fall back so feedback never breaks.
+    workedSolution: question.worked_solution ?? question.short_explanation ?? '',
     optionStats: await getQuestionOptionStats(input.questionId),
   }
 }

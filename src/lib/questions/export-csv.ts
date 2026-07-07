@@ -32,7 +32,7 @@ export function exportQuestionsCsv(rows: AdminQuestionListItem[]) {
         row.examType,
         String(row.difficulty),
         String(row.optionsCount),
-        row.correctOptionLabel,
+        row.correctOptionLabel ?? '',
         row.tags.join(', '),
         row.status,
         row.updatedAt,

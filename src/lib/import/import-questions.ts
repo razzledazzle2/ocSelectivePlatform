@@ -1,8 +1,10 @@
+import { ensureAssetByExternalRef, linkAssetToQuestion } from '@/lib/assets/mutations'
 import { normalizeQuestionText } from '@/lib/import/validation'
 import type { ImportSummary, ResolvedImportQuestion } from '@/lib/import/types'
 import { labelsForCount } from '@/lib/questions/option-rules'
 import { slugify } from '@/lib/questions/slug'
-import { ensureQuestionType, ensureTopic } from '@/lib/questions/taxonomy-mutations'
+import { ensureQuestionType, ensureQuestionVariant, ensureTopic } from '@/lib/questions/taxonomy-mutations'
+import { ensureStimulusByExternalRef } from '@/lib/stimuli/mutations'
 import { createClient } from '@/lib/supabase/server'
 import type { QuestionSource } from '@/lib/types'
 
@@ -12,40 +14,43 @@ function buildQuestionPayload(
   row: ResolvedImportQuestion,
   topicId: string,
   questionTypeId: string | null,
+  variantId: string | null,
+  stimulusId: string | null,
   actorId: string,
   source: QuestionSource
 ) {
   const now = new Date().toISOString()
   return {
+    external_id: row.externalId,
     subject_id: row.subjectId,
     topic_id: topicId,
     question_type_id: questionTypeId,
+    variant_id: variantId,
     exam_type: row.examType,
     year_level: row.yearLevel,
     difficulty: row.difficulty,
+    marks: row.marks,
+    time_limit_seconds: row.timeLimitSeconds,
+    answer_format: row.answerFormat,
     question_text: row.questionText,
     passage_text: row.passageText,
+    stimulus_id: stimulusId,
     short_explanation: row.shortExplanation,
-    worked_solution: row.workedSolution,
+    worked_solution: row.workedSolution || null,
     correct_option_label: row.correctOptionLabel,
+    rubric: row.rubric,
+    presentation: row.presentation,
+    source_info: row.sourceInfo,
     status: row.status,
     source,
     tags: row.tags,
+    skill_tags: row.skillTags,
+    concept_tags: row.conceptTags,
     created_by: actorId,
     updated_by: actorId,
     published_at: row.status === 'published' ? now : null,
     archived_at: row.status === 'archived' ? now : null,
   }
-}
-
-function buildOptionRows(questionId: string, row: ResolvedImportQuestion) {
-  const labels = labelsForCount(row.options.length)
-  return row.options.map((text, index) => ({
-    question_id: questionId,
-    label: labels[index],
-    option_text: text,
-    sort_order: index + 1,
-  }))
 }
 
 /**
@@ -68,7 +73,7 @@ async function resolveTopicId(
     return cached
   }
   const before = created.has(key)
-  const id = await ensureTopic(supabase, row.subjectId, row.topicName)
+  const id = await ensureTopic(supabase, row.subjectId, row.topicName, row.strand)
   cache.set(key, id)
   if (!before) {
     created.add(key)
@@ -100,10 +105,36 @@ async function resolveQuestionTypeId(
   return id
 }
 
+async function resolveVariantId(
+  supabase: SupabaseServerClient,
+  row: ResolvedImportQuestion,
+  questionTypeId: string | null,
+  cache: Map<string, string>,
+  created: Set<string>
+): Promise<string | null> {
+  if (row.variantId) {
+    return row.variantId
+  }
+  if (!row.variantName || !questionTypeId) {
+    return null
+  }
+  const key = `${questionTypeId}:${slugify(row.variantName)}`
+  const cached = cache.get(key)
+  if (cached) {
+    return cached
+  }
+  const id = await ensureQuestionVariant(supabase, questionTypeId, row.variantName)
+  cache.set(key, id)
+  created.add(key)
+  return id
+}
+
 /**
- * Inserts fully validated import rows as questions + their options (4 or 5 each),
- * auto-creating any missing topics/question types along the way (deduped).
- * Re-checks existing question text at insert time so duplicates are never silently imported.
+ * Inserts fully validated import rows as questions + their options,
+ * auto-creating any missing topics/question types/variants, shared stimuli and
+ * (possibly pending) assets along the way — all deduped within the run.
+ * Re-checks existing question text and external ids at insert time so
+ * duplicates are never silently imported.
  */
 export async function importValidatedQuestions(
   rows: ResolvedImportQuestion[],
@@ -118,6 +149,9 @@ export async function importValidatedQuestions(
     skippedDuplicateCount: 0,
     createdTopicCount: 0,
     createdQuestionTypeCount: 0,
+    createdVariantCount: 0,
+    createdStimulusCount: 0,
+    createdAssetCount: 0,
     failedCount: 0,
   }
 
@@ -125,28 +159,57 @@ export async function importValidatedQuestions(
     return { summary: emptySummary, importedQuestionIds }
   }
 
-  const { data: existing, error: existingError } = await supabase.from('questions').select('question_text')
-  if (existingError) {
+  const [{ data: existing, error: existingError }, { data: existingIds, error: existingIdsError }] =
+    await Promise.all([
+      supabase.from('questions').select('question_text'),
+      supabase.from('questions').select('external_id').not('external_id', 'is', null),
+    ])
+  if (existingError || existingIdsError) {
     throw new Error('Unable to verify existing questions before import.')
   }
   const existingKeys = new Set(
     ((existing ?? []) as Array<{ question_text: string }>).map((row) => normalizeQuestionText(row.question_text))
   )
+  const existingExternalIds = new Set(
+    ((existingIds ?? []) as Array<{ external_id: string | null }>)
+      .map((row) => row.external_id)
+      .filter((externalId): externalId is string => Boolean(externalId))
+  )
 
   const topicCache = new Map<string, string>()
   const typeCache = new Map<string, string>()
+  const variantCache = new Map<string, string>()
+  const stimulusCache = new Map<string, string>()
+  const assetCache = new Map<string, string>()
   const createdTopics = new Set<string>()
   const createdTypes = new Set<string>()
+  const createdVariants = new Set<string>()
 
   let importedCount = 0
   let skippedDuplicateCount = 0
   let failedCount = 0
+  let createdStimulusCount = 0
+  let createdAssetCount = 0
+
+  const ensureRowAsset = async (row: ResolvedImportQuestion, ref: string): Promise<string> => {
+    const { id, created } = await ensureAssetByExternalRef({
+      ref,
+      altText: row.assetAltText,
+      generationPrompt: row.assetGenerationPrompt,
+      actorId,
+      cache: assetCache,
+    })
+    if (created) {
+      createdAssetCount += 1
+    }
+    return id
+  }
 
   for (const row of rows) {
     const key = normalizeQuestionText(row.questionText)
-    if (existingKeys.has(key)) {
+    if (existingKeys.has(key) || (row.externalId && existingExternalIds.has(row.externalId))) {
       // Duplicates only reach here when the admin chose to import them; still
-      // guard against inserting the SAME text twice in one run.
+      // guard against inserting the SAME text or external id twice in one run.
       skippedDuplicateCount += 1
       continue
     }
@@ -154,10 +217,37 @@ export async function importValidatedQuestions(
     try {
       const topicId = await resolveTopicId(supabase, row, topicCache, createdTopics)
       const questionTypeId = await resolveQuestionTypeId(supabase, row, topicId, typeCache, createdTypes)
+      const variantId = await resolveVariantId(supabase, row, questionTypeId, variantCache, createdVariants)
+
+      let stimulusId: string | null = null
+      if (row.stimulusExternalRef) {
+        const ensured = await ensureStimulusByExternalRef({
+          externalRef: row.stimulusExternalRef,
+          title: row.stimulusDefinition?.title ?? row.stimulusExternalRef,
+          stimulusType: row.stimulusDefinition?.stimulusType ?? 'passage',
+          bodyMarkdown: row.stimulusDefinition?.bodyMarkdown ?? null,
+          assetRefs: row.stimulusDefinition?.assetRefs,
+          assetAltText: row.assetAltText,
+          assetGenerationPrompt: row.assetGenerationPrompt,
+          actorId,
+          cache: stimulusCache,
+          assetCache,
+        })
+        stimulusId = ensured.id
+        if (ensured.created) {
+          createdStimulusCount += 1
+        }
+        createdAssetCount += ensured.createdAssetCount
+      }
+
+      const optionAssetIds: Array<string | null> = []
+      for (const assetRef of row.optionAssetRefs) {
+        optionAssetIds.push(assetRef ? await ensureRowAsset(row, assetRef) : null)
+      }
 
       const { data: inserted, error: insertError } = await supabase
         .from('questions')
-        .insert(buildQuestionPayload(row, topicId, questionTypeId, actorId, source))
+        .insert(buildQuestionPayload(row, topicId, questionTypeId, variantId, stimulusId, actorId, source))
         .select('id')
         .single()
 
@@ -166,18 +256,40 @@ export async function importValidatedQuestions(
         continue
       }
 
-      const { error: optionsError } = await supabase
-        .from('question_options')
-        .insert(buildOptionRows(inserted.id, row))
+      if (row.options.length > 0) {
+        const labels = labelsForCount(row.options.length)
+        const { error: optionsError } = await supabase.from('question_options').insert(
+          row.options.map((text, index) => ({
+            question_id: inserted.id,
+            label: labels[index],
+            option_text: text,
+            sort_order: index + 1,
+            asset_id: optionAssetIds[index] ?? null,
+            explanation: row.optionExplanations[index] ?? null,
+          }))
+        )
 
-      if (optionsError) {
-        failedCount += 1
-        continue
+        if (optionsError) {
+          failedCount += 1
+          continue
+        }
+      }
+
+      for (let index = 0; index < row.questionAssetRefs.length; index += 1) {
+        const assetId = await ensureRowAsset(row, row.questionAssetRefs[index])
+        await linkAssetToQuestion(inserted.id, assetId, 'question', index + 1)
+      }
+      for (let index = 0; index < row.solutionAssetRefs.length; index += 1) {
+        const assetId = await ensureRowAsset(row, row.solutionAssetRefs[index])
+        await linkAssetToQuestion(inserted.id, assetId, 'solution', index + 1)
       }
 
       importedCount += 1
       importedQuestionIds.push(inserted.id)
       existingKeys.add(key)
+      if (row.externalId) {
+        existingExternalIds.add(row.externalId)
+      }
     } catch {
       failedCount += 1
     }
@@ -189,6 +301,9 @@ export async function importValidatedQuestions(
       skippedDuplicateCount,
       createdTopicCount: createdTopics.size,
       createdQuestionTypeCount: createdTypes.size,
+      createdVariantCount: createdVariants.size,
+      createdStimulusCount,
+      createdAssetCount,
       failedCount,
     },
     importedQuestionIds,

@@ -75,7 +75,12 @@ export async function getSkillLibraryData(studentId: string): Promise<SkillSubje
         .select('id, subject_id, name, slug, description, sort_order')
         .eq('is_active', true)
         .order('sort_order', { ascending: true }),
-      supabase.from('questions').select('id, subject_id, topic_id').eq('status', 'published'),
+      supabase
+        .from('questions')
+        .select('id, subject_id, topic_id')
+        .eq('status', 'published')
+        // The library feeds the MCQ practice runner — count MCQs only.
+        .eq('answer_format', 'single_choice'),
       supabase
         .from('question_attempts')
         .select('subject_id, topic_id, is_correct')

@@ -2,6 +2,10 @@
 
 import { FlagIcon } from 'lucide-react'
 
+import { QuestionAsset } from '@/components/questions/question-asset'
+import { QuestionMarkdown } from '@/components/questions/question-markdown'
+import { QuestionOptionContent } from '@/components/questions/question-option-content'
+import { StimulusPanel } from '@/components/questions/stimulus-panel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -55,12 +59,21 @@ export function MockExamQuestionCard({
       </div>
 
       <div className="space-y-4">
-        {question.passageText ? (
+        {question.stimulus ? (
+          <StimulusPanel stimulus={question.stimulus} />
+        ) : question.passageText ? (
           <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4 text-sm leading-7 text-foreground/80">
             {question.passageText}
           </div>
         ) : null}
-        <p className="text-lg leading-8 text-foreground">{question.questionText}</p>
+        <QuestionMarkdown text={question.questionText} className="text-lg leading-8 text-foreground" />
+        {question.questionAssets.length ? (
+          <div className="space-y-3">
+            {question.questionAssets.map((asset) => (
+              <QuestionAsset key={asset.id} asset={asset} />
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="grid gap-3">
@@ -86,7 +99,7 @@ export function MockExamQuestionCard({
               >
                 {option.label}
               </span>
-              <span className="whitespace-normal leading-7">{option.option_text}</span>
+              <QuestionOptionContent option={option} />
             </button>
           )
         })}

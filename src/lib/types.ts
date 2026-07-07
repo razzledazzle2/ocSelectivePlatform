@@ -2,7 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 
 export const APP_ROLES = ['student', 'admin', 'tutor', 'parent', 'external_customer', 'super_admin'] as const
 export const EXAM_TYPES = ['OC', 'Selective'] as const
-export const QUESTION_STATUSES = ['draft', 'published', 'archived'] as const
+export const QUESTION_STATUSES = ['draft', 'reviewed', 'published', 'archived'] as const
 export const QUESTION_OPTION_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
 export const QUESTION_SOURCES = ['manual', 'csv', 'bulk_paste'] as const
 export const PRACTICE_MODES = ['practice'] as const
@@ -11,6 +11,167 @@ export const MISTAKE_STATUSES = ['needs_review', 'learning', 'improving', 'almos
 export const PRACTICE_SET_MODES = ['new', 'mistakes', 'mixed'] as const
 export const ADMIN_PORTAL_ROLES = ['tutor', 'admin', 'super_admin'] as const
 export const STUDENT_PORTAL_ROLES = ['student', 'parent', 'external_customer'] as const
+
+// -- Question bank v2: answer formats, stimuli, assets, rubrics ----------------
+
+export const ANSWER_FORMATS = ['single_choice', 'extended_response'] as const
+export const STIMULUS_TYPES = [
+  'passage',
+  'paired_extract',
+  'poem',
+  'information_text',
+  'cloze_passage',
+  'table',
+  'chart',
+  'logic_grid',
+  'rule_box',
+  'writing_context',
+  'image_set',
+] as const
+export const STIMULUS_STATUSES = ['active', 'archived'] as const
+export const ASSET_TYPES = ['image', 'diagram', 'svg', 'table', 'chart', 'audio'] as const
+export const ASSET_STATUSES = ['pending', 'uploaded', 'archived'] as const
+export const WRITING_TEXT_TYPES = [
+  'narrative',
+  'persuasive',
+  'informative',
+  'discursive',
+  'report',
+  'advice_sheet',
+  'speech',
+  'letter',
+  'diary',
+  'recount',
+  'description',
+  'hybrid',
+] as const
+
+export type AnswerFormat = (typeof ANSWER_FORMATS)[number]
+export type StimulusType = (typeof STIMULUS_TYPES)[number]
+export type StimulusStatus = (typeof STIMULUS_STATUSES)[number]
+export type AssetType = (typeof ASSET_TYPES)[number]
+export type AssetStatus = (typeof ASSET_STATUSES)[number]
+export type WritingTextType = (typeof WRITING_TEXT_TYPES)[number]
+
+export const ANSWER_FORMAT_LABELS: Record<AnswerFormat, string> = {
+  single_choice: 'Multiple choice',
+  extended_response: 'Extended response',
+}
+
+export interface StimulusRecord {
+  id: string
+  external_ref: string | null
+  title: string
+  stimulus_type: StimulusType
+  body_markdown: string | null
+  source_info: Record<string, unknown>
+  status: StimulusStatus
+  created_by?: string | null
+  updated_by?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface AssetRecord {
+  id: string
+  external_ref: string | null
+  asset_type: AssetType
+  storage_path: string | null
+  external_url: string | null
+  alt_text: string | null
+  generation_prompt: string | null
+  license_notes: string | null
+  metadata: Record<string, unknown>
+  status: AssetStatus
+  created_at?: string
+  updated_at?: string
+}
+
+export interface QuestionVariantRecord {
+  id: string
+  question_type_id: string
+  name: string
+  slug: string
+  description: string | null
+  sort_order: number
+  is_active: boolean
+}
+
+/** A question ↔ asset link with its display role. */
+export interface QuestionAssetLink {
+  id: string
+  role: 'question' | 'solution'
+  sort_order: number
+  asset: AssetRecord
+}
+
+/** A stimulus ↔ asset link (display order only; no roles). */
+export interface StimulusAssetLink {
+  id: string
+  sort_order: number
+  asset: AssetRecord
+}
+
+/** A stimulus hydrated with its linked assets (sorted). */
+export interface StimulusDetail extends StimulusRecord {
+  assets: StimulusAssetLink[]
+}
+
+export interface RubricCriterion {
+  name: string
+  description?: string
+  maxMarks: number
+}
+
+export interface RubricScoreBand {
+  band: string
+  range?: string
+  descriptor?: string
+}
+
+/** Marking rubric stored on extended_response (writing prompt) questions. */
+export interface WritingRubric {
+  textType?: WritingTextType | string
+  criteria: RubricCriterion[]
+  scoreBands?: RubricScoreBand[]
+  sampleAnswerNotes?: string
+  planningHints?: string[]
+}
+
+/** Optional presentation hints carried from import (input_method, display_mode). */
+export interface QuestionPresentation {
+  inputMethod?: string
+  displayMode?: string
+  answerValidation?: Record<string, unknown>
+}
+
+/** Provenance of imported/authored questions. */
+export interface QuestionSourceInfo {
+  sourceName?: string
+  sourcePaper?: string
+  sourceSection?: string
+  sourceQuestionNumber?: string
+  licenseNotes?: string
+}
+
+/** Lightweight asset shape hydrated into student-facing question payloads. */
+export interface StudentAssetRef {
+  id: string
+  assetType: AssetType
+  storagePath: string | null
+  externalUrl: string | null
+  altText: string | null
+  status: AssetStatus
+}
+
+/** Lightweight stimulus shape hydrated into student-facing question payloads. */
+export interface StudentStimulus {
+  id: string
+  title: string
+  stimulusType: StimulusType
+  bodyMarkdown: string | null
+  assets: StudentAssetRef[]
+}
 
 export type AppRole = (typeof APP_ROLES)[number]
 export type ExamType = (typeof EXAM_TYPES)[number]
@@ -116,6 +277,10 @@ export interface QuestionOptionRecord {
   label: QuestionOptionLabel
   option_text: string
   sort_order: number
+  asset_id?: string | null
+  explanation?: string | null
+  /** Hydrated when the option is visual (image/SVG answer choices). */
+  asset?: StudentAssetRef | null
   created_at?: string
 }
 
@@ -130,11 +295,22 @@ export interface QuestionRecord {
   question_text: string
   passage_text: string | null
   short_explanation: string | null
-  worked_solution: string
-  correct_option_label: QuestionOptionLabel
+  worked_solution: string | null
+  correct_option_label: QuestionOptionLabel | null
   status: QuestionStatus
   source: QuestionSource
   tags: string[]
+  answer_format: AnswerFormat
+  marks: number
+  time_limit_seconds: number | null
+  external_id: string | null
+  stimulus_id: string | null
+  variant_id: string | null
+  skill_tags: string[]
+  concept_tags: string[]
+  rubric: WritingRubric | null
+  presentation: QuestionPresentation
+  source_info: QuestionSourceInfo
   created_by: string | null
   updated_by: string | null
   published_at: string | null
@@ -148,6 +324,8 @@ export interface QuestionDetail extends QuestionRecord {
   topic: TopicRecord
   questionType: QuestionTypeRecord | null
   options: QuestionOptionRecord[]
+  stimulus: StimulusDetail | null
+  assets: QuestionAssetLink[]
 }
 
 export const ADMIN_QUESTION_PAGE_SIZES = [10, 25, 50, 100] as const
@@ -186,6 +364,7 @@ export interface AdminQuestionFilters {
   tag?: string
   difficulty?: string
   status?: string
+  answerFormat?: string
   query?: string
   sort?: string
   page?: string
@@ -220,8 +399,11 @@ export interface AdminQuestionListItem {
   examType: ExamType
   difficulty: number
   status: QuestionStatus
+  answerFormat: AnswerFormat
+  hasStimulus: boolean
+  hasAssets: boolean
   optionsCount: number
-  correctOptionLabel: QuestionOptionLabel
+  correctOptionLabel: QuestionOptionLabel | null
   tags: string[]
   createdAt: string
   updatedAt: string
@@ -240,6 +422,9 @@ export interface AdminQuestionsPage {
   pageCount: number
 }
 
+/** Statuses settable from the question form (archiving has its own action). */
+export type EditableQuestionStatus = Exclude<QuestionStatus, 'archived'>
+
 export interface QuestionFormValues {
   examType: ExamType
   subjectId: string
@@ -247,8 +432,13 @@ export interface QuestionFormValues {
   questionTypeId: string
   yearLevel: string
   difficulty: string
+  answerFormat: AnswerFormat
+  marks: string
+  timeLimitSeconds: string
   questionText: string
   passageText: string
+  /** '' = no linked stimulus. */
+  stimulusId: string
   /** Option texts in label order (index 0 = A, 1 = B, ...). Length 4–5. */
   options: string[]
   correctOptionLabel: QuestionOptionLabel
@@ -256,7 +446,11 @@ export interface QuestionFormValues {
   workedSolution: string
   /** Comma-separated in the form; split into text[] on write. */
   tags: string
-  status: Extract<QuestionStatus, 'draft' | 'published'>
+  skillTags: string
+  conceptTags: string
+  /** Raw JSON in the form; parsed/validated into WritingRubric on write. */
+  rubricJson: string
+  status: EditableQuestionStatus
 }
 
 export interface QuestionWriteInput {
@@ -266,14 +460,25 @@ export interface QuestionWriteInput {
   questionTypeId: string | null
   yearLevel: number | null
   difficulty: number
+  answerFormat: AnswerFormat
+  marks: number
+  timeLimitSeconds: number | null
   questionText: string
   passageText: string | null
+  stimulusId: string | null
   options: QuestionOptionRecord[]
-  correctOptionLabel: QuestionOptionLabel
+  correctOptionLabel: QuestionOptionLabel | null
   shortExplanation: string | null
-  workedSolution: string
+  workedSolution: string | null
   tags: string[]
-  status: Extract<QuestionStatus, 'draft' | 'published'>
+  skillTags: string[]
+  conceptTags: string[]
+  rubric: WritingRubric | null
+  externalId?: string | null
+  variantId?: string | null
+  presentation?: QuestionPresentation
+  sourceInfo?: QuestionSourceInfo
+  status: EditableQuestionStatus
 }
 
 export interface ActionResult<T = undefined> {
@@ -301,8 +506,11 @@ export interface PracticeQuestionItem {
   questionTypeName: string | null
   examType: ExamType
   difficulty: number
+  answerFormat: AnswerFormat
   questionText: string
   passageText: string | null
+  stimulus: StudentStimulus | null
+  questionAssets: StudentAssetRef[]
   options: QuestionOptionRecord[]
 }
 
@@ -433,6 +641,8 @@ export interface RecentAttempt {
 
 export interface MistakeQuestionDetail extends StudentMistakeQuestion {
   passageText: string | null
+  stimulus: StudentStimulus | null
+  questionAssets: StudentAssetRef[]
   shortExplanation: string | null
   workedSolution: string
   correctOptionLabel: QuestionOptionLabel

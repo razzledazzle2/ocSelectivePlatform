@@ -7,10 +7,12 @@ import {
   archiveQuestion,
   createQuestion,
   duplicateQuestion,
+  markQuestionReviewed,
   parseQuestionWriteInput,
   publishQuestion,
   unpublishQuestion,
   updateQuestion,
+  validateStimulusExists,
 } from '@/lib/questions/mutations'
 import { getQuestionById, validateQuestionTaxonomy } from '@/lib/questions/queries'
 import {
@@ -49,17 +51,17 @@ export async function createQuestionAction(formData: FormData): Promise<ActionRe
     }
   }
 
-  const taxonomyErrors = await validateQuestionTaxonomy(
-    parsed.data.subjectId,
-    parsed.data.topicId,
-    parsed.data.questionTypeId
-  )
+  const [taxonomyErrors, stimulusErrors] = await Promise.all([
+    validateQuestionTaxonomy(parsed.data.subjectId, parsed.data.topicId, parsed.data.questionTypeId),
+    validateStimulusExists(parsed.data.stimulusId),
+  ])
+  const validationErrors = { ...taxonomyErrors, ...stimulusErrors }
 
-  if (Object.keys(taxonomyErrors).length > 0) {
+  if (Object.keys(validationErrors).length > 0) {
     return {
       success: false,
       message: 'Please fix the highlighted fields and try again.',
-      fieldErrors: taxonomyErrors,
+      fieldErrors: validationErrors,
     }
   }
 
@@ -99,17 +101,17 @@ export async function updateQuestionAction(
     }
   }
 
-  const taxonomyErrors = await validateQuestionTaxonomy(
-    parsed.data.subjectId,
-    parsed.data.topicId,
-    parsed.data.questionTypeId
-  )
+  const [taxonomyErrors, stimulusErrors] = await Promise.all([
+    validateQuestionTaxonomy(parsed.data.subjectId, parsed.data.topicId, parsed.data.questionTypeId),
+    validateStimulusExists(parsed.data.stimulusId),
+  ])
+  const validationErrors = { ...taxonomyErrors, ...stimulusErrors }
 
-  if (Object.keys(taxonomyErrors).length > 0) {
+  if (Object.keys(validationErrors).length > 0) {
     return {
       success: false,
       message: 'Please fix the highlighted fields and try again.',
-      fieldErrors: taxonomyErrors,
+      fieldErrors: validationErrors,
     }
   }
 
@@ -191,6 +193,27 @@ export async function unpublishQuestionAction(questionId: string): Promise<Actio
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Unable to unpublish the question right now.',
+    }
+  }
+}
+
+export async function markQuestionReviewedAction(questionId: string): Promise<ActionResult> {
+  const profile = await requireProfile({
+    allowedRoles: [...ADMIN_PORTAL_ROLES],
+  })
+
+  try {
+    await markQuestionReviewed(questionId, profile.id)
+    revalidateQuestionPaths(questionId)
+
+    return {
+      success: true,
+      message: 'Question marked as reviewed.',
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to mark the question as reviewed right now.',
     }
   }
 }

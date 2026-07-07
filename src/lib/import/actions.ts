@@ -17,12 +17,15 @@ import {
   type QuestionImportRow,
 } from '@/lib/import/types'
 import {
+  getExistingQuestionExternalIds,
   getExistingQuestionTexts,
   getExistingTags,
   getQuestionTypes,
+  getQuestionVariants,
   getSubjects,
   getTopicsBySubject,
 } from '@/lib/questions/queries'
+import { getExistingStimulusExternalRefs } from '@/lib/stimuli/queries'
 import { ADMIN_PORTAL_ROLES, type ActionResult } from '@/lib/types'
 
 /** Merge partial client settings over the forgiving defaults so old callers stay safe. */
@@ -55,17 +58,37 @@ async function buildValidation(
     }
   }
 
-  const [subjects, topics, questionTypes, existingQuestionTexts, existingTags] = await Promise.all([
+  const [
+    subjects,
+    topics,
+    questionTypes,
+    questionVariants,
+    existingQuestionTexts,
+    existingTags,
+    existingStimulusRefs,
+    existingExternalIds,
+  ] = await Promise.all([
     getSubjects(),
     getTopicsBySubject(),
     getQuestionTypes(),
+    getQuestionVariants(),
     getExistingQuestionTexts(),
     getExistingTags(),
+    getExistingStimulusExternalRefs(),
+    getExistingQuestionExternalIds(),
   ])
 
   return validateQuestionImportRows(parsed.rows, {
     format,
-    reference: { subjects, topics, questionTypes, existingTags },
+    reference: {
+      subjects,
+      topics,
+      questionTypes,
+      questionVariants,
+      existingTags,
+      existingStimulusRefs,
+      existingExternalIds,
+    },
     existingQuestionTexts,
     settings,
   })
@@ -147,6 +170,15 @@ export async function importQuestionsAction(
       parts.push(
         `created ${summary.createdQuestionTypeCount} question type${summary.createdQuestionTypeCount === 1 ? '' : 's'}`
       )
+    }
+    if (summary.createdVariantCount > 0) {
+      parts.push(`created ${summary.createdVariantCount} variant${summary.createdVariantCount === 1 ? '' : 's'}`)
+    }
+    if (summary.createdStimulusCount > 0) {
+      parts.push(`created ${summary.createdStimulusCount} stimul${summary.createdStimulusCount === 1 ? 'us' : 'i'}`)
+    }
+    if (summary.createdAssetCount > 0) {
+      parts.push(`created ${summary.createdAssetCount} asset${summary.createdAssetCount === 1 ? '' : 's'}`)
     }
     if (summary.skippedDuplicateCount > 0) {
       parts.push(`skipped ${summary.skippedDuplicateCount} duplicate${summary.skippedDuplicateCount === 1 ? '' : 's'}`)

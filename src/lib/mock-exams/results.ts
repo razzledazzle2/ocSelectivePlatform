@@ -175,7 +175,11 @@ export async function getMockExamResults(
       | null
   }>
 
-  const validRows = rows.filter((row) => row.question !== null)
+  // A review row needs an answer key; rows without one (e.g. a question later
+  // converted to a writing prompt) are skipped instead of breaking the page.
+  const validRows = rows.filter(
+    (row) => row.question !== null && row.question.correct_option_label !== null
+  )
 
   const supabaseOptions = await supabase
     .from('question_options')
@@ -196,7 +200,7 @@ export async function getMockExamResults(
     const question = row.question!
     const selected = row.selected_option_label
     const isAnswered = selected !== null
-    const correctLabel = question.correct_option_label
+    const correctLabel = question.correct_option_label as QuestionOptionLabel
     return {
       questionId: question.id,
       questionOrder: row.question_order,
@@ -214,7 +218,8 @@ export async function getMockExamResults(
       isAnswered,
       isFlagged: row.is_flagged,
       shortExplanation: question.short_explanation,
-      workedSolution: question.worked_solution,
+      // worked_solution is nullable in v2 — fall back so review never breaks.
+      workedSolution: question.worked_solution ?? question.short_explanation ?? '',
     }
   })
 

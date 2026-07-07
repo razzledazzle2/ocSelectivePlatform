@@ -1,4 +1,6 @@
+import type { FullExportQuestion } from '@/lib/questions/export-full-csv'
 import { getAdminQuestionStats } from '@/lib/questions/stats'
+import { mapStimulusDetail } from '@/lib/stimuli/queries'
 import { createClient } from '@/lib/supabase/server'
 import {
   ADMIN_QUESTION_PAGE_SIZES,
@@ -8,13 +10,15 @@ import {
   type AdminQuestionListItem,
   type AdminQuestionsPage,
   type AdminQuestionSort,
-  type PracticeQuestionFilters,
-  type PracticeQuestionItem,
+  type AssetRecord,
+  type QuestionAssetLink,
   type QuestionDetail,
-  type QuestionOptionLabel,
   type QuestionOptionRecord,
   type QuestionRecord,
   type QuestionTypeRecord,
+  type QuestionVariantRecord,
+  type StimulusRecord,
+  type StudentAssetRef,
   type SubjectRecord,
   type TopicRecord,
 } from '@/lib/types'
@@ -32,6 +36,26 @@ function buildQuestionPreview(questionText: string): string {
   return collapsed.length > 110 ? `${collapsed.slice(0, 107)}...` : collapsed
 }
 
+/** Maps a full assets row to the lightweight shape shipped to students. */
+export function toStudentAssetRef(asset: AssetRecord): StudentAssetRef {
+  return {
+    id: asset.id,
+    assetType: asset.asset_type,
+    storagePath: asset.storage_path,
+    externalUrl: asset.external_url,
+    altText: asset.alt_text,
+    status: asset.status,
+  }
+}
+
+type OptionRawRow = QuestionOptionRecord & {
+  question_id: string
+  asset: AssetRecord | AssetRecord[] | null
+}
+
+const QUESTION_OPTION_SELECT =
+  'id, question_id, label, option_text, sort_order, asset_id, explanation, created_at, asset:assets(*)'
+
 async function getQuestionOptionsMap(questionIds: string[]): Promise<Map<string, QuestionOptionRecord[]>> {
   if (!questionIds.length) {
     return new Map()
@@ -40,7 +64,7 @@ async function getQuestionOptionsMap(questionIds: string[]): Promise<Map<string,
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('question_options')
-    .select('id, question_id, label, option_text, sort_order, created_at')
+    .select(QUESTION_OPTION_SELECT)
     .in('question_id', questionIds)
     .order('sort_order', { ascending: true })
 
@@ -50,10 +74,12 @@ async function getQuestionOptionsMap(questionIds: string[]): Promise<Map<string,
 
   const optionsMap = new Map<string, QuestionOptionRecord[]>()
 
-  for (const option of (data ?? []) as Array<QuestionOptionRecord & { question_id: string }>) {
-    const existing = optionsMap.get(option.question_id) ?? []
-    existing.push(option)
-    optionsMap.set(option.question_id, existing)
+  for (const row of (data ?? []) as unknown as OptionRawRow[]) {
+    const { asset, ...option } = row
+    const hydratedAsset = getRelationValue(asset)
+    const existing = optionsMap.get(row.question_id) ?? []
+    existing.push({ ...option, asset: hydratedAsset ? toStudentAssetRef(hydratedAsset) : null })
+    optionsMap.set(row.question_id, existing)
   }
 
   return optionsMap
@@ -142,6 +168,22 @@ export async function getQuestionTypesByTopic(topicId: string): Promise<Question
   return (data ?? []) as QuestionTypeRecord[]
 }
 
+/** All question variants (essential question type sub-variants), active first. */
+export async function getQuestionVariants(): Promise<QuestionVariantRecord[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('question_variants')
+    .select('id, question_type_id, name, slug, description, sort_order, is_active')
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
+
+  if (error) {
+    throw new Error('Unable to load question variants.')
+  }
+
+  return (data ?? []) as QuestionVariantRecord[]
+}
+
 type AdminQuestionRawRow = Pick<
   QuestionRecord,
   | 'id'
@@ -149,6 +191,8 @@ type AdminQuestionRawRow = Pick<
   | 'exam_type'
   | 'difficulty'
   | 'status'
+  | 'answer_format'
+  | 'stimulus_id'
   | 'correct_option_label'
   | 'created_at'
   | 'updated_at'
@@ -160,6 +204,7 @@ type AdminQuestionRawRow = Pick<
   topic: { name: string }[] | { name: string } | null
   question_type: { name: string }[] | { name: string } | null
   options: { count: number }[] | { count: number } | null
+  question_assets: { count: number }[] | { count: number } | null
 }
 
 const ADMIN_QUESTION_LIST_SELECT = `
@@ -168,6 +213,8 @@ const ADMIN_QUESTION_LIST_SELECT = `
   exam_type,
   difficulty,
   status,
+  answer_format,
+  stimulus_id,
   correct_option_label,
   tags,
   created_at,
@@ -177,7 +224,8 @@ const ADMIN_QUESTION_LIST_SELECT = `
   subject:subjects(name),
   topic:topics(name),
   question_type:question_types(name),
-  options:question_options(count)
+  options:question_options(count),
+  question_assets(count)
 `
 
 function mapAdminQuestionRow(question: AdminQuestionRawRow): AdminQuestionListItem {
@@ -190,6 +238,9 @@ function mapAdminQuestionRow(question: AdminQuestionRawRow): AdminQuestionListIt
     examType: question.exam_type,
     difficulty: question.difficulty,
     status: question.status,
+    answerFormat: question.answer_format,
+    hasStimulus: question.stimulus_id !== null,
+    hasAssets: (getRelationValue(question.question_assets)?.count ?? 0) > 0,
     optionsCount: getRelationValue(question.options)?.count ?? 0,
     correctOptionLabel: question.correct_option_label,
     tags: question.tags ?? [],
@@ -209,7 +260,7 @@ interface QuestionFilterBuilder {
 }
 
 /** Applies the shared admin bank filters to any questions query builder. */
-function applyAdminQuestionFilters<T>(query: T, filters: AdminQuestionFilters): T {
+export function applyAdminQuestionFilters<T>(query: T, filters: AdminQuestionFilters): T {
   let next = query as unknown as QuestionFilterBuilder
   if (filters.examType) {
     next = next.eq('exam_type', filters.examType)
@@ -231,6 +282,9 @@ function applyAdminQuestionFilters<T>(query: T, filters: AdminQuestionFilters): 
   }
   if (filters.status) {
     next = next.eq('status', filters.status)
+  }
+  if (filters.answerFormat) {
+    next = next.eq('answer_format', filters.answerFormat)
   }
   if (filters.query) {
     next = next.ilike('question_text', `%${filters.query.trim()}%`)
@@ -392,6 +446,7 @@ export interface QuestionStatusCounts {
   total: number
   published: number
   draft: number
+  reviewed: number
   archived: number
 }
 
@@ -407,14 +462,15 @@ export async function getQuestionStatusCounts(): Promise<QuestionStatusCounts> {
     return query
   }
 
-  const [total, published, draft, archived] = await Promise.all([
+  const [total, published, draft, reviewed, archived] = await Promise.all([
     countByStatus(),
     countByStatus('published'),
     countByStatus('draft'),
+    countByStatus('reviewed'),
     countByStatus('archived'),
   ])
 
-  if (total.error || published.error || draft.error || archived.error) {
+  if (total.error || published.error || draft.error || reviewed.error || archived.error) {
     throw new Error('Unable to load question status counts.')
   }
 
@@ -422,6 +478,7 @@ export async function getQuestionStatusCounts(): Promise<QuestionStatusCounts> {
     total: total.count ?? 0,
     published: published.count ?? 0,
     draft: draft.count ?? 0,
+    reviewed: reviewed.count ?? 0,
     archived: archived.count ?? 0,
   }
 }
@@ -435,6 +492,20 @@ export async function getExistingQuestionTexts(): Promise<string[]> {
   }
 
   return ((data ?? []) as Array<{ question_text: string }>).map((row) => row.question_text)
+}
+
+/** External ids already used in the bank — powers import duplicate detection. */
+export async function getExistingQuestionExternalIds(): Promise<string[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('questions').select('external_id').not('external_id', 'is', null)
+
+  if (error) {
+    throw new Error('Unable to load existing question external ids.')
+  }
+
+  return ((data ?? []) as Array<{ external_id: string | null }>)
+    .map((row) => row.external_id)
+    .filter((externalId): externalId is string => Boolean(externalId))
 }
 
 /** Distinct tags already used across the bank — powers the "new tag" import warning. */
@@ -500,7 +571,9 @@ export async function getQuestionById(id: string): Promise<QuestionDetail | null
       *,
       subject:subjects(*),
       topic:topics(*),
-      question_type:question_types(*)
+      question_type:question_types(*),
+      stimulus:stimuli(*, stimulus_assets(id, sort_order, asset:assets(*))),
+      question_assets(id, role, sort_order, asset:assets(*))
     `)
     .eq('id', id)
     .maybeSingle()
@@ -518,12 +591,32 @@ export async function getQuestionById(id: string): Promise<QuestionDetail | null
     subject: SubjectRecord[] | SubjectRecord | null
     topic: TopicRecord[] | TopicRecord | null
     question_type: QuestionTypeRecord[] | QuestionTypeRecord | null
+    stimulus:
+      | Array<StimulusRecord & { stimulus_assets: never }>
+      | (StimulusRecord & { stimulus_assets: never })
+      | null
+    question_assets:
+      | Array<{ id: string; role: 'question' | 'solution'; sort_order: number; asset: AssetRecord | AssetRecord[] | null }>
+      | null
   }
   const subject = getRelationValue(question.subject)
   const topic = getRelationValue(question.topic)
+  const rawStimulus = getRelationValue(question.stimulus)
+
+  const assets: QuestionAssetLink[] = (question.question_assets ?? [])
+    .map((link) => ({
+      id: link.id,
+      role: link.role,
+      sort_order: link.sort_order,
+      asset: getRelationValue(link.asset),
+    }))
+    .filter((link): link is QuestionAssetLink => Boolean(link.asset))
+    .sort((left, right) => left.sort_order - right.sort_order)
+
+  const { stimulus: _stimulus, question_assets: _questionAssets, ...record } = question
 
   return {
-    ...question,
+    ...(record as unknown as QuestionRecord),
     subject: subject ?? {
       id: question.subject_id,
       name: 'Subject',
@@ -543,200 +636,204 @@ export async function getQuestionById(id: string): Promise<QuestionDetail | null
     },
     questionType: getRelationValue(question.question_type),
     options: optionsMap.get(id) ?? [],
+    stimulus: rawStimulus ? mapStimulusDetail(rawStimulus as unknown as Parameters<typeof mapStimulusDetail>[0]) : null,
+    assets,
   }
 }
 
-function shuffleArray<T>(items: T[]): T[] {
-  const clone = [...items]
+// -- Full round-trip export ----------------------------------------------------
 
-  for (let index = clone.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1))
-    const current = clone[index]
-    clone[index] = clone[swapIndex]
-    clone[swapIndex] = current
-  }
+type ExportAssetRef = Pick<AssetRecord, 'external_ref' | 'storage_path' | 'external_url'>
 
-  return clone
-}
-
-/**
- * Reveals the answer, short explanation and worked solution for a single PUBLISHED question.
- * Used when a student submits an answer so the correct answer is never shipped to the client
- * alongside the question itself. Returns null for non-published or missing questions.
- */
-export async function getPublishedQuestionFeedback(questionId: string): Promise<{
-  correctOptionLabel: QuestionOptionLabel
-  shortExplanation: string | null
-  workedSolution: string
-} | null> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('questions')
-    .select('correct_option_label, short_explanation, worked_solution')
-    .eq('id', questionId)
-    .eq('status', 'published')
-    .maybeSingle()
-
-  if (error) {
-    throw new Error('Unable to check this answer.')
-  }
-
-  if (!data) {
+function toExportAssetRef(asset: ExportAssetRef | ExportAssetRef[] | null): string | null {
+  const resolved = getRelationValue(asset)
+  if (!resolved) {
     return null
   }
+  return resolved.external_ref ?? resolved.storage_path ?? resolved.external_url ?? null
+}
+
+type FullExportRawRow = Pick<
+  QuestionRecord,
+  | 'id'
+  | 'external_id'
+  | 'exam_type'
+  | 'year_level'
+  | 'difficulty'
+  | 'marks'
+  | 'time_limit_seconds'
+  | 'answer_format'
+  | 'question_text'
+  | 'passage_text'
+  | 'correct_option_label'
+  | 'worked_solution'
+  | 'short_explanation'
+  | 'stimulus_id'
+  | 'skill_tags'
+  | 'concept_tags'
+  | 'tags'
+  | 'rubric'
+  | 'presentation'
+  | 'source_info'
+  | 'status'
+> & {
+  subject: { name: string }[] | { name: string } | null
+  topic: { name: string; strand: string | null }[] | { name: string; strand: string | null } | null
+  question_type: { name: string }[] | { name: string } | null
+  variant: { name: string }[] | { name: string } | null
+  options:
+    | Array<{
+        label: string
+        option_text: string
+        sort_order: number
+        explanation: string | null
+        asset: ExportAssetRef | ExportAssetRef[] | null
+      }>
+    | null
+  question_assets:
+    | Array<{ role: 'question' | 'solution'; sort_order: number; asset: ExportAssetRef | ExportAssetRef[] | null }>
+    | null
+  stimulus:
+    | Array<{
+        id: string
+        external_ref: string | null
+        title: string
+        stimulus_type: string
+        body_markdown: string | null
+        stimulus_assets: Array<{ sort_order: number; asset: ExportAssetRef | ExportAssetRef[] | null }> | null
+      }>
+    | {
+        id: string
+        external_ref: string | null
+        title: string
+        stimulus_type: string
+        body_markdown: string | null
+        stimulus_assets: Array<{ sort_order: number; asset: ExportAssetRef | ExportAssetRef[] | null }> | null
+      }
+    | null
+}
+
+const FULL_EXPORT_SELECT = `
+  id,
+  external_id,
+  exam_type,
+  year_level,
+  difficulty,
+  marks,
+  time_limit_seconds,
+  answer_format,
+  question_text,
+  passage_text,
+  correct_option_label,
+  worked_solution,
+  short_explanation,
+  stimulus_id,
+  skill_tags,
+  concept_tags,
+  tags,
+  rubric,
+  presentation,
+  source_info,
+  status,
+  subject:subjects(name),
+  topic:topics(name, strand),
+  question_type:question_types(name),
+  variant:question_variants(name),
+  options:question_options(label, option_text, sort_order, explanation, asset:assets(external_ref, storage_path, external_url)),
+  question_assets(role, sort_order, asset:assets(external_ref, storage_path, external_url)),
+  stimulus:stimuli(id, external_ref, title, stimulus_type, body_markdown, stimulus_assets(sort_order, asset:assets(external_ref, storage_path, external_url)))
+`
+
+function mapFullExportRow(row: FullExportRawRow): FullExportQuestion {
+  const stimulus = getRelationValue(row.stimulus)
+  const assetLinks = [...(row.question_assets ?? [])].sort((left, right) => left.sort_order - right.sort_order)
+
+  const refsForRole = (role: 'question' | 'solution'): string[] =>
+    assetLinks
+      .filter((link) => link.role === role)
+      .map((link) => toExportAssetRef(link.asset))
+      .filter((ref): ref is string => Boolean(ref))
 
   return {
-    correctOptionLabel: data.correct_option_label as QuestionOptionLabel,
-    shortExplanation: data.short_explanation,
-    workedSolution: data.worked_solution,
+    externalId: row.external_id,
+    subjectName: getRelationValue(row.subject)?.name ?? '',
+    strand: getRelationValue(row.topic)?.strand ?? null,
+    topicName: getRelationValue(row.topic)?.name ?? '',
+    questionTypeName: getRelationValue(row.question_type)?.name ?? null,
+    variantName: getRelationValue(row.variant)?.name ?? null,
+    examType: row.exam_type,
+    yearLevel: row.year_level,
+    difficulty: row.difficulty,
+    marks: row.marks,
+    timeLimitSeconds: row.time_limit_seconds,
+    answerFormat: row.answer_format,
+    questionText: row.question_text,
+    passageText: row.passage_text,
+    options: [...(row.options ?? [])]
+      .sort((left, right) => left.sort_order - right.sort_order)
+      .map((option) => ({
+        label: option.label,
+        text: option.option_text,
+        explanation: option.explanation,
+        assetRef: toExportAssetRef(option.asset),
+      })),
+    correctOptionLabel: row.correct_option_label,
+    workedSolution: row.worked_solution,
+    shortExplanation: row.short_explanation,
+    stimulus: stimulus
+      ? {
+          id: stimulus.id,
+          externalRef: stimulus.external_ref,
+          title: stimulus.title,
+          stimulusType: stimulus.stimulus_type,
+          bodyMarkdown: stimulus.body_markdown,
+          assetRefs: [...(stimulus.stimulus_assets ?? [])]
+            .sort((left, right) => left.sort_order - right.sort_order)
+            .map((link) => toExportAssetRef(link.asset))
+            .filter((ref): ref is string => Boolean(ref)),
+        }
+      : null,
+    questionAssetRefs: refsForRole('question'),
+    solutionAssetRefs: refsForRole('solution'),
+    presentation: row.presentation ?? {},
+    rubric: row.rubric,
+    skillTags: row.skill_tags ?? [],
+    conceptTags: row.concept_tags ?? [],
+    tags: row.tags ?? [],
+    sourceInfo: row.source_info ?? {},
+    status: row.status,
   }
 }
 
-/**
- * Fetches a single PUBLISHED question in the student-facing practice shape (no correct answer),
- * used to retry a tracked mistake on the revision page.
- */
-export async function getPublishedPracticeQuestion(questionId: string): Promise<PracticeQuestionItem | null> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('questions')
-    .select(`
-      id,
-      subject_id,
-      topic_id,
-      question_type_id,
-      exam_type,
-      difficulty,
-      question_text,
-      passage_text,
-      subject:subjects(name),
-      topic:topics(name),
-      question_type:question_types(name)
-    `)
-    .eq('id', questionId)
-    .eq('status', 'published')
-    .maybeSingle()
-
-  if (error) {
-    throw new Error('Unable to load the question for revision.')
-  }
-
-  if (!data) {
-    return null
-  }
-
-  const question = data as unknown as Pick<
-    QuestionRecord,
-    'id' | 'subject_id' | 'topic_id' | 'question_type_id' | 'exam_type' | 'difficulty' | 'question_text' | 'passage_text'
-  > & {
-    subject: { name: string }[] | { name: string } | null
-    topic: { name: string }[] | { name: string } | null
-    question_type: { name: string }[] | { name: string } | null
-  }
-
-  const optionsMap = await getQuestionOptionsMap([questionId])
-
-  return {
-    id: question.id,
-    subjectId: question.subject_id,
-    subjectName: getRelationValue(question.subject)?.name ?? 'Subject',
-    topicId: question.topic_id,
-    topicName: getRelationValue(question.topic)?.name ?? 'Topic',
-    questionTypeId: question.question_type_id,
-    questionTypeName: getRelationValue(question.question_type)?.name ?? null,
-    examType: question.exam_type,
-    difficulty: question.difficulty,
-    questionText: question.question_text,
-    passageText: question.passage_text,
-    options: optionsMap.get(questionId) ?? [],
-  }
-}
+const EXPORT_BATCH_SIZE = 1000
 
 /**
- * Fetches the candidate pool (up to 100 published questions, without options)
- * matching the practice filters. Callers pick from the pool (mode logic lives in
- * the practice action) and hydrate the selection via hydratePracticeQuestions.
+ * Every question matching the admin filters (no page limit; batched), hydrated
+ * with options, stimulus and asset refs for the round-trip CSV export.
  */
-export async function getPracticeQuestionPool(
-  filters: Omit<PracticeQuestionFilters, 'limit'>
-): Promise<Array<Omit<PracticeQuestionItem, 'options'>>> {
+export async function getQuestionsForFullExport(filters: AdminQuestionFilters = {}): Promise<FullExportQuestion[]> {
   const supabase = await createClient()
-  let query = supabase
-    .from('questions')
-    .select(`
-      id,
-      subject_id,
-      topic_id,
-      question_type_id,
-      exam_type,
-      difficulty,
-      question_text,
-      passage_text,
-      subject:subjects(name),
-      topic:topics(name),
-      question_type:question_types(name)
-    `)
-    .eq('status', 'published')
-    .eq('exam_type', filters.examType)
-    .eq('subject_id', filters.subjectId)
-    .order('created_at', { ascending: false })
-    .limit(100)
+  const rows: FullExportQuestion[] = []
 
-  if (filters.topicId) {
-    query = query.eq('topic_id', filters.topicId)
-  }
+  for (let from = 0; ; from += EXPORT_BATCH_SIZE) {
+    const query = applyAdminQuestionFilters(supabase.from('questions').select(FULL_EXPORT_SELECT), filters)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + EXPORT_BATCH_SIZE - 1)
 
-  if (filters.difficulty) {
-    query = query.eq('difficulty', filters.difficulty)
-  }
+    const { data, error } = await query
 
-  const { data, error } = await query
-
-  if (error) {
-    throw new Error('Unable to load practice questions.')
-  }
-
-  const questions = (data ?? []) as unknown as Array<
-    Pick<
-      QuestionRecord,
-      'id' | 'subject_id' | 'topic_id' | 'question_type_id' | 'exam_type' | 'difficulty' | 'question_text' | 'passage_text'
-    > & {
-      subject: { name: string }[] | { name: string } | null
-      topic: { name: string }[] | { name: string } | null
-      question_type: { name: string }[] | { name: string } | null
+    if (error) {
+      throw new Error('Unable to load questions for export.')
     }
-  >
 
-  return questions.map((question) => ({
-    id: question.id,
-    subjectId: question.subject_id,
-    subjectName: getRelationValue(question.subject)?.name ?? 'Subject',
-    topicId: question.topic_id,
-    topicName: getRelationValue(question.topic)?.name ?? 'Topic',
-    questionTypeId: question.question_type_id,
-    questionTypeName: getRelationValue(question.question_type)?.name ?? null,
-    examType: question.exam_type,
-    difficulty: question.difficulty,
-    questionText: question.question_text,
-    passageText: question.passage_text,
-  }))
+    const batch = (data ?? []) as unknown as FullExportRawRow[]
+    rows.push(...batch.map(mapFullExportRow))
+
+    if (batch.length < EXPORT_BATCH_SIZE) {
+      break
+    }
+  }
+
+  return rows
 }
-
-/** Attaches answer options to a picked set of pool questions. */
-export async function hydratePracticeQuestions(
-  questions: Array<Omit<PracticeQuestionItem, 'options'>>
-): Promise<PracticeQuestionItem[]> {
-  const optionsMap = await getQuestionOptionsMap(questions.map((question) => question.id))
-
-  return questions.map((question) => ({
-    ...question,
-    options: optionsMap.get(question.id) ?? [],
-  }))
-}
-
-export async function getPracticeQuestions(filters: PracticeQuestionFilters): Promise<PracticeQuestionItem[]> {
-  const pool = await getPracticeQuestionPool(filters)
-  return hydratePracticeQuestions(shuffleArray(pool).slice(0, filters.limit))
-}
-
-export { shuffleArray }

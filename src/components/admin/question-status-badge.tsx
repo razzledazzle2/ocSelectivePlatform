@@ -4,6 +4,7 @@ import type { QuestionStatus } from '@/lib/types'
 
 const statusBadgeClasses: Record<QuestionStatus, string> = {
   published: 'border-transparent bg-success-soft text-success',
+  reviewed: 'border-transparent bg-brand-soft text-brand',
   draft: 'border-transparent bg-warning-soft text-warning',
   archived: 'border-transparent bg-muted text-muted-foreground',
 }

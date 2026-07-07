@@ -9,6 +9,7 @@ import {
   getSubjects,
   getTopicsBySubject,
 } from '@/lib/questions/queries'
+import { getStimuliForPicker } from '@/lib/stimuli/queries'
 
 interface EditAdminQuestionPageProps {
   params: Promise<{
@@ -18,11 +19,12 @@ interface EditAdminQuestionPageProps {
 
 export default async function EditAdminQuestionPage({ params }: EditAdminQuestionPageProps) {
   const { id } = await params
-  const [question, subjects, topics, questionTypes] = await Promise.all([
+  const [question, subjects, topics, questionTypes, stimuli] = await Promise.all([
     getQuestionById(id),
     getSubjects(),
     getTopicsBySubject(),
     getQuestionTypes(),
+    getStimuliForPicker(),
   ])
 
   if (!question) {
@@ -43,6 +45,7 @@ export default async function EditAdminQuestionPage({ params }: EditAdminQuestio
         subjects={subjects}
         topics={topics}
         questionTypes={questionTypes}
+        stimuli={stimuli}
         initialValues={questionDetailToFormValues(question)}
       />
     </div>

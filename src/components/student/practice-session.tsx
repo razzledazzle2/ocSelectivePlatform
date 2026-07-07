@@ -33,6 +33,10 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { QuestionAsset } from '@/components/questions/question-asset'
+import { QuestionMarkdown } from '@/components/questions/question-markdown'
+import { QuestionOptionContent } from '@/components/questions/question-option-content'
+import { StimulusPanel } from '@/components/questions/stimulus-panel'
 import { OptionDistribution } from '@/components/student/option-distribution'
 import { StudentQuestionReportButton } from '@/components/student/student-question-report-button'
 import { cn } from '@/lib/utils'
@@ -664,7 +668,10 @@ export function PracticeSession({
             <CardContent className="space-y-4 pt-6">
               {incorrectAnswers.map((answer) => (
                 <div key={answer.question.id} className="rounded-2xl border border-border bg-muted/50 px-4 py-4">
-                  <p className="text-sm font-medium leading-7 text-foreground">{answer.question.questionText}</p>
+                  <QuestionMarkdown
+                    text={answer.question.questionText}
+                    className="text-sm font-medium leading-7 text-foreground"
+                  />
                   <div className="mt-2 flex flex-wrap gap-4 text-sm">
                     <span className="text-amber-700">Your answer: {answer.selectedLabel}</span>
                     <span className="text-emerald-700">Correct answer: {answer.feedback.correctOptionLabel}</span>
@@ -673,7 +680,16 @@ export function PracticeSession({
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Worked solution
                   </p>
-                  <p className="mt-1 text-sm leading-7 text-foreground/80">{answer.feedback.workedSolution}</p>
+                  {answer.feedback.workedSolution ? (
+                    <QuestionMarkdown
+                      text={answer.feedback.workedSolution}
+                      className="mt-1 text-sm leading-7 text-foreground/80"
+                    />
+                  ) : (
+                    <p className="mt-1 text-sm leading-7 text-foreground/80">
+                      No worked solution was added for this question yet.
+                    </p>
+                  )}
                   <div className="mt-2 flex justify-end">
                     <StudentQuestionReportButton
                       questionId={answer.question.id}
@@ -719,10 +735,22 @@ export function PracticeSession({
       </CardHeader>
       <CardContent className="space-y-6 pt-6">
         <div className="space-y-4">
-          <p className="text-lg leading-8 text-foreground">{activeQuestion.questionText}</p>
-          {activeQuestion.passageText ? (
+          <QuestionMarkdown
+            text={activeQuestion.questionText}
+            className="text-lg leading-8 text-foreground"
+          />
+          {activeQuestion.stimulus ? (
+            <StimulusPanel stimulus={activeQuestion.stimulus} />
+          ) : activeQuestion.passageText ? (
             <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4 text-sm leading-7 text-foreground/80">
               {activeQuestion.passageText}
+            </div>
+          ) : null}
+          {activeQuestion.questionAssets.length ? (
+            <div className="space-y-3">
+              {activeQuestion.questionAssets.map((asset) => (
+                <QuestionAsset key={asset.id} asset={asset} />
+              ))}
             </div>
           ) : null}
         </div>
@@ -753,7 +781,7 @@ export function PracticeSession({
                 <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                   {option.label}
                 </span>
-                <span className="whitespace-normal leading-7">{option.option_text}</span>
+                <QuestionOptionContent option={option} />
               </button>
             )
           })}
@@ -775,7 +803,13 @@ export function PracticeSession({
                 </div>
                 <div>
                   <p className="font-semibold text-foreground">Worked solution</p>
-                  <p className="text-foreground/80">{feedback.workedSolution}</p>
+                  {feedback.workedSolution ? (
+                    <QuestionMarkdown text={feedback.workedSolution} className="text-foreground/80" />
+                  ) : (
+                    <p className="text-foreground/80">
+                      No worked solution was added for this question yet.
+                    </p>
+                  )}
                 </div>
               </div>
             </AlertDescription>

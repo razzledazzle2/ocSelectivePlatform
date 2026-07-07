@@ -1,0 +1,88 @@
+subject,essential_question_type,variant_type,description
+Thinking Skills,Strengthen argument,Add supporting evidence,A new fact or finding directly backs up the argument's main claim.
+Thinking Skills,Strengthen argument,Rule out alternative explanation,The option eliminates a rival explanation so the argument's cause is more likely.
+Thinking Skills,Strengthen argument,Confirm hidden assumption,The option states that an idea the argument quietly relies on is actually true.
+Thinking Skills,Strengthen argument,Provide representative example,A typical case shows the claim holds beyond the single instance given.
+Thinking Skills,Strengthen argument,Increase reliability of source,The option shows the person or study behind the evidence is trustworthy or expert.
+Thinking Skills,Strengthen argument,Show cause precedes effect,The option confirms the claimed cause happened before the effect appeared.
+Thinking Skills,Weaken argument,Provide counterexample,A specific case where the claim fails casts doubt on the conclusion.
+Thinking Skills,Weaken argument,Offer alternative explanation,The option gives a different cause that explains the same evidence.
+Thinking Skills,Weaken argument,Undermine hidden assumption,The option shows an idea the argument depends on is false or doubtful.
+Thinking Skills,Weaken argument,Question sample representativeness,The option shows the evidence comes from an unusual or too-small group.
+Thinking Skills,Weaken argument,Discredit source reliability,The option shows the evidence comes from a biased or unqualified source.
+Thinking Skills,Weaken argument,Show effect occurs without cause,The option shows the outcome happens even when the claimed cause is absent.
+Thinking Skills,Identify assumption,Missing link assumption,The unstated idea that connects the given reason to the conclusion.
+Thinking Skills,Identify assumption,No alternative assumption,The argument assumes no other cause or option could explain the situation.
+Thinking Skills,Identify assumption,Feasibility assumption,The argument assumes its proposed plan or action can actually be carried out.
+Thinking Skills,Identify assumption,Representativeness assumption,The argument assumes the example or sample used is typical of the whole group.
+Thinking Skills,Identify assumption,Continuity assumption,The argument assumes present conditions will stay the same in the future.
+Thinking Skills,Identify assumption,Causal assumption,The argument assumes one thing causes another rather than merely accompanying it.
+Thinking Skills,Conditional logic,Apply rule forward,Given the condition holds the student deduces the stated consequence.
+Thinking Skills,Conditional logic,Contrapositive reasoning,Given the consequence fails the student deduces the condition must fail too.
+Thinking Skills,Conditional logic,Converse trap,Distractors assume the rule works in reverse when it does not.
+Thinking Skills,Conditional logic,Chain of conditionals,Two or more if-then rules must be linked to reach the conclusion.
+Thinking Skills,Conditional logic,Only-if condition,The rule states a necessary condition and students must not treat it as sufficient.
+Thinking Skills,Conditional logic,Unless statement,The rule is phrased with unless and must be translated into if-then form.
+Thinking Skills,Ordering,Linear order from clues,Positional clues fix a complete left-to-right or first-to-last order.
+Thinking Skills,Ordering,Relative position deduction,Only some relative positions are given and one relationship must be deduced.
+Thinking Skills,Ordering,Missing position inference,Students identify which position or person cannot be determined from the clues.
+Thinking Skills,Ordering,Contradiction elimination,Students test each option against the clues and eliminate the impossible orders.
+Thinking Skills,Ordering,Circular arrangement,People or objects are seated around a circle so left and right depend on facing.
+Thinking Skills,Ordering,Order after a change,An established order is altered by a swap or move and the new order is required.
+Thinking Skills,Abstract sequences,Complete the sequence,Students choose the figure that continues the pattern in the series.
+Thinking Skills,Abstract sequences,Find the odd one out,Students identify the figure that breaks the rule shared by the others.
+Thinking Skills,Abstract sequences,Matrix pattern,Students find the missing cell in a grid where rules run across rows and columns.
+Thinking Skills,Abstract sequences,Rotation rule,Each step turns the figure by a fixed amount and students must predict the next turn.
+Thinking Skills,Abstract sequences,Shading rule,Fill or shading changes in a repeating cycle across the sequence.
+Thinking Skills,Abstract sequences,Shape count rule,The number of sides dots or elements increases or decreases by a fixed rule.
+Thinking Skills,Abstract sequences,Combined two-feature rule,Two features such as rotation and shading change at once and both must be tracked.
+Mathematical Reasoning,Fractions,Compare fractions,Students order or compare fractions with different denominators.
+Mathematical Reasoning,Fractions,Fraction of a quantity,Students find a fraction of a number or amount in context.
+Mathematical Reasoning,Fractions,Equivalent fractions,Students recognise or create fractions equal in value to a given fraction.
+Mathematical Reasoning,Fractions,Mixed number operations,Students add or subtract with mixed numbers and improper fractions.
+Mathematical Reasoning,Fractions,Fraction word problem,A story context requires setting up and solving a fraction calculation.
+Mathematical Reasoning,Fractions,Fraction on a number line,Students place or read fractions at positions on a number line.
+Mathematical Reasoning,Fractions,Remaining part reasoning,Students work with the fraction left over after parts are used or given away.
+Mathematical Reasoning,Percentages,Percentage of a quantity,Students calculate a given percentage of a number or amount.
+Mathematical Reasoning,Percentages,Percentage increase or decrease,Students apply a rise or fall by a percentage to find the new amount.
+Mathematical Reasoning,Percentages,Discount and sale price,Students compute a sale price or saving from a percentage discount.
+Mathematical Reasoning,Percentages,Conversion between forms,Students convert among fractions decimals and percentages.
+Mathematical Reasoning,Percentages,Reverse percentage,Students find the original amount given the result after a percentage change.
+Mathematical Reasoning,Percentages,Percentage comparison,Students compare two quantities or changes expressed as percentages of different bases.
+Mathematical Reasoning,Time,Elapsed time,Students find the duration between a start time and an end time.
+Mathematical Reasoning,Time,Find start or finish time,Given a duration and one endpoint students find the other endpoint.
+Mathematical Reasoning,Time,24-hour clock conversion,Students convert between 12-hour and 24-hour time formats.
+Mathematical Reasoning,Time,Calendar reasoning,Students reason with days weeks and dates such as finding the day a date falls on.
+Mathematical Reasoning,Time,Time unit conversion,Students convert between seconds minutes hours and days.
+Mathematical Reasoning,Time,Overlapping events,Students reason about schedules or events that overlap or repeat in cycles.
+Mathematical Reasoning,Data tables,Read a single value,Students locate one value at the intersection of a row and column.
+Mathematical Reasoning,Data tables,Compare rows or columns,Students compare values across rows or columns to find the largest or smallest.
+Mathematical Reasoning,Data tables,Compute total or difference,Students add or subtract values from the table to answer the question.
+Mathematical Reasoning,Data tables,Best option under constraint,Students choose the cheapest fastest or best row that satisfies a stated condition.
+Mathematical Reasoning,Data tables,Combine two tables,Information from two related tables must be linked to reach the answer.
+Mathematical Reasoning,Data tables,Missing entry from totals,Students deduce a blank cell using row or column totals.
+Mathematical Reasoning,Multi-step word problems,Two-operation story,The problem requires two different operations applied in the right order.
+Mathematical Reasoning,Multi-step word problems,Sharing and grouping,Quantities are shared split or grouped across people or containers in stages.
+Mathematical Reasoning,Multi-step word problems,Age relationship problem,Ages now and in the past or future must be related and solved.
+Mathematical Reasoning,Multi-step word problems,Before-and-after change,A quantity changes through gains and losses and one state must be recovered.
+Mathematical Reasoning,Multi-step word problems,Combined work or rates,Two people or machines work together and their combined progress must be computed.
+Mathematical Reasoning,Multi-step word problems,Excess and shortage,Comparing a surplus in one scenario with a shortfall in another pins down the unknown.
+Reading,Inference,Infer character feeling,Students deduce a character's emotion from actions dialogue or body language.
+Reading,Inference,Infer motive,Students deduce why a character acted from indirect clues in the passage.
+Reading,Inference,Infer relationship,Students deduce how two characters are connected or how they feel about each other.
+Reading,Inference,Infer unstated cause,Students deduce the reason behind an event the text describes but never explains.
+Reading,Inference,Infer likely outcome,Students predict what will most plausibly happen next based on the passage.
+Reading,Inference,Infer setting or time,Students deduce where or when the passage takes place from embedded details.
+Reading,Main idea,Whole passage main idea,Students identify the central point the entire passage develops.
+Reading,Main idea,Paragraph main idea,Students identify the key point of one specified paragraph.
+Reading,Main idea,Best title,Students choose the title that best captures the passage as a whole.
+Reading,Main idea,Best summary,Students choose the one-sentence summary that covers the passage without distortion.
+Reading,Main idea,Main idea versus detail,Students distinguish the overarching idea from supporting details offered as distractors.
+Reading,Main idea,Topic sentence identification,Students identify the sentence that states the main point of a paragraph.
+Writing,Narrative,Continue the story,Students extend a given story opening while keeping its voice and situation.
+Writing,Narrative,Story from image prompt,Students write a story inspired by a picture stimulus.
+Writing,Narrative,Story from title,Students write a story that genuinely fits a given title.
+Writing,Narrative,Story with given opening line,Students begin with a supplied first sentence and build a complete story.
+Writing,Narrative,Story with given ending line,Students craft a story that arrives naturally at a supplied final sentence.
+Writing,Narrative,Twist ending challenge,Students write a story engineered to end with a surprising but fair twist.
+Writing,Narrative,Story from object prompt,Students build a story around a specified object that must matter to the plot.

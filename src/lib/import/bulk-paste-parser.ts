@@ -15,20 +15,48 @@ const QUESTION_START_RE = /^\s*(?:q|question)\s*\d*\s*[.):-]/i
 function emptyRow(rowNumber: number): QuestionImportRow {
   return {
     rowNumber,
+    externalId: '',
     subject: '',
+    strand: '',
     topic: '',
     questionType: '',
+    variantType: '',
     difficulty: '',
     examType: '',
+    marks: '',
+    timeLimitSeconds: '',
+    answerFormat: '',
     questionText: '',
     passageText: '',
     options: [],
+    optionAssetRefsJson: '',
+    optionExplanationsJson: '',
     correctAnswer: '',
     workedSolution: '',
     shortExplanation: '',
+    stimulusId: '',
+    stimulusTitle: '',
+    stimulusType: '',
+    stimulusText: '',
+    stimulusAssetRefs: [],
+    questionAssetRefs: [],
+    solutionAssetRefs: [],
+    inputMethod: '',
+    displayMode: '',
+    answerValidationJson: '',
+    rubricJson: '',
+    skillTags: '',
+    conceptTags: '',
     status: '',
     tags: '',
     yearLevel: '',
+    sourceName: '',
+    sourcePaper: '',
+    sourceSection: '',
+    sourceQuestionNumber: '',
+    licenseNotes: '',
+    assetGenerationPrompt: '',
+    assetAltText: '',
   }
 }
 
@@ -108,6 +136,23 @@ function parseBlock(block: string, rowNumber: number): QuestionImportRow {
         case 'exam type':
         case 'exam':
           row.examType = value
+          break
+        case 'format':
+        case 'answer format':
+          row.answerFormat = value
+          break
+        case 'marks':
+          row.marks = value
+          break
+        case 'time limit':
+        case 'time limit seconds':
+          row.timeLimitSeconds = value
+          break
+        case 'skill tags':
+          row.skillTags = value
+          break
+        case 'concept tags':
+          row.conceptTags = value
           break
         case 'short explanation':
         case 'explanation':

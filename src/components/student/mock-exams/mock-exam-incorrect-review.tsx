@@ -1,5 +1,6 @@
 import { CheckCircle2Icon, FlagIcon } from 'lucide-react'
 
+import { QuestionMarkdown } from '@/components/questions/question-markdown'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -70,7 +71,10 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
                   {question.passageText}
                 </p>
               ) : null}
-              <p className="text-sm font-medium leading-7 text-foreground">{question.questionText}</p>
+              <QuestionMarkdown
+                text={question.questionText}
+                className="text-sm font-medium leading-7 text-foreground"
+              />
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <div
@@ -114,7 +118,16 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Worked solution
                 </p>
-                <p className="mt-0.5 text-sm leading-7 text-foreground/80">{question.workedSolution}</p>
+                {question.workedSolution ? (
+                  <QuestionMarkdown
+                    text={question.workedSolution}
+                    className="mt-0.5 text-sm leading-7 text-foreground/80"
+                  />
+                ) : (
+                  <p className="mt-0.5 text-sm leading-7 text-foreground/80">
+                    No worked solution was added for this question yet.
+                  </p>
+                )}
               </div>
             </div>
           )

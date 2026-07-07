@@ -32,6 +32,10 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { QuestionAsset } from '@/components/questions/question-asset'
+import { QuestionMarkdown } from '@/components/questions/question-markdown'
+import { QuestionOptionContent } from '@/components/questions/question-option-content'
+import { StimulusPanel } from '@/components/questions/stimulus-panel'
 import { StudentQuestionReportButton } from '@/components/student/student-question-report-button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { OptionDistribution } from '@/components/student/option-distribution'
@@ -393,10 +397,22 @@ function RetryDialog({ questionId, open, onOpenChange }: RetryDialogProps) {
 
         {question ? (
           <div className="space-y-4">
-            <p className="text-base leading-7 text-foreground">{question.questionText}</p>
-            {question.passageText ? (
+            <QuestionMarkdown
+              text={question.questionText}
+              className="text-base leading-7 text-foreground"
+            />
+            {question.stimulus ? (
+              <StimulusPanel stimulus={question.stimulus} />
+            ) : question.passageText ? (
               <div className="rounded-xl border border-border bg-muted/50 px-3 py-3 text-sm leading-7 text-foreground/80">
                 {question.passageText}
+              </div>
+            ) : null}
+            {question.questionAssets.length ? (
+              <div className="space-y-3">
+                {question.questionAssets.map((asset) => (
+                  <QuestionAsset key={asset.id} asset={asset} />
+                ))}
               </div>
             ) : null}
 
@@ -423,7 +439,7 @@ function RetryDialog({ questionId, open, onOpenChange }: RetryDialogProps) {
                     <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                       {option.label}
                     </span>
-                    <span className="whitespace-normal leading-6">{option.option_text}</span>
+                    <QuestionOptionContent option={option} />
                   </button>
                 )
               })}
@@ -437,7 +453,16 @@ function RetryDialog({ questionId, open, onOpenChange }: RetryDialogProps) {
                     {feedback.isCorrect ? 'Correct!' : 'Not quite.'} Correct answer: {feedback.correctOptionLabel}.
                   </AlertTitle>
                   <AlertDescription>
-                    <p className="mt-1 text-sm leading-7 text-foreground/80">{feedback.workedSolution}</p>
+                    {feedback.workedSolution ? (
+                      <QuestionMarkdown
+                        text={feedback.workedSolution}
+                        className="mt-1 text-sm leading-7 text-foreground/80"
+                      />
+                    ) : (
+                      <p className="mt-1 text-sm leading-7 text-foreground/80">
+                        No worked solution was added for this question yet.
+                      </p>
+                    )}
                   </AlertDescription>
                 </Alert>
                 <OptionDistribution

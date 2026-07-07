@@ -1,17 +1,12 @@
+import { hydratePracticeQuestions, type PracticePoolQuestion } from '@/lib/practice/queries'
+import { getRelationValue } from '@/lib/practice/hydration'
 import { createClient } from '@/lib/supabase/server'
 import type {
+  AnswerFormat,
   MistakeStatus,
   PracticeQuestionItem,
-  QuestionOptionRecord,
+  QuestionRecord,
 } from '@/lib/types'
-
-function getRelationValue<T>(value: T | T[] | null): T | null {
-  if (Array.isArray(value)) {
-    return value[0] ?? null
-  }
-
-  return value ?? null
-}
 
 export interface RevisionQueueItem {
   question: PracticeQuestionItem
@@ -57,81 +52,75 @@ export async function getDueRevisionQueue(studentId: string, limit = 10): Promis
 
   const questionIds = mistakes.map((mistake) => mistake.question_id)
 
-  const [questionsResult, optionsResult] = await Promise.all([
-    supabase
-      .from('questions')
-      .select(`
-        id,
-        subject_id,
-        topic_id,
-        question_type_id,
-        exam_type,
-        difficulty,
-        question_text,
-        passage_text,
-        subject:subjects(name),
-        topic:topics(name),
-        question_type:question_types(name)
-      `)
-      .in('id', questionIds)
-      .eq('status', 'published'),
-    supabase
-      .from('question_options')
-      .select('id, question_id, label, option_text, sort_order, created_at')
-      .in('question_id', questionIds)
-      .order('sort_order', { ascending: true }),
-  ])
+  const { data: questionRows, error: questionsError } = await supabase
+    .from('questions')
+    .select(`
+      id,
+      subject_id,
+      topic_id,
+      question_type_id,
+      exam_type,
+      difficulty,
+      answer_format,
+      stimulus_id,
+      question_text,
+      passage_text,
+      subject:subjects(name),
+      topic:topics(name),
+      question_type:question_types(name)
+    `)
+    .in('id', questionIds)
+    .eq('status', 'published')
+    // Revision retries are MCQ-only for now — writing prompts are not gradeable here.
+    .eq('answer_format', 'single_choice')
 
-  if (questionsResult.error || optionsResult.error) {
+  if (questionsError) {
     throw new Error('Unable to load your revision questions.')
   }
 
-  const optionsMap = new Map<string, QuestionOptionRecord[]>()
-  for (const option of (optionsResult.data ?? []) as Array<QuestionOptionRecord & { question_id: string }>) {
-    const existing = optionsMap.get(option.question_id) ?? []
-    existing.push(option)
-    optionsMap.set(option.question_id, existing)
-  }
-
-  const questionMap = new Map(
-    (questionsResult.data ?? []).map((question) => {
-      const record = question as unknown as {
-        id: string
-        subject_id: string
-        topic_id: string
-        question_type_id: string | null
-        exam_type: PracticeQuestionItem['examType']
-        difficulty: number
-        question_text: string
-        passage_text: string | null
+  const poolQuestions: PracticePoolQuestion[] = (
+    (questionRows ?? []) as unknown as Array<
+      Pick<
+        QuestionRecord,
+        | 'id'
+        | 'subject_id'
+        | 'topic_id'
+        | 'question_type_id'
+        | 'exam_type'
+        | 'difficulty'
+        | 'question_text'
+        | 'passage_text'
+      > & {
+        answer_format: AnswerFormat
+        stimulus_id: string | null
         subject: { name: string }[] | { name: string } | null
         topic: { name: string }[] | { name: string } | null
         question_type: { name: string }[] | { name: string } | null
       }
+    >
+  ).map((record) => ({
+    id: record.id,
+    subjectId: record.subject_id,
+    subjectName: getRelationValue(record.subject)?.name ?? 'Subject',
+    topicId: record.topic_id,
+    topicName: getRelationValue(record.topic)?.name ?? 'Topic',
+    questionTypeId: record.question_type_id,
+    questionTypeName: getRelationValue(record.question_type)?.name ?? null,
+    examType: record.exam_type,
+    difficulty: record.difficulty,
+    answerFormat: record.answer_format,
+    questionText: record.question_text,
+    passageText: record.passage_text,
+    stimulusId: record.stimulus_id,
+  }))
 
-      const item: PracticeQuestionItem = {
-        id: record.id,
-        subjectId: record.subject_id,
-        subjectName: getRelationValue(record.subject)?.name ?? 'Subject',
-        topicId: record.topic_id,
-        topicName: getRelationValue(record.topic)?.name ?? 'Topic',
-        questionTypeId: record.question_type_id,
-        questionTypeName: getRelationValue(record.question_type)?.name ?? null,
-        examType: record.exam_type,
-        difficulty: record.difficulty,
-        questionText: record.question_text,
-        passageText: record.passage_text,
-        options: optionsMap.get(record.id) ?? [],
-      }
-
-      return [record.id, item] as const
-    })
-  )
+  const hydrated = await hydratePracticeQuestions(poolQuestions)
+  const questionMap = new Map(hydrated.map((question) => [question.id, question]))
 
   const items: RevisionQueueItem[] = []
   for (const mistake of mistakes) {
     const question = questionMap.get(mistake.question_id)
-    // Skip mistakes whose question was archived/unpublished since.
+    // Skip mistakes whose question was archived/unpublished/converted since.
     if (!question) continue
 
     items.push({

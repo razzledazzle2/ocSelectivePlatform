@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { requireProfile } from '@/lib/auth/require-profile'
-import { getPublishedPracticeQuestion } from '@/lib/questions/queries'
+import { getStudentPracticeQuestion } from '@/lib/practice/queries'
 import { markMistakeUnderstood, retryMistake } from '@/lib/revision/mutations'
 import {
   QUESTION_OPTION_LABELS,
@@ -24,7 +24,7 @@ export async function loadRevisionQuestionAction(
   }
 
   try {
-    const question = await getPublishedPracticeQuestion(questionId)
+    const question = await getStudentPracticeQuestion(questionId)
 
     if (!question) {
       return { success: false, message: 'This question is no longer available.' }

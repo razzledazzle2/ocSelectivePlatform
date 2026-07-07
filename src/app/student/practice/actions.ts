@@ -8,7 +8,7 @@ import {
   getPracticeQuestionPool,
   hydratePracticeQuestions,
   shuffleArray,
-} from '@/lib/questions/queries'
+} from '@/lib/practice/queries'
 import {
   createPracticeSession,
   saveQuestionAttempt,

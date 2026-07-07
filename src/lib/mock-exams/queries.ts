@@ -15,11 +15,17 @@ import type {
   MockSectionStatus,
   SectionedMockRunnerData,
 } from '@/lib/mock-exams/types'
+import {
+  getStudentOptionsMap,
+  getStudentQuestionAssetsMap,
+  getStudentStimuliMap,
+} from '@/lib/practice/hydration'
 import type {
   ExamType,
   QuestionOptionLabel,
-  QuestionOptionRecord,
   QuestionRecord,
+  StudentAssetRef,
+  StudentStimulus,
 } from '@/lib/types'
 
 function getRelationValue<T>(value: T | T[] | null): T | null {
@@ -110,6 +116,8 @@ export async function fetchMockCandidates(
       question_type:question_types(name)
     `)
     .eq('status', 'published')
+    // Mock exams are MCQ-only: never select writing prompts (extended_response).
+    .eq('answer_format', 'single_choice')
     .eq('exam_type', examType)
     .limit(400)
 
@@ -136,6 +144,7 @@ export async function countAvailableMockQuestions(
     .from('questions')
     .select('id', { count: 'exact', head: true })
     .eq('status', 'published')
+    .eq('answer_format', 'single_choice')
     .eq('exam_type', examType)
 
   if (subjectId) {
@@ -151,29 +160,24 @@ export async function countAvailableMockQuestions(
   return count ?? 0
 }
 
-async function getOptionsMap(questionIds: string[]): Promise<Map<string, QuestionOptionRecord[]>> {
-  if (!questionIds.length) {
-    return new Map()
-  }
+interface HydratedQuestionContent {
+  optionsMap: Awaited<ReturnType<typeof getStudentOptionsMap>>
+  stimuliMap: Map<string, StudentStimulus>
+  questionAssetsMap: Map<string, StudentAssetRef[]>
+}
 
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('question_options')
-    .select('id, question_id, label, option_text, sort_order, created_at')
-    .in('question_id', questionIds)
-    .order('sort_order', { ascending: true })
+/** Options (with visual assets), stimuli and question assets for a set of questions. */
+async function hydrateRunnerContent(
+  questionIds: string[],
+  stimulusIds: Array<string | null>
+): Promise<HydratedQuestionContent> {
+  const [optionsMap, stimuliMap, questionAssetsMap] = await Promise.all([
+    getStudentOptionsMap(questionIds),
+    getStudentStimuliMap(stimulusIds.filter((id): id is string => Boolean(id))),
+    getStudentQuestionAssetsMap(questionIds),
+  ])
 
-  if (error) {
-    throw new Error('Unable to load mock exam question options.')
-  }
-
-  const map = new Map<string, QuestionOptionRecord[]>()
-  for (const option of (data ?? []) as Array<QuestionOptionRecord & { question_id: string }>) {
-    const existing = map.get(option.question_id) ?? []
-    existing.push(option)
-    map.set(option.question_id, existing)
-  }
-  return map
+  return { optionsMap, stimuliMap, questionAssetsMap }
 }
 
 export interface SelectedMockQuestion {
@@ -254,6 +258,7 @@ export async function getMockExamRunnerData(
         question_type_id,
         exam_type,
         difficulty,
+        stimulus_id,
         question_text,
         passage_text,
         subject:subjects(name),
@@ -280,6 +285,7 @@ export async function getMockExamRunnerData(
       | 'question_type_id'
       | 'exam_type'
       | 'difficulty'
+      | 'stimulus_id'
       | 'question_text'
       | 'passage_text'
     > & {
@@ -291,7 +297,10 @@ export async function getMockExamRunnerData(
   }>
 
   const validRows = rows.filter((row) => row.question !== null)
-  const optionsMap = await getOptionsMap(validRows.map((row) => row.question!.id))
+  const { optionsMap, stimuliMap, questionAssetsMap } = await hydrateRunnerContent(
+    validRows.map((row) => row.question!.id),
+    validRows.map((row) => row.question!.stimulus_id)
+  )
 
   const questions: MockExamRunnerQuestion[] = validRows.map((row) => {
     const question = row.question!
@@ -308,6 +317,8 @@ export async function getMockExamRunnerData(
       difficulty: question.difficulty,
       questionText: question.question_text,
       passageText: question.passage_text,
+      stimulus: question.stimulus_id ? stimuliMap.get(question.stimulus_id) ?? null : null,
+      questionAssets: questionAssetsMap.get(question.id) ?? [],
       options: optionsMap.get(question.id) ?? [],
       selectedOptionLabel: row.selected_option_label,
       isFlagged: row.is_flagged,
@@ -419,6 +430,7 @@ export async function getSectionedMockRunnerData(
           question_type_id,
           exam_type,
           difficulty,
+          stimulus_id,
           question_text,
           passage_text,
           subject:subjects(name),
@@ -447,6 +459,7 @@ export async function getSectionedMockRunnerData(
       | 'question_type_id'
       | 'exam_type'
       | 'difficulty'
+      | 'stimulus_id'
       | 'question_text'
       | 'passage_text'
     > & {
@@ -458,7 +471,10 @@ export async function getSectionedMockRunnerData(
   }>
 
   const validRows = rows.filter((row) => row.question !== null)
-  const optionsMap = await getOptionsMap(validRows.map((row) => row.question!.id))
+  const { optionsMap, stimuliMap, questionAssetsMap } = await hydrateRunnerContent(
+    validRows.map((row) => row.question!.id),
+    validRows.map((row) => row.question!.stimulus_id)
+  )
 
   const questions = validRows.map((row) => {
     const question = row.question!
@@ -476,6 +492,8 @@ export async function getSectionedMockRunnerData(
       difficulty: question.difficulty,
       questionText: question.question_text,
       passageText: question.passage_text,
+      stimulus: question.stimulus_id ? stimuliMap.get(question.stimulus_id) ?? null : null,
+      questionAssets: questionAssetsMap.get(question.id) ?? [],
       options: optionsMap.get(question.id) ?? [],
       selectedOptionLabel: row.selected_option_label,
       isFlagged: row.is_flagged,
