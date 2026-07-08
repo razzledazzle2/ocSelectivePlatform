@@ -1,0 +1,15 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-flag-c.svg",
+  "external_id": "ts3-014-C",
+  "asset_type": "svg",
+  "alt_text": "Flag mirror image, not a rotation.",
+  "spec": {
+    "type": "rotation",
+    "figure": "flag",
+    "width": 170,
+    "height": 170,
+    "transform": {
+      "reflect": "vertical"
+    }
+  }
+}

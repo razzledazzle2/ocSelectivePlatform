@@ -1,0 +1,15 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-code-d.svg",
+  "external_id": "ts3-013-D",
+  "asset_type": "svg",
+  "alt_text": "Symbols: dot, plus, star, star.",
+  "spec": {
+    "type": "symbol_key",
+    "symbols": [
+      "dot",
+      "plus",
+      "star",
+      "star"
+    ]
+  }
+}

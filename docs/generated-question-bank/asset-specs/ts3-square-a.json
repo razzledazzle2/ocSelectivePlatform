@@ -1,0 +1,45 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-square-a.svg",
+  "external_id": "ts3-018-A",
+  "asset_type": "svg",
+  "alt_text": "Two identical right-angled triangles whose long edges can join into a square (correct).",
+  "spec": {
+    "type": "spatial_assembly",
+    "width": 210,
+    "height": 110,
+    "pieces": [
+      {
+        "points": [
+          [
+            10,
+            10
+          ],
+          [
+            70,
+            10
+          ],
+          [
+            10,
+            70
+          ]
+        ]
+      },
+      {
+        "points": [
+          [
+            190,
+            10
+          ],
+          [
+            190,
+            70
+          ],
+          [
+            130,
+            70
+          ]
+        ]
+      }
+    ]
+  }
+}

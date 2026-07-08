@@ -1,0 +1,15 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-mirror-c.svg",
+  "external_id": "ts3-015-C",
+  "asset_type": "svg",
+  "alt_text": "The letter F flipped top-to-bottom.",
+  "spec": {
+    "type": "reflection",
+    "figure": "block_letter_F",
+    "width": 160,
+    "height": 170,
+    "transform": {
+      "reflect": "horizontal"
+    }
+  }
+}

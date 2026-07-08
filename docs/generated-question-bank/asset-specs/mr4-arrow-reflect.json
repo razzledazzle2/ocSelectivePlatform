@@ -1,0 +1,31 @@
+{
+  "asset_ref": "asset://question-assets/generated/mr4-arrow-reflect.svg",
+  "external_id": "mr4-002",
+  "asset_type": "svg",
+  "alt_text": "A coordinate grid numbered 0 to 10 on both axes. A small arrow shape sits on the left, with its pointed tip marked at the point (3, 2). A bold dashed vertical line runs up the grid at x = 5, labelled as the mirror line. The shape is to be reflected across this line.",
+  "spec": {
+    "type": "coordinate_grid",
+    "width": 460,
+    "height": 460,
+    "x_min": 0,
+    "x_max": 10,
+    "y_min": 0,
+    "y_max": 10,
+    "shapes": [
+      {
+        "type": "polygon",
+        "points": [
+          { "x": 3, "y": 2 },
+          { "x": 4, "y": 2.5 },
+          { "x": 4, "y": 2.2 },
+          { "x": 4.8, "y": 2.2 },
+          { "x": 4.8, "y": 1.8 },
+          { "x": 4, "y": 1.8 },
+          { "x": 4, "y": 1.5 }
+        ]
+      },
+      { "type": "point", "x": 3, "y": 2, "label": "(3, 2)" },
+      { "type": "mirror_line", "axis": "x", "at": 5, "label": "mirror line x = 5" }
+    ]
+  }
+}

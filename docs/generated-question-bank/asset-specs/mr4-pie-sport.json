@@ -1,0 +1,18 @@
+{
+  "asset_ref": "asset://question-assets/generated/mr4-pie-sport.svg",
+  "external_id": "mr4-003",
+  "asset_type": "chart",
+  "alt_text": "A pie chart titled 'Favourite Sport' divided into four sectors. Soccer fills one half (1/2) of the circle, Basketball fills one quarter (1/4), Netball fills one eighth (1/8) and Cricket fills one eighth (1/8). The four fractions add to one whole.",
+  "spec": {
+    "type": "pie_chart",
+    "width": 460,
+    "height": 420,
+    "title": "Favourite Sport",
+    "sectors": [
+      { "label": "Soccer", "fraction": 0.5 },
+      { "label": "Basketball", "fraction": 0.25 },
+      { "label": "Netball", "fraction": 0.125 },
+      { "label": "Cricket", "fraction": 0.125 }
+    ]
+  }
+}

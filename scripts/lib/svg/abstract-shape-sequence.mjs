@@ -37,7 +37,11 @@ export function renderAbstractShapeSequence(spec) {
       // e.g. a square outline with a cluster of dots inside it.
       const glyphs = cell.glyphs ?? (cell.glyph ? [cell.glyph] : [])
       for (const glyph of glyphs) {
-        body.push(drawGlyph(x + cellSize / 2, top + cellSize / 2, cellSize, glyph))
+        // Optional per-glyph offset (fraction of the cell) lets two glyphs sit
+        // side by side, e.g. an arrow next to a circle.
+        const gx = x + cellSize / 2 + (glyph.dx ?? 0) * cellSize
+        const gy = top + cellSize / 2 + (glyph.dy ?? 0) * cellSize
+        body.push(drawGlyph(gx, gy, cellSize, glyph))
       }
     }
   })

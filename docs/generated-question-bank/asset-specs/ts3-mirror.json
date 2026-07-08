@@ -1,0 +1,14 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-mirror.svg",
+  "external_id": "ts3-015",
+  "asset_type": "svg",
+  "alt_text": "A block capital letter F beside a dashed vertical mirror line on its right.",
+  "spec": {
+    "type": "reflection",
+    "figure": "block_letter_F",
+    "width": 180,
+    "height": 170,
+    "stimulus": true,
+    "mirror": "vertical"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-mirror-b.svg",
+  "external_id": "ts3-015-B",
+  "asset_type": "svg",
+  "alt_text": "A backwards F: reflected left-to-right, arms point left, top still at top (correct).",
+  "spec": {
+    "type": "reflection",
+    "figure": "block_letter_F",
+    "width": 160,
+    "height": 170,
+    "transform": {
+      "reflect": "vertical"
+    }
+  }
+}

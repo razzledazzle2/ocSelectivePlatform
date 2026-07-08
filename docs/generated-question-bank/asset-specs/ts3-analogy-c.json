@@ -1,0 +1,19 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-analogy-c.svg",
+  "external_id": "ts3-012-C",
+  "asset_type": "svg",
+  "alt_text": "Two separate triangles side by side.",
+  "spec": {
+    "type": "shape_analogy",
+    "figure": {
+      "pair": [
+        {
+          "shape": "triangle"
+        },
+        {
+          "shape": "triangle"
+        }
+      ]
+    }
+  }
+}

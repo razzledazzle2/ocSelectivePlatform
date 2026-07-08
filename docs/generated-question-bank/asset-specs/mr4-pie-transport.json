@@ -1,0 +1,18 @@
+{
+  "asset_ref": "asset://question-assets/generated/mr4-pie-transport.svg",
+  "external_id": "mr4-004",
+  "asset_type": "chart",
+  "alt_text": "A pie chart titled 'How We Travel to School (120 students)' divided into four sectors. Bus is one third (1/3), Walk is one quarter (1/4), Bike is one quarter (1/4) and Car is one sixth (1/6). These four fractions add to one whole. The chart total is 120 students.",
+  "spec": {
+    "type": "pie_chart",
+    "width": 480,
+    "height": 420,
+    "title": "How We Travel to School (120 students)",
+    "sectors": [
+      { "label": "Bus", "fraction": 0.3333333 },
+      { "label": "Walk", "fraction": 0.25 },
+      { "label": "Bike", "fraction": 0.25 },
+      { "label": "Car", "fraction": 0.1666667 }
+    ]
+  }
+}

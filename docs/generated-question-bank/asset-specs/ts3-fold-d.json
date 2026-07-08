@@ -1,0 +1,19 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-fold-d.svg",
+  "external_id": "ts3-016-D",
+  "asset_type": "svg",
+  "alt_text": "Unfolded square with two holes at the bottom corners.",
+  "spec": {
+    "type": "paper_folding",
+    "holes": [
+      {
+        "x": 0.24,
+        "y": 0.8
+      },
+      {
+        "x": 0.76,
+        "y": 0.8
+      }
+    ]
+  }
+}

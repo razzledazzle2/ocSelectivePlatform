@@ -1,0 +1,27 @@
+{
+  "asset_ref": "asset://question-assets/generated/mr2-l-garden-perimeter.svg",
+  "external_id": "mr2-013",
+  "asset_type": "svg",
+  "alt_text": "An L-shaped garden: a 12 m by 9 m rectangle with its top-right corner cut away. Labelled sides: bottom 12 m, left 9 m, top 7 m, right 4 m. The two unlabelled inner-corner sides work out as 12 - 7 = 5 m (horizontal) and 9 - 4 = 5 m (vertical). Diagram not to scale.",
+  "spec": {
+    "type": "geometry_polygon",
+    "width": 460,
+    "height": 400,
+    "caption": "[diagram not to scale]",
+    "fill": "#dcfce7",
+    "points": [
+      { "x": 0, "y": 0 },
+      { "x": 0, "y": 9 },
+      { "x": 7, "y": 9 },
+      { "x": 7, "y": 4 },
+      { "x": 12, "y": 4 },
+      { "x": 12, "y": 0 }
+    ],
+    "edge_labels": [
+      { "from": 5, "to": 0, "label": "12 m" },
+      { "from": 0, "to": 1, "label": "9 m" },
+      { "from": 1, "to": 2, "label": "7 m" },
+      { "from": 4, "to": 5, "label": "4 m" }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "_comment": "Structured specs for visual rows whose diagram type has no deterministic generator yet (see scripts/lib/svg/render.mjs recognised-but-pending types). These stay asset_status=pending until a generator exists; the spec captures everything needed to build one. Keyed by question external_id. scripts/normalize-asset-columns.mjs writes these into asset_spec_json only when a row has no generated spec. All ts3-011..018 and mr2-015 rows now have real generators, so only the decorative writing illustration remains here.",
+
+  "WRITE-DESC-001": {
+    "type": "scene_illustration",
+    "optional": true,
+    "scene": "A busy outdoor market just before a storm: flags snapping in a rising wind, stallholders weighing fruit, dark clouds gathering beyond the roofs",
+    "note": "Decorative, non-assessed writing stimulus. A deterministic SVG is not appropriate for a naturalistic market scene; render as a supplied illustration or omit. Do not use AI image generation for an assessed diagram."
+  }
+}

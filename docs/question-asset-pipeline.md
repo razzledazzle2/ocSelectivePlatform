@@ -108,9 +108,19 @@ Assets live in the `public.assets` table (migration `20260706081942`, extended b
 3. Point the CSV row's `question_asset_refs` at the generated ref and re-import.
 
 Generators live in [`scripts/lib/svg/`](../scripts/lib/svg/). Implemented today:
-`coordinate_grid`, `geometry_polygon`, `translation_arrow`, `bar_chart`,
-`line_chart`, `abstract_shape_sequence`, `matrix_pattern`. Recognised-but-pending:
-`simple_table_visual`, `venn_diagram_basic`, `logic_grid_table`.
+`coordinate_grid`, `geometry_polygon` (grid form **and** labelled-sides form),
+`translation_arrow`, `bar_chart`, `line_chart`, `pie_chart`,
+`abstract_shape_sequence`, `matrix_pattern`, `isometric_cube_stack`,
+`symbol_key`, `shape_analogy`, `rotation`, `reflection`, `paper_folding`,
+`isometric_3d_views`, `spatial_assembly`. Recognised-but-pending (no generator
+yet, so specs stay `pending`): `simple_table_visual`, `venn_diagram_basic`,
+`logic_grid_table`, `scene_illustration` (the last is intentional — decorative,
+no AI).
+
+To backfill the CSV `asset_spec_json` / `asset_status` columns across the whole
+bank, run `node scripts/normalize-asset-columns.mjs` (idempotent). It reads
+generatable specs from `asset-specs/` and pending specs from
+`pending-specs.json`, and only marks a row `generated` when its SVG exists.
 
 ## How the renderer handles assets
 

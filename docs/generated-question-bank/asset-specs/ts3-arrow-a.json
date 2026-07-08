@@ -1,0 +1,27 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-arrow-a.svg",
+  "external_id": "ts3-011-A",
+  "asset_type": "svg",
+  "alt_text": "Down arrow with a black circle.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 78,
+    "cells": [
+      {
+        "glyphs": [
+          {
+            "shape": "arrow",
+            "rotation": 90,
+            "dx": -0.16
+          },
+          {
+            "shape": "circle",
+            "scale": 0.5,
+            "dx": 0.26,
+            "fill": "#1f2933"
+          }
+        ]
+      }
+    ]
+  }
+}

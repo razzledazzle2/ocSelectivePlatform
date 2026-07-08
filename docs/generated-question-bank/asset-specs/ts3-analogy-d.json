@@ -1,0 +1,16 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-analogy-d.svg",
+  "external_id": "ts3-012-D",
+  "asset_type": "svg",
+  "alt_text": "A triangle with a circle inside.",
+  "spec": {
+    "type": "shape_analogy",
+    "figure": {
+      "shape": "triangle",
+      "nested": {
+        "shape": "circle",
+        "scale": 0.5
+      }
+    }
+  }
+}

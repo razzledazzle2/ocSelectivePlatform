@@ -1,0 +1,31 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-analogy.svg",
+  "external_id": "ts3-012",
+  "asset_type": "svg",
+  "alt_text": "Analogy: a square becomes a square with a smaller square nested inside; a triangle becomes a question box.",
+  "spec": {
+    "type": "shape_analogy",
+    "rows": [
+      {
+        "from": {
+          "shape": "square"
+        },
+        "to": {
+          "shape": "square",
+          "nested": {
+            "shape": "square",
+            "scale": 0.5
+          }
+        }
+      },
+      {
+        "from": {
+          "shape": "triangle"
+        },
+        "to": {
+          "question": true
+        }
+      }
+    ]
+  }
+}

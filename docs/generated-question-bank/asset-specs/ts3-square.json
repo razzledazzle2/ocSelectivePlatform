@@ -1,0 +1,12 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-square.svg",
+  "external_id": "ts3-018",
+  "asset_type": "svg",
+  "alt_text": "A target: one complete square to be made from two of the puzzle pieces.",
+  "spec": {
+    "type": "spatial_assembly",
+    "width": 200,
+    "height": 170,
+    "stimulus": true
+  }
+}
