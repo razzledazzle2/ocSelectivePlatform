@@ -10,15 +10,25 @@ import {
   moveMockTestQuestion,
   removeMockTestQuestion,
   setMockTestStatus,
+  updateMockDisplayOrder,
   updateMockTestMeta,
   updateMockTestSection,
 } from '@/lib/mock-tests/mutations'
-import { MOCK_TEST_STATUSES, type MockTestMetaInput, type MockTestStatus } from '@/lib/mock-tests/types'
+import {
+  MOCK_TEST_STATUSES,
+  MOCK_TYPES,
+  type MockTestMetaInput,
+  type MockTestStatus,
+  type MockType,
+} from '@/lib/mock-tests/types'
+import { getMockProgramCoverage, type MockProgramFilters } from '@/lib/mock-tests/queries'
+import type { MockProgramCoverage } from '@/lib/mock-tests/types'
 import { getAdminQuestionsPage } from '@/lib/questions/queries'
 import {
   ADMIN_PORTAL_ROLES,
   EXAM_TYPES,
   type ActionResult,
+  type AdminQuestionListItem,
   type AdminQuestionsPage,
   type ExamType,
 } from '@/lib/types'
@@ -36,6 +46,9 @@ function parseMeta(formData: FormData): { input?: MockTestMetaInput; error?: Act
   const examType = String(formData.get('examType') ?? '')
   const yearLevelRaw = String(formData.get('yearLevel') ?? '').trim()
   const yearLevel = yearLevelRaw ? Number(yearLevelRaw) : null
+  const mockType = String(formData.get('mockType') ?? 'full_mock')
+  const instructions = String(formData.get('instructions') ?? '').trim() || null
+  const difficultyLabel = String(formData.get('difficultyLabel') ?? '').trim() || null
 
   const fieldErrors: Record<string, string> = {}
   if (!title) {
@@ -43,6 +56,9 @@ function parseMeta(formData: FormData): { input?: MockTestMetaInput; error?: Act
   }
   if (!(EXAM_TYPES as readonly string[]).includes(examType)) {
     fieldErrors.examType = 'Choose an exam type.'
+  }
+  if (!(MOCK_TYPES as readonly string[]).includes(mockType)) {
+    fieldErrors.mockType = 'Choose a mock type.'
   }
   if (yearLevel !== null && (!Number.isInteger(yearLevel) || yearLevel < 1 || yearLevel > 12)) {
     fieldErrors.yearLevel = 'Year level must be between 1 and 12.'
@@ -52,7 +68,17 @@ function parseMeta(formData: FormData): { input?: MockTestMetaInput; error?: Act
     return { error: { success: false, message: 'Please fix the highlighted fields.', fieldErrors } }
   }
 
-  return { input: { title, description, examType: examType as ExamType, yearLevel } }
+  return {
+    input: {
+      title,
+      description,
+      examType: examType as ExamType,
+      yearLevel,
+      mockType: mockType as MockType,
+      instructions,
+      difficultyLabel,
+    },
+  }
 }
 
 export async function createMockTestAction(
@@ -221,6 +247,39 @@ export async function moveMockQuestionAction(
   }
 }
 
+export async function updateMockDisplayOrderAction(id: string, displayOrder: number): Promise<ActionResult> {
+  const profile = await requireProfile({ allowedRoles: [...ADMIN_PORTAL_ROLES] })
+
+  if (!Number.isInteger(displayOrder) || displayOrder < 0) {
+    return { success: false, message: 'Order must be a whole number of 0 or more.' }
+  }
+
+  try {
+    await updateMockDisplayOrder(id, displayOrder, profile.id)
+    revalidateMockPaths(id)
+    return { success: true, message: 'Order updated.' }
+  } catch (caught) {
+    return {
+      success: false,
+      message: caught instanceof Error ? caught.message : 'Unable to update the order.',
+    }
+  }
+}
+
+/** Coverage across all published mocks, re-fetched when the admin changes filters. */
+export async function getMockProgramCoverageAction(
+  filters: MockProgramFilters
+): Promise<ActionResult<MockProgramCoverage>> {
+  await requireProfile({ allowedRoles: [...ADMIN_PORTAL_ROLES] })
+
+  try {
+    const data = await getMockProgramCoverage(filters)
+    return { success: true, data }
+  } catch {
+    return { success: false, message: 'Unable to load program coverage.' }
+  }
+}
+
 /** Bank search for the "add questions" picker — same paginated query as the Question Bank. */
 export async function searchBankQuestionsAction(filters: {
   query?: string
@@ -238,5 +297,43 @@ export async function searchBankQuestionsAction(filters: {
     return { success: true, data }
   } catch {
     return { success: false, message: 'Unable to search the question bank.' }
+  }
+}
+
+/**
+ * Assisted selection: given target filters and a count, suggests published bank
+ * questions the admin can review before adding — never auto-added, never
+ * auto-published. Excludes questions already in the mock. Prefers a spread by
+ * fetching a wider pool and trimming to the requested count.
+ */
+export async function assistedMockSuggestionsAction(input: {
+  subjectId?: string
+  topicId?: string
+  difficulty?: string
+  count: number
+  excludeQuestionIds: string[]
+  includeUnpublished?: boolean
+}): Promise<ActionResult<{ questions: AdminQuestionListItem[] }>> {
+  await requireProfile({ allowedRoles: [...ADMIN_PORTAL_ROLES] })
+
+  const count = Math.max(1, Math.min(50, Math.round(input.count || 0)))
+
+  try {
+    const page = await getAdminQuestionsPage({
+      subjectId: input.subjectId,
+      topicId: input.topicId,
+      difficulty: input.difficulty,
+      status: input.includeUnpublished ? undefined : 'published',
+      answerFormat: 'single_choice',
+      pageSize: '100',
+      sort: 'updated_desc',
+    })
+
+    const exclude = new Set(input.excludeQuestionIds)
+    const questions = page.items.filter((item) => !exclude.has(item.id)).slice(0, count)
+
+    return { success: true, data: { questions } }
+  } catch {
+    return { success: false, message: 'Unable to build suggestions from the question bank.' }
   }
 }

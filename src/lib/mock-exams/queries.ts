@@ -401,7 +401,7 @@ export async function getSectionedMockRunnerData(
   const supabase = await createClient()
   const { data: session, error } = await supabase
     .from('mock_exam_sessions')
-    .select('id, mock_type, exam_type, status')
+    .select('id, mock_type, exam_type, status, mock_test_id, mock_test:mock_tests(title)')
     .eq('id', sessionId)
     .eq('student_id', studentId)
     .maybeSingle()
@@ -500,9 +500,13 @@ export async function getSectionedMockRunnerData(
     }
   })
 
+  const curatedTitle = getRelationValue(
+    (session as { mock_test: { title: string }[] | { title: string } | null }).mock_test
+  )?.title
+
   return {
     sessionId: session.id,
-    mockName: MOCK_EXAM_CONFIGS[session.mock_type as MockExamType]?.name ?? 'Mock exam',
+    mockName: curatedTitle ?? MOCK_EXAM_CONFIGS[session.mock_type as MockExamType]?.name ?? 'Mock exam',
     examType: session.exam_type as ExamType,
     status: session.status as MockExamStatus,
     sections,
@@ -525,11 +529,13 @@ function mapSummaryRow(row: {
   submitted_at: string | null
   created_at: string
   subject: { name: string }[] | { name: string } | null
+  mock_test: { title: string }[] | { title: string } | null
 }): MockExamSummaryRow {
+  const curatedTitle = getRelationValue(row.mock_test)?.title
   return {
     id: row.id,
     mockType: row.mock_type as MockExamType,
-    mockName: MOCK_EXAM_CONFIGS[row.mock_type as MockExamType]?.name ?? 'Mock exam',
+    mockName: curatedTitle ?? MOCK_EXAM_CONFIGS[row.mock_type as MockExamType]?.name ?? 'Mock exam',
     examType: row.exam_type as ExamType,
     subjectName: getRelationValue(row.subject)?.name ?? null,
     status: row.status as MockExamStatus,
@@ -546,7 +552,7 @@ function mapSummaryRow(row: {
 }
 
 const SUMMARY_COLUMNS =
-  'id, mock_type, exam_type, status, total_questions, correct_count, incorrect_count, unanswered_count, accuracy, total_time_seconds, started_at, submitted_at, created_at, subject:subjects(name)'
+  'id, mock_type, exam_type, status, total_questions, correct_count, incorrect_count, unanswered_count, accuracy, total_time_seconds, started_at, submitted_at, created_at, subject:subjects(name), mock_test:mock_tests(title)'
 
 /** Recent mock exam attempts for the landing page. */
 export async function getRecentMockExams(

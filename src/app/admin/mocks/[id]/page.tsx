@@ -5,6 +5,7 @@ import { ArrowLeftIcon } from 'lucide-react'
 import { MockEditor } from '@/components/admin/mocks/mock-editor'
 import { PageHeader } from '@/components/layout/page-header'
 import { requireProfile } from '@/lib/auth/require-profile'
+import { computeMockCoverage } from '@/lib/mock-tests/coverage'
 import { getMockTestAttemptStats, getMockTestById } from '@/lib/mock-tests/queries'
 import { getExistingTags, getSubjects, getTopicsBySubject } from '@/lib/questions/queries'
 import { ADMIN_PORTAL_ROLES, type QuestionOptionLabel } from '@/lib/types'
@@ -25,9 +26,13 @@ export default async function AdminMockDetailPage({ params }: AdminMockDetailPag
   const correctByQuestionId: Record<string, QuestionOptionLabel> = {}
   for (const section of detail.sections) {
     for (const question of section.questions) {
-      correctByQuestionId[question.questionId] = question.correctOptionLabel
+      if (question.correctOptionLabel) {
+        correctByQuestionId[question.questionId] = question.correctOptionLabel
+      }
     }
   }
+
+  const coverage = computeMockCoverage(detail)
 
   const [stats, subjects, topics, tags] = await Promise.all([
     getMockTestAttemptStats(id, correctByQuestionId),
@@ -52,6 +57,7 @@ export default async function AdminMockDetailPage({ params }: AdminMockDetailPag
       <MockEditor
         detail={detail}
         stats={stats}
+        coverage={coverage}
         subjects={subjects}
         topics={topics}
         tags={tags.sort((a, b) => a.localeCompare(b))}

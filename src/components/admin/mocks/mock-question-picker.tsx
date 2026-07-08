@@ -4,7 +4,11 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, SearchIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { addMockQuestionsAction, searchBankQuestionsAction } from '@/app/admin/mocks/actions'
+import {
+  addMockQuestionsAction,
+  assistedMockSuggestionsAction,
+  searchBankQuestionsAction,
+} from '@/app/admin/mocks/actions'
 import { QuestionStatusBadge } from '@/components/admin/question-status-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Label } from '@/components/ui/label'
 import type {
   AdminQuestionsPage,
   SubjectRecord,
@@ -32,6 +37,7 @@ import type {
 } from '@/lib/types'
 
 const ALL = 'all'
+type PickerMode = 'search' | 'assisted'
 const difficultyValues = ['1', '2', '3', '4', '5'] as const
 
 interface MockQuestionPickerProps {
@@ -64,6 +70,7 @@ export function MockQuestionPicker({
 }: MockQuestionPickerProps) {
   const [isAdding, startAdding] = useTransition()
 
+  const [mode, setMode] = useState<PickerMode>('search')
   const [query, setQuery] = useState('')
   const [subjectId, setSubjectId] = useState(ALL)
   const [topicId, setTopicId] = useState(ALL)
@@ -71,6 +78,7 @@ export function MockQuestionPicker({
   const [difficulty, setDifficulty] = useState(ALL)
   const [status, setStatus] = useState('published')
   const [page, setPage] = useState(1)
+  const [assistCount, setAssistCount] = useState('10')
 
   const [results, setResults] = useState<AdminQuestionsPage | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -83,6 +91,7 @@ export function MockQuestionPicker({
   // Reset per section open; default the subject filter to the section's subject.
   useEffect(() => {
     if (section) {
+      setMode('search')
       setQuery('')
       setSubjectId(section.subjectId ?? ALL)
       setTopicId(ALL)
@@ -90,6 +99,8 @@ export function MockQuestionPicker({
       setDifficulty(ALL)
       setStatus('published')
       setPage(1)
+      setAssistCount('10')
+      setResults(null)
       setSelectedIds(new Set())
     }
   }, [section])
@@ -123,11 +134,39 @@ export function MockQuestionPicker({
   )
 
   useEffect(() => {
-    if (open) {
+    if (open && mode === 'search') {
       void search(1)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, subjectId, topicId, tag, difficulty, status])
+  }, [open, mode, subjectId, topicId, tag, difficulty, status])
+
+  /** Assisted selection: suggest published questions matching the targets, pre-ticked for review. */
+  const runAssist = useCallback(async () => {
+    const requestId = ++requestSeq.current
+    setIsLoading(true)
+    setLoadError(null)
+    const result = await assistedMockSuggestionsAction({
+      subjectId: subjectId === ALL ? undefined : subjectId,
+      topicId: topicId === ALL ? undefined : topicId,
+      difficulty: difficulty === ALL ? undefined : difficulty,
+      count: Number(assistCount) || 10,
+      excludeQuestionIds: [...existingQuestionIds],
+    })
+    if (requestId !== requestSeq.current) {
+      return
+    }
+    setIsLoading(false)
+    if (result.success && result.data) {
+      const items = result.data.questions
+      setResults({ items, totalCount: items.length, page: 1, pageSize: items.length || 1, pageCount: 1 })
+      setSelectedIds(new Set(items.map((question) => question.id)))
+      if (items.length === 0) {
+        toast.info('No matching published questions were found for those targets.')
+      }
+    } else {
+      setLoadError(result.message ?? 'Unable to build suggestions from the question bank.')
+    }
+  }, [subjectId, topicId, difficulty, assistCount, existingQuestionIds])
 
   const filteredTopics = subjectId === ALL ? topics : topics.filter((topic) => topic.subject_id === subjectId)
 
@@ -174,59 +213,123 @@ export function MockQuestionPicker({
         <DialogHeader>
           <DialogTitle>Add questions to {section?.name}</DialogTitle>
           <DialogDescription>
-            Search the bank and tick the questions to add. Draft questions can be added while you
-            build, but publish them before publishing the mock.
+            Search the bank yourself, or let assisted selection suggest a set to review. Draft
+            questions can be added while you build, but publish them before publishing the mock.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Filters */}
-        <div className="space-y-2">
-          <form
-            className="flex items-center gap-2"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void search(1)
-            }}
-          >
-            <div className="relative flex-1">
-              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search question text…"
-                className="pl-8"
-                aria-label="Search questions"
-              />
-            </div>
-            <Button type="submit" variant="secondary" size="sm">
-              Search
-            </Button>
-          </form>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {(
-              [
-                { value: subjectId, set: (v: string) => { setSubjectId(v); setTopicId(ALL) }, items: subjectItems, label: 'Subject' },
-                { value: topicId, set: setTopicId, items: topicItems, label: 'Topic' },
-                { value: tag, set: setTag, items: tagItems, label: 'Tag' },
-                { value: difficulty, set: setDifficulty, items: difficultyItems, label: 'Difficulty' },
-                { value: status, set: setStatus, items: statusItems, label: 'Status' },
-              ] as const
-            ).map((filter) => (
-              <Select key={filter.label} value={filter.value} onValueChange={filter.set} items={filter.items}>
-                <SelectTrigger className="h-8 w-full text-xs" aria-label={filter.label}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(filter.items).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ))}
-          </div>
+        {/* Mode toggle */}
+        <div className="inline-flex w-fit rounded-lg border border-border bg-muted p-1">
+          {(['search', 'assisted'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setMode(value)}
+              className={
+                mode === value
+                  ? 'rounded-md bg-card px-3 py-1 text-xs font-medium capitalize text-foreground shadow-sm'
+                  : 'rounded-md px-3 py-1 text-xs font-medium capitalize text-muted-foreground hover:text-foreground'
+              }
+            >
+              {value === 'search' ? 'Search bank' : 'Assisted'}
+            </button>
+          ))}
         </div>
+
+        {/* Filters */}
+        {mode === 'search' ? (
+          <div className="space-y-2">
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void search(1)
+              }}
+            >
+              <div className="relative flex-1">
+                <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search question text…"
+                  className="pl-8"
+                  aria-label="Search questions"
+                />
+              </div>
+              <Button type="submit" variant="secondary" size="sm">
+                Search
+              </Button>
+            </form>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {(
+                [
+                  { value: subjectId, set: (v: string) => { setSubjectId(v); setTopicId(ALL) }, items: subjectItems, label: 'Subject' },
+                  { value: topicId, set: setTopicId, items: topicItems, label: 'Topic' },
+                  { value: tag, set: setTag, items: tagItems, label: 'Tag' },
+                  { value: difficulty, set: setDifficulty, items: difficultyItems, label: 'Difficulty' },
+                  { value: status, set: setStatus, items: statusItems, label: 'Status' },
+                ] as const
+              ).map((filter) => (
+                <Select key={filter.label} value={filter.value} onValueChange={filter.set} items={filter.items}>
+                  <SelectTrigger className="h-8 w-full text-xs" aria-label={filter.label}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(filter.items).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
+            <p className="text-xs text-muted-foreground">
+              Set targets and suggest published questions to review. Nothing is added until you confirm.
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {(
+                [
+                  { value: subjectId, set: (v: string) => { setSubjectId(v); setTopicId(ALL) }, items: subjectItems, label: 'Subject' },
+                  { value: topicId, set: setTopicId, items: topicItems, label: 'Topic' },
+                  { value: difficulty, set: setDifficulty, items: difficultyItems, label: 'Difficulty' },
+                ] as const
+              ).map((filter) => (
+                <Select key={filter.label} value={filter.value} onValueChange={filter.set} items={filter.items}>
+                  <SelectTrigger className="h-8 w-full text-xs" aria-label={filter.label}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(filter.items).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ))}
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="assist-count" className="text-xs text-muted-foreground">
+                  How many
+                </Label>
+                <Input
+                  id="assist-count"
+                  value={assistCount}
+                  onChange={(event) => setAssistCount(event.target.value)}
+                  inputMode="numeric"
+                  className="h-8 w-16 text-xs"
+                  aria-label="Number of questions to suggest"
+                />
+              </div>
+            </div>
+            <Button type="button" size="sm" disabled={isLoading} onClick={() => void runAssist()}>
+              {isLoading ? 'Suggesting…' : 'Suggest questions'}
+            </Button>
+          </div>
+        )}
 
         {/* Results */}
         <div className="min-h-0 flex-1 space-y-1 overflow-y-auto rounded-xl border border-border p-1.5">
