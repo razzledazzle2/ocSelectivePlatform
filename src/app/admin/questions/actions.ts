@@ -10,6 +10,8 @@ import {
   markQuestionReviewed,
   parseQuestionWriteInput,
   publishQuestion,
+  restoreQuestion,
+  softDeleteQuestion,
   unpublishQuestion,
   updateQuestion,
   validateStimulusExists,
@@ -151,6 +153,51 @@ export async function archiveQuestionAction(questionId: string): Promise<ActionR
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Unable to archive the question right now.',
+    }
+  }
+}
+
+export async function softDeleteQuestionAction(
+  questionId: string,
+  reason?: string
+): Promise<ActionResult> {
+  const profile = await requireProfile({
+    allowedRoles: [...ADMIN_PORTAL_ROLES],
+  })
+
+  try {
+    await softDeleteQuestion(questionId, profile.id, reason)
+    revalidateQuestionPaths(questionId)
+
+    return {
+      success: true,
+      message: 'Question moved to trash.',
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to move the question to trash right now.',
+    }
+  }
+}
+
+export async function restoreQuestionAction(questionId: string): Promise<ActionResult> {
+  const profile = await requireProfile({
+    allowedRoles: [...ADMIN_PORTAL_ROLES],
+  })
+
+  try {
+    await restoreQuestion(questionId, profile.id)
+    revalidateQuestionPaths(questionId)
+
+    return {
+      success: true,
+      message: 'Question restored to archived.',
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to restore the question right now.',
     }
   }
 }

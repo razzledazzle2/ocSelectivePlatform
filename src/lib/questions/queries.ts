@@ -199,6 +199,7 @@ type AdminQuestionRawRow = Pick<
   | 'updated_at'
   | 'published_at'
   | 'archived_at'
+  | 'deleted_at'
 > & {
   tags: string[] | null
   subject: { name: string }[] | { name: string } | null
@@ -224,6 +225,7 @@ const ADMIN_QUESTION_LIST_SELECT = `
   updated_at,
   published_at,
   archived_at,
+  deleted_at,
   subject:subjects(name),
   topic:topics(name),
   question_type:question_types(name),
@@ -270,6 +272,7 @@ function mapAdminQuestionRow(question: AdminQuestionRawRow): AdminQuestionListIt
     updatedAt: question.updated_at,
     publishedAt: question.published_at,
     archivedAt: question.archived_at,
+    deletedAt: question.deleted_at,
     stats: null,
   }
 }
@@ -280,8 +283,16 @@ interface QuestionFilterBuilder {
   ilike(column: string, pattern: string): QuestionFilterBuilder
   contains(column: string, value: unknown): QuestionFilterBuilder
   in(column: string, values: readonly unknown[]): QuestionFilterBuilder
+  is(column: string, value: unknown): QuestionFilterBuilder
   not(column: string, operator: string, value: unknown): QuestionFilterBuilder
 }
+
+/**
+ * Synthetic status value for the admin bank "trash" view. It is NOT a
+ * questions.status value (soft delete is tracked by deleted_at); selecting it
+ * flips the shared filter from "hide trash" to "show only trash".
+ */
+export const DELETED_STATUS_FILTER = 'deleted'
 
 /** A resolved set of question ids to include or exclude (used by the asset filter). */
 export interface AssetIdConstraint {
@@ -345,6 +356,13 @@ export function applyAdminQuestionFilters<T>(
   assetIds?: AssetIdConstraint | null
 ): T {
   let next = query as unknown as QuestionFilterBuilder
+  // Soft delete: the "Deleted (Trash)" filter shows ONLY trashed questions;
+  // every other view (including no status filter) excludes them entirely.
+  if (filters.status === DELETED_STATUS_FILTER) {
+    next = next.not('deleted_at', 'is', null)
+  } else {
+    next = next.is('deleted_at', null)
+  }
   if (assetIds) {
     if (assetIds.mode === 'in') {
       next = next.in('id', assetIds.ids.length ? assetIds.ids : [IMPOSSIBLE_ID])
@@ -370,7 +388,8 @@ export function applyAdminQuestionFilters<T>(
   if (filters.difficulty) {
     next = next.eq('difficulty', Number(filters.difficulty))
   }
-  if (filters.status) {
+  // 'deleted' is a synthetic trash filter handled above, not a real status.
+  if (filters.status && filters.status !== DELETED_STATUS_FILTER) {
     next = next.eq('status', filters.status)
   }
   if (filters.answerFormat) {
@@ -543,29 +562,42 @@ export interface QuestionStatusCounts {
   draft: number
   reviewed: number
   archived: number
+  /** Soft-deleted (trash) questions; excluded from every other count. */
+  deleted: number
 }
 
-/** Whole-bank counts by status for the Question Bank metric chips (ignores filters). */
+/**
+ * Whole-bank counts by status for the Question Bank metric chips (ignores
+ * filters). Every status count excludes trashed questions so the totals stay
+ * honest; `deleted` counts the trash on its own.
+ */
 export async function getQuestionStatusCounts(): Promise<QuestionStatusCounts> {
   const supabase = await createClient()
 
   const countByStatus = (status?: string) => {
-    let query = supabase.from('questions').select('id', { count: 'exact', head: true })
+    let query = supabase
+      .from('questions')
+      .select('id', { count: 'exact', head: true })
+      .is('deleted_at', null)
     if (status) {
       query = query.eq('status', status)
     }
     return query
   }
 
-  const [total, published, draft, reviewed, archived] = await Promise.all([
+  const [total, published, draft, reviewed, archived, deleted] = await Promise.all([
     countByStatus(),
     countByStatus('published'),
     countByStatus('draft'),
     countByStatus('reviewed'),
     countByStatus('archived'),
+    supabase
+      .from('questions')
+      .select('id', { count: 'exact', head: true })
+      .not('deleted_at', 'is', null),
   ])
 
-  if (total.error || published.error || draft.error || reviewed.error || archived.error) {
+  if (total.error || published.error || draft.error || reviewed.error || archived.error || deleted.error) {
     throw new Error('Unable to load question status counts.')
   }
 
@@ -575,6 +607,7 @@ export async function getQuestionStatusCounts(): Promise<QuestionStatusCounts> {
     draft: draft.count ?? 0,
     reviewed: reviewed.count ?? 0,
     archived: archived.count ?? 0,
+    deleted: deleted.count ?? 0,
   }
 }
 

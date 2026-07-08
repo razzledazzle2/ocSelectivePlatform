@@ -105,6 +105,7 @@ export async function getPracticeQuestionPool(
     .from('questions')
     .select(STUDENT_QUESTION_SELECT)
     .eq('status', 'published')
+    .is('deleted_at', null)
     .eq('answer_format', 'single_choice')
     .eq('exam_type', filters.examType)
     .eq('subject_id', filters.subjectId)
@@ -170,6 +171,7 @@ export async function getStudentPracticeQuestion(
     .select(STUDENT_QUESTION_SELECT)
     .eq('id', questionId)
     .eq('status', 'published')
+    .is('deleted_at', null)
     .maybeSingle()
 
   if (error) {

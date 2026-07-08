@@ -8,6 +8,8 @@ import {
   RocketIcon,
   RotateCcwIcon,
   SearchIcon,
+  Trash2Icon,
+  Undo2Icon,
   XIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -18,6 +20,8 @@ import {
   duplicateQuestionAction,
   getQuestionPreviewAction,
   publishQuestionAction,
+  restoreQuestionAction,
+  softDeleteQuestionAction,
   unpublishQuestionAction,
 } from '@/app/admin/questions/actions'
 import { QuestionListRow } from '@/components/admin/question-list-row'
@@ -129,6 +133,9 @@ export function QuestionBankWorkspace({
   const statusItems = {
     [ALL]: 'All statuses',
     ...Object.fromEntries(QUESTION_STATUSES.map((v) => [v, v[0].toUpperCase() + v.slice(1)])),
+    // Synthetic "trash" view — soft-deleted questions (tracked by deleted_at,
+    // not a real status). Selecting it shows ONLY trashed questions.
+    deleted: 'Deleted (Trash)',
   }
   const assetItems = {
     [ALL]: 'All assets',
@@ -339,6 +346,34 @@ export function QuestionBankWorkspace({
     setArchiveIds(null)
   }
 
+  // -- Soft delete (trash) confirmation + restore --------------------------------
+  const [deleteIds, setDeleteIds] = useState<string[] | null>(null)
+
+  /** Only archived, not-already-trashed questions can be moved to trash. */
+  function requestDelete(candidates: AdminQuestionListItem[]) {
+    const ids = candidates.filter((q) => q.status === 'archived' && !q.deletedAt).map((q) => q.id)
+    if (ids.length === 0) {
+      toast.error('Only archived questions can be moved to trash. Archive it first.')
+      return
+    }
+    setDeleteIds(ids)
+  }
+
+  function confirmDelete() {
+    if (deleteIds && deleteIds.length > 0) {
+      runStatusAction(deleteIds, softDeleteQuestionAction, 'Question moved to trash')
+    }
+    setDeleteIds(null)
+  }
+
+  function restore(candidates: AdminQuestionListItem[]) {
+    const ids = candidates.filter((q) => q.deletedAt).map((q) => q.id)
+    if (ids.length === 0) {
+      return
+    }
+    runStatusAction(ids, restoreQuestionAction, 'Question restored')
+  }
+
   function publishToggle(question: AdminQuestionListItem) {
     if (question.status === 'published') {
       runStatusAction([question.id], unpublishQuestionAction, 'Question moved back to draft')
@@ -361,6 +396,8 @@ export function QuestionBankWorkspace({
         previewItem && runRedirectAction(() => createSimilarQuestionAction(previewItem.id))
       }
       onArchive={() => previewItem && setArchiveIds([previewItem.id])}
+      onDelete={() => previewItem && requestDelete([previewItem])}
+      onRestore={() => previewItem && restore([previewItem])}
     />
   )
 
@@ -576,6 +613,27 @@ export function QuestionBankWorkspace({
                 <ArchiveIcon className="size-3.5" />
                 Archive
               </Button>
+              {checkedQuestions.some((q) => q.deletedAt) ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => restore(checkedQuestions)}
+                >
+                  <Undo2Icon className="size-3.5" />
+                  Restore
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => requestDelete(checkedQuestions)}
+                >
+                  <Trash2Icon className="size-3.5" />
+                  Move to trash
+                </Button>
+              )}
               <Button size="sm" variant="outline" onClick={() => exportQuestionsCsv(checkedQuestions)}>
                 <DownloadIcon className="size-3.5" />
                 Export selected
@@ -606,6 +664,7 @@ export function QuestionBankWorkspace({
                   {' '}
                   · {statusCounts.published} published · {statusCounts.draft} draft ·{' '}
                   {statusCounts.archived} archived
+                  {statusCounts.deleted > 0 ? ` · ${statusCounts.deleted} in trash` : ''}
                 </span>
               </p>
             </div>
@@ -655,6 +714,8 @@ export function QuestionBankWorkspace({
                     runRedirectAction(() => createSimilarQuestionAction(question.id))
                   }
                   onArchive={() => setArchiveIds([question.id])}
+                  onDelete={() => requestDelete([question])}
+                  onRestore={() => restore([question])}
                 />
               ))}
             </div>
@@ -706,6 +767,26 @@ export function QuestionBankWorkspace({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmArchive}>Archive</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* -- Move to trash confirmation --------------------------------------- */}
+      <AlertDialog open={deleteIds !== null} onOpenChange={(open) => !open && setDeleteIds(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Move {deleteIds && deleteIds.length > 1 ? `${deleteIds.length} questions` : 'this question'} to
+              trash?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will move the question to trash. It will no longer appear in student practice or normal
+              admin lists. You can restore it later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Move to trash</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

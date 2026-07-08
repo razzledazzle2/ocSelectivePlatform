@@ -71,6 +71,7 @@ export async function getDueRevisionQueue(studentId: string, limit = 10): Promis
     `)
     .in('id', questionIds)
     .eq('status', 'published')
+    .is('deleted_at', null)
     // Revision retries are MCQ-only for now — writing prompts are not gradeable here.
     .eq('answer_format', 'single_choice')
 

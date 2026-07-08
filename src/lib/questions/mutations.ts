@@ -411,6 +411,76 @@ export async function archiveQuestion(questionId: string, actorId: string): Prom
 }
 
 /**
+ * Moves an ARCHIVED question to the trash (soft delete). The question keeps its
+ * status and all linked data (options, stimuli, assets, attempts, mock history,
+ * analytics) — it is only hidden from admin lists, student practice, revision
+ * and mock selection. Deleting is only allowed from the archived state so a
+ * live/draft question can never vanish in one step; restore brings it back.
+ */
+export async function softDeleteQuestion(
+  questionId: string,
+  actorId: string,
+  reason?: string | null
+): Promise<void> {
+  const supabase = await createClient()
+
+  const { data: existing, error: loadError } = await supabase
+    .from('questions')
+    .select('status, deleted_at')
+    .eq('id', questionId)
+    .maybeSingle()
+
+  if (loadError) {
+    throw new Error('Unable to load the question before deleting.')
+  }
+  if (!existing) {
+    throw new Error('This question could not be found.')
+  }
+  if (existing.deleted_at) {
+    return // Already in the trash — nothing to do.
+  }
+  if (existing.status !== 'archived') {
+    throw new Error('Archive this question before deleting it.')
+  }
+
+  const { error } = await supabase
+    .from('questions')
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: actorId,
+      delete_reason: reason?.trim() || null,
+      updated_by: actorId,
+    })
+    .eq('id', questionId)
+
+  if (error) {
+    throw new Error('Unable to move the question to the trash.')
+  }
+}
+
+/**
+ * Restores a trashed question. It returns to the archived state (its status was
+ * preserved through the delete), so an admin can review it and re-publish or
+ * move it back to draft from there.
+ */
+export async function restoreQuestion(questionId: string, actorId: string): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('questions')
+    .update({
+      deleted_at: null,
+      deleted_by: null,
+      delete_reason: null,
+      updated_by: actorId,
+    })
+    .eq('id', questionId)
+
+  if (error) {
+    throw new Error('Unable to restore the question from the trash.')
+  }
+}
+
+/**
  * Asset statuses that block publishing: a placeholder with no file, or one that
  * was reviewed and rejected. Publishing either would show students a broken /
  * "coming soon" diagram in place of a required visual.

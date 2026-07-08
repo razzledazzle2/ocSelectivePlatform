@@ -327,6 +327,10 @@ export interface QuestionRecord {
   updated_by: string | null
   published_at: string | null
   archived_at: string | null
+  /** Soft-delete (trash) stamp; null unless the question is in the trash. */
+  deleted_at: string | null
+  deleted_by: string | null
+  delete_reason: string | null
   created_at: string
   updated_at: string
 }
@@ -425,6 +429,8 @@ export interface AdminQuestionListItem {
   updatedAt: string
   publishedAt: string | null
   archivedAt: string | null
+  /** Soft-delete (trash) stamp; null unless the question is in the trash. */
+  deletedAt: string | null
   /** Attached for the visible page only; null until stats are hydrated. */
   stats: AdminQuestionStats | null
 }

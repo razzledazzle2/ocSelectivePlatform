@@ -22,3 +22,15 @@ export function QuestionStatusBadge({ status, className }: QuestionStatusBadgePr
     </Badge>
   )
 }
+
+/** Red "Deleted" chip shown alongside the status badge for trashed questions. */
+export function QuestionDeletedBadge({ className }: { className?: string }) {
+  return (
+    <Badge
+      variant="outline"
+      className={cn('border-transparent bg-destructive/10 text-destructive', className)}
+    >
+      Deleted
+    </Badge>
+  )
+}

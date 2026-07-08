@@ -11,12 +11,14 @@ import {
   RocketIcon,
   RotateCcwIcon,
   SparklesIcon,
+  Trash2Icon,
+  Undo2Icon,
 } from 'lucide-react'
 
 import { QuestionPreview } from '@/components/questions/question-preview'
 import { QuestionAssetStatus } from '@/components/admin/question-asset-status'
 import { QuestionStatsPanel } from '@/components/admin/question-stats-panel'
-import { QuestionStatusBadge } from '@/components/admin/question-status-badge'
+import { QuestionDeletedBadge, QuestionStatusBadge } from '@/components/admin/question-status-badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -50,6 +52,8 @@ interface QuestionPreviewPaneProps {
   onDuplicate: () => void
   onCreateSimilar: () => void
   onArchive: () => void
+  onDelete: () => void
+  onRestore: () => void
   className?: string
 }
 
@@ -76,8 +80,11 @@ export function QuestionPreviewPane({
   onDuplicate,
   onCreateSimilar,
   onArchive,
+  onDelete,
+  onRestore,
   className,
 }: QuestionPreviewPaneProps) {
+  const isDeleted = Boolean(item?.deletedAt)
   if (!item) {
     return (
       <div
@@ -105,6 +112,7 @@ export function QuestionPreviewPane({
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold text-foreground">Preview</h2>
           <QuestionStatusBadge status={item.status} />
+          {isDeleted ? <QuestionDeletedBadge /> : null}
         </div>
         <div className="flex items-center gap-1.5">
           <Link
@@ -129,33 +137,46 @@ export function QuestionPreviewPane({
               <span className="sr-only">More actions</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              {item.status === 'published' ? (
-                <DropdownMenuItem onClick={onPublishToggle}>
-                  <RotateCcwIcon className="size-4" />
-                  Unpublish
+              {isDeleted ? (
+                <DropdownMenuItem onClick={onRestore}>
+                  <Undo2Icon className="size-4" />
+                  Restore
                 </DropdownMenuItem>
               ) : (
-                <DropdownMenuItem onClick={onPublishToggle} disabled={item.status === 'archived'}>
-                  <RocketIcon className="size-4" />
-                  Publish
-                </DropdownMenuItem>
+                <>
+                  {item.status === 'published' ? (
+                    <DropdownMenuItem onClick={onPublishToggle}>
+                      <RotateCcwIcon className="size-4" />
+                      Unpublish
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onClick={onPublishToggle} disabled={item.status === 'archived'}>
+                      <RocketIcon className="size-4" />
+                      Publish
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={onDuplicate}>
+                    <CopyIcon className="size-4" />
+                    Duplicate
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onCreateSimilar}>
+                    <SparklesIcon className="size-4" />
+                    Create similar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onArchive} disabled={item.status === 'archived'}>
+                    <ArchiveIcon className="size-4" />
+                    Archive
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={onDelete}
+                    disabled={item.status !== 'archived'}
+                  >
+                    <Trash2Icon className="size-4" />
+                    Move to trash
+                  </DropdownMenuItem>
+                </>
               )}
-              <DropdownMenuItem onClick={onDuplicate}>
-                <CopyIcon className="size-4" />
-                Duplicate
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onCreateSimilar}>
-                <SparklesIcon className="size-4" />
-                Create similar
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={onArchive}
-                disabled={item.status === 'archived'}
-              >
-                <ArchiveIcon className="size-4" />
-                Archive
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
