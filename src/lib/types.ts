@@ -30,7 +30,15 @@ export const STIMULUS_TYPES = [
 ] as const
 export const STIMULUS_STATUSES = ['active', 'archived'] as const
 export const ASSET_TYPES = ['image', 'diagram', 'svg', 'table', 'chart', 'audio'] as const
-export const ASSET_STATUSES = ['pending', 'uploaded', 'archived'] as const
+// pending   → placeholder from a CSV ref, no file yet
+// generated → produced by the deterministic SVG pipeline, awaiting review
+// uploaded  → a binary/external file is attached and usable
+// approved  → reviewed and cleared for publishing
+// rejected  → reviewed and sent back (do not publish)
+// archived  → retired
+export const ASSET_STATUSES = ['pending', 'generated', 'uploaded', 'approved', 'rejected', 'archived'] as const
+/** Asset states that are safe to show to students / allow publishing. */
+export const READY_ASSET_STATUSES = ['generated', 'uploaded', 'approved'] as const
 export const WRITING_TEXT_TYPES = [
   'narrative',
   'persuasive',
@@ -82,6 +90,8 @@ export interface AssetRecord {
   generation_prompt: string | null
   license_notes: string | null
   metadata: Record<string, unknown>
+  /** Structured spec (coordinate_grid, bar_chart, …) the SVG can be regenerated from. */
+  spec: Record<string, unknown> | null
   status: AssetStatus
   created_at?: string
   updated_at?: string
@@ -158,6 +168,8 @@ export interface QuestionSourceInfo {
 export interface StudentAssetRef {
   id: string
   assetType: AssetType
+  /** Raw CSV/import reference (e.g. asset://question-assets/...); lets the renderer resolve public assets. */
+  externalRef: string | null
   storagePath: string | null
   externalUrl: string | null
   altText: string | null
@@ -365,6 +377,8 @@ export interface AdminQuestionFilters {
   difficulty?: string
   status?: string
   answerFormat?: string
+  /** Asset readiness filter: 'has' | 'pending' | 'missing' | 'approved'. */
+  assetState?: string
   query?: string
   sort?: string
   page?: string
@@ -402,6 +416,8 @@ export interface AdminQuestionListItem {
   answerFormat: AnswerFormat
   hasStimulus: boolean
   hasAssets: boolean
+  /** Readiness of linked assets: 'none' (no assets), 'pending' (needs work), 'ready'. */
+  assetState: 'none' | 'pending' | 'ready'
   optionsCount: number
   correctOptionLabel: QuestionOptionLabel | null
   tags: string[]

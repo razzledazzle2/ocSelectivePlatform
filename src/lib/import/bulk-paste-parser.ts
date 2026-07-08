@@ -57,6 +57,8 @@ function emptyRow(rowNumber: number): QuestionImportRow {
     licenseNotes: '',
     assetGenerationPrompt: '',
     assetAltText: '',
+    assetSpecJson: '',
+    assetStatus: '',
   }
 }
 

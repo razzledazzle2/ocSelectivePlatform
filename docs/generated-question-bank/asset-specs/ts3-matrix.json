@@ -1,0 +1,29 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-matrix.svg",
+  "external_id": "ts3-010",
+  "asset_type": "svg",
+  "alt_text": "A three-by-three grid of shapes. Each row runs circle, square, triangle from left to right; each column grows small, medium, large from top to bottom. The bottom-right cell is a dashed question-mark box. The missing shape is a large triangle.",
+  "spec": {
+    "type": "matrix_pattern",
+    "rows": 3,
+    "cols": 3,
+    "cell_size": 84,
+    "grid": [
+      [
+        { "glyph": { "shape": "circle", "scale": 0.6 } },
+        { "glyph": { "shape": "square", "scale": 0.6 } },
+        { "glyph": { "shape": "triangle", "scale": 0.6 } }
+      ],
+      [
+        { "glyph": { "shape": "circle", "scale": 0.85 } },
+        { "glyph": { "shape": "square", "scale": 0.85 } },
+        { "glyph": { "shape": "triangle", "scale": 0.85 } }
+      ],
+      [
+        { "glyph": { "shape": "circle", "scale": 1.1 } },
+        { "glyph": { "shape": "square", "scale": 1.1 } },
+        { "question": true }
+      ]
+    ]
+  }
+}

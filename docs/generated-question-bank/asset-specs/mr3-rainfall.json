@@ -1,0 +1,25 @@
+{
+  "asset_ref": "asset://question-assets/generated/mr3-rainfall.svg",
+  "external_id": "mr3-rainfall",
+  "asset_type": "chart",
+  "alt_text": "Column graph of monthly rainfall at Warrigal Creek Public School in millimetres: January 90, February 70, March 110, April 40, May 60, June 30. The vertical axis shows rainfall in mm from 0 to 120 with gridlines every 20.",
+  "spec": {
+    "type": "bar_chart",
+    "width": 540,
+    "height": 400,
+    "title": "Monthly rainfall at Warrigal Creek Public School",
+    "x_label": "Month",
+    "y_label": "Rainfall (mm)",
+    "y_min": 0,
+    "y_max": 120,
+    "y_step": 20,
+    "categories": [
+      { "label": "Jan", "value": 90 },
+      { "label": "Feb", "value": 70 },
+      { "label": "Mar", "value": 110 },
+      { "label": "Apr", "value": 40 },
+      { "label": "May", "value": 60 },
+      { "label": "Jun", "value": 30 }
+    ]
+  }
+}

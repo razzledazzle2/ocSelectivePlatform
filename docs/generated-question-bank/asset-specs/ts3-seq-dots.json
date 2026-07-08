@@ -1,0 +1,18 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-seq-dots.svg",
+  "external_id": "ts3-009",
+  "asset_type": "svg",
+  "alt_text": "A sequence of four squares, each holding one more dot than the last: 1 dot, 2 dots, 3 dots, then 4 dots, followed by a question-mark box. The next square in the pattern holds 5 dots.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "title": "What comes next?",
+    "cell_size": 74,
+    "cells": [
+      { "glyphs": [{ "shape": "square" }, { "shape": "dot", "count": 1 }] },
+      { "glyphs": [{ "shape": "square" }, { "shape": "dot", "count": 2 }] },
+      { "glyphs": [{ "shape": "square" }, { "shape": "dot", "count": 3 }] },
+      { "glyphs": [{ "shape": "square" }, { "shape": "dot", "count": 4 }] },
+      { "question": true }
+    ]
+  }
+}

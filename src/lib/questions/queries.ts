@@ -41,6 +41,7 @@ export function toStudentAssetRef(asset: AssetRecord): StudentAssetRef {
   return {
     id: asset.id,
     assetType: asset.asset_type,
+    externalRef: asset.external_ref,
     storagePath: asset.storage_path,
     externalUrl: asset.external_url,
     altText: asset.alt_text,
@@ -204,7 +205,9 @@ type AdminQuestionRawRow = Pick<
   topic: { name: string }[] | { name: string } | null
   question_type: { name: string }[] | { name: string } | null
   options: { count: number }[] | { count: number } | null
-  question_assets: { count: number }[] | { count: number } | null
+  question_assets:
+    | Array<{ asset: { status: string } | { status: string }[] | null }>
+    | null
 }
 
 const ADMIN_QUESTION_LIST_SELECT = `
@@ -225,8 +228,26 @@ const ADMIN_QUESTION_LIST_SELECT = `
   topic:topics(name),
   question_type:question_types(name),
   options:question_options(count),
-  question_assets(count)
+  question_assets(asset:assets(status))
 `
+
+/** Asset statuses that mean "not ready to publish" (placeholder or rejected). */
+const NOT_READY_ASSET_STATUSES = new Set(['pending', 'rejected'])
+
+/** Rolls a question's linked asset statuses into a single readiness state. */
+function deriveAssetState(
+  links: AdminQuestionRawRow['question_assets']
+): AdminQuestionListItem['assetState'] {
+  const rows = links ?? []
+  if (rows.length === 0) {
+    return 'none'
+  }
+  const statuses = rows.map((link) => {
+    const asset = Array.isArray(link.asset) ? link.asset[0] : link.asset
+    return asset?.status ?? null
+  })
+  return statuses.some((status) => !status || NOT_READY_ASSET_STATUSES.has(status)) ? 'pending' : 'ready'
+}
 
 function mapAdminQuestionRow(question: AdminQuestionRawRow): AdminQuestionListItem {
   return {
@@ -240,7 +261,8 @@ function mapAdminQuestionRow(question: AdminQuestionRawRow): AdminQuestionListIt
     status: question.status,
     answerFormat: question.answer_format,
     hasStimulus: question.stimulus_id !== null,
-    hasAssets: (getRelationValue(question.question_assets)?.count ?? 0) > 0,
+    hasAssets: (question.question_assets ?? []).length > 0,
+    assetState: deriveAssetState(question.question_assets),
     optionsCount: getRelationValue(question.options)?.count ?? 0,
     correctOptionLabel: question.correct_option_label,
     tags: question.tags ?? [],
@@ -257,11 +279,79 @@ interface QuestionFilterBuilder {
   eq(column: string, value: unknown): QuestionFilterBuilder
   ilike(column: string, pattern: string): QuestionFilterBuilder
   contains(column: string, value: unknown): QuestionFilterBuilder
+  in(column: string, values: readonly unknown[]): QuestionFilterBuilder
+  not(column: string, operator: string, value: unknown): QuestionFilterBuilder
+}
+
+/** A resolved set of question ids to include or exclude (used by the asset filter). */
+export interface AssetIdConstraint {
+  mode: 'in' | 'not_in'
+  ids: string[]
+}
+
+// A UUID that will never be a real question id, so an empty "include" set yields
+// zero rows rather than a PostgREST error on an empty IN list.
+const IMPOSSIBLE_ID = '00000000-0000-0000-0000-000000000000'
+
+/**
+ * Resolves the asset-readiness filter to a question-id constraint, so filtering
+ * and pagination stay in Postgres (the constraint is applied to both the count
+ * and the data query). Returns null when no asset filter is active.
+ */
+export async function resolveAssetStateConstraint(
+  filters: AdminQuestionFilters
+): Promise<AssetIdConstraint | null> {
+  if (!filters.assetState) {
+    return null
+  }
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('question_assets').select('question_id, asset:assets(status)')
+  if (error) {
+    throw new Error('Unable to resolve the asset filter.')
+  }
+
+  const statusesByQuestion = new Map<string, string[]>()
+  for (const row of (data ?? []) as Array<{
+    question_id: string
+    asset: { status: string } | { status: string }[] | null
+  }>) {
+    const asset = Array.isArray(row.asset) ? row.asset[0] : row.asset
+    const list = statusesByQuestion.get(row.question_id) ?? []
+    list.push(asset?.status ?? 'pending')
+    statusesByQuestion.set(row.question_id, list)
+  }
+  const withAssets = [...statusesByQuestion.keys()]
+  const hasStatus = (predicate: (status: string) => boolean): string[] =>
+    withAssets.filter((id) => (statusesByQuestion.get(id) ?? []).some(predicate))
+
+  switch (filters.assetState) {
+    case 'has':
+      return { mode: 'in', ids: withAssets }
+    case 'missing':
+      return { mode: 'not_in', ids: withAssets }
+    case 'pending':
+      return { mode: 'in', ids: hasStatus((status) => NOT_READY_ASSET_STATUSES.has(status)) }
+    case 'approved':
+      return { mode: 'in', ids: hasStatus((status) => status === 'approved') }
+    default:
+      return null
+  }
 }
 
 /** Applies the shared admin bank filters to any questions query builder. */
-export function applyAdminQuestionFilters<T>(query: T, filters: AdminQuestionFilters): T {
+export function applyAdminQuestionFilters<T>(
+  query: T,
+  filters: AdminQuestionFilters,
+  assetIds?: AssetIdConstraint | null
+): T {
   let next = query as unknown as QuestionFilterBuilder
+  if (assetIds) {
+    if (assetIds.mode === 'in') {
+      next = next.in('id', assetIds.ids.length ? assetIds.ids : [IMPOSSIBLE_ID])
+    } else if (assetIds.ids.length) {
+      next = next.not('id', 'in', `(${assetIds.ids.join(',')})`)
+    }
+  }
   if (filters.examType) {
     next = next.eq('exam_type', filters.examType)
   }
@@ -330,15 +420,18 @@ export async function getAdminQuestionsPage(filters: AdminQuestionFilters = {}):
   const pageSize = parsePageSize(filters.pageSize)
   const requestedPage = Math.max(1, Number(filters.page) || 1)
 
+  const assetIds = await resolveAssetStateConstraint(filters)
+
   if ((STAT_SORTS as readonly AdminQuestionSort[]).includes(sort)) {
-    return getAdminQuestionsPageByStats(filters, sort, requestedPage, pageSize)
+    return getAdminQuestionsPageByStats(filters, sort, requestedPage, pageSize, assetIds)
   }
 
   // Count first so an out-of-range page (e.g. filters narrowed while on page 9)
   // clamps to the last page instead of erroring with an unsatisfiable range.
   const countQuery = applyAdminQuestionFilters(
     supabase.from('questions').select('id', { count: 'exact', head: true }),
-    filters
+    filters,
+    assetIds
   )
   const { count, error: countError } = await countQuery
 
@@ -358,7 +451,8 @@ export async function getAdminQuestionsPage(filters: AdminQuestionFilters = {}):
   const from = (page - 1) * pageSize
   const dataQuery = applyAdminQuestionFilters(
     supabase.from('questions').select(ADMIN_QUESTION_LIST_SELECT),
-    filters
+    filters,
+    assetIds
   )
     .order(order.column, { ascending: order.ascending })
     .order('id', { ascending: true })
@@ -384,11 +478,12 @@ async function getAdminQuestionsPageByStats(
   filters: AdminQuestionFilters,
   sort: AdminQuestionSort,
   requestedPage: number,
-  pageSize: number
+  pageSize: number,
+  assetIds: AssetIdConstraint | null
 ): Promise<AdminQuestionsPage> {
   const supabase = await createClient()
 
-  const idQuery = applyAdminQuestionFilters(supabase.from('questions').select('id'), filters)
+  const idQuery = applyAdminQuestionFilters(supabase.from('questions').select('id'), filters, assetIds)
   const [{ data: idRows, error: idError }, statsSummary] = await Promise.all([
     idQuery,
     getAdminQuestionStats(null),
@@ -645,6 +740,16 @@ export async function getQuestionById(id: string): Promise<QuestionDetail | null
 
 type ExportAssetRef = Pick<AssetRecord, 'external_ref' | 'storage_path' | 'external_url'>
 
+/**
+ * Question/solution asset with the metadata columns needed for a lossless export.
+ * `spec` is intentionally NOT selected here: it is a column added by a migration
+ * that may not be pushed yet, and selecting a missing column would break the
+ * whole export. The spec round-trips through the committed spec files + manifest
+ * instead (docs/generated-question-bank/). Re-add it to the select + this type
+ * once the migration is live if DB-sourced spec export is wanted.
+ */
+type ExportAssetMeta = ExportAssetRef & Pick<AssetRecord, 'alt_text' | 'generation_prompt' | 'status'>
+
 function toExportAssetRef(asset: ExportAssetRef | ExportAssetRef[] | null): string | null {
   const resolved = getRelationValue(asset)
   if (!resolved) {
@@ -691,7 +796,7 @@ type FullExportRawRow = Pick<
       }>
     | null
   question_assets:
-    | Array<{ role: 'question' | 'solution'; sort_order: number; asset: ExportAssetRef | ExportAssetRef[] | null }>
+    | Array<{ role: 'question' | 'solution'; sort_order: number; asset: ExportAssetMeta | ExportAssetMeta[] | null }>
     | null
   stimulus:
     | Array<{
@@ -740,7 +845,7 @@ const FULL_EXPORT_SELECT = `
   question_type:question_types(name),
   variant:question_variants(name),
   options:question_options(label, option_text, sort_order, explanation, asset:assets(external_ref, storage_path, external_url)),
-  question_assets(role, sort_order, asset:assets(external_ref, storage_path, external_url)),
+  question_assets(role, sort_order, asset:assets(external_ref, storage_path, external_url, alt_text, generation_prompt, status)),
   stimulus:stimuli(id, external_ref, title, stimulus_type, body_markdown, stimulus_assets(sort_order, asset:assets(external_ref, storage_path, external_url)))
 `
 
@@ -753,6 +858,12 @@ function mapFullExportRow(row: FullExportRawRow): FullExportQuestion {
       .filter((link) => link.role === role)
       .map((link) => toExportAssetRef(link.asset))
       .filter((ref): ref is string => Boolean(ref))
+
+  // Asset metadata (prompt/alt/spec/status) round-trips at the row level, taken
+  // from the first question-role asset — the common one-asset-per-row case.
+  const primaryAsset = getRelationValue(
+    assetLinks.find((link) => link.role === 'question')?.asset ?? null
+  )
 
   return {
     externalId: row.external_id,
@@ -795,6 +906,11 @@ function mapFullExportRow(row: FullExportRawRow): FullExportQuestion {
       : null,
     questionAssetRefs: refsForRole('question'),
     solutionAssetRefs: refsForRole('solution'),
+    assetGenerationPrompt: primaryAsset?.generation_prompt ?? null,
+    assetAltText: primaryAsset?.alt_text ?? null,
+    // spec is not DB-sourced (see ExportAssetMeta); it lives in the manifest/spec files.
+    assetSpec: null,
+    assetStatus: primaryAsset?.status ?? null,
     presentation: row.presentation ?? {},
     rubric: row.rubric,
     skillTags: row.skill_tags ?? [],

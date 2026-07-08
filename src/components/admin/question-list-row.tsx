@@ -159,6 +159,11 @@ export function QuestionListRow({
           <Badge variant="secondary" className="h-4 px-1.5 text-[0.65rem]">
             D{question.difficulty}
           </Badge>
+          {question.assetState === 'pending' ? (
+            <Badge variant="outline" className="h-4 border-amber-300 px-1.5 text-[0.65rem] text-amber-700">
+              Pending asset
+            </Badge>
+          ) : null}
           <span>{question.optionsCount} opts</span>
           <span aria-hidden>·</span>
           <span>

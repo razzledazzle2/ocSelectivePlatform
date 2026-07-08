@@ -59,6 +59,8 @@ const HEADER_ALIASES: Record<ScalarColumnKey, string[]> = {
   licenseNotes: ['license_notes'],
   assetGenerationPrompt: ['asset_generation_prompt'],
   assetAltText: ['asset_alt_text'],
+  assetSpecJson: ['asset_spec_json', 'asset_spec'],
+  assetStatus: ['asset_status'],
 }
 
 const MULTI_REF_ALIASES: Record<MultiRefColumnKey, string[]> = {
@@ -245,6 +247,8 @@ export function parseCsvQuestions(text: string): CsvParseResult {
       licenseNotes: get('licenseNotes'),
       assetGenerationPrompt: get('assetGenerationPrompt'),
       assetAltText: get('assetAltText'),
+      assetSpecJson: get('assetSpecJson'),
+      assetStatus: get('assetStatus'),
     })
   }
 

@@ -1,4 +1,10 @@
-import type { AnswerFormat, QuestionPresentation, QuestionSourceInfo, WritingRubric } from '@/lib/types'
+import type {
+  AnswerFormat,
+  AssetStatus,
+  QuestionPresentation,
+  QuestionSourceInfo,
+  WritingRubric,
+} from '@/lib/types'
 
 /**
  * Full round-trip CSV export. The header matches the v2 import template
@@ -50,6 +56,8 @@ export const FULL_EXPORT_CSV_HEADERS = [
   'license_notes',
   'asset_generation_prompt',
   'asset_alt_text',
+  'asset_spec_json',
+  'asset_status',
   'status',
 ] as const
 
@@ -91,6 +99,10 @@ export interface FullExportQuestion {
   stimulus: FullExportStimulus | null
   questionAssetRefs: string[]
   solutionAssetRefs: string[]
+  assetGenerationPrompt: string | null
+  assetAltText: string | null
+  assetSpec: Record<string, unknown> | null
+  assetStatus: AssetStatus | null
   presentation: QuestionPresentation
   rubric: WritingRubric | null
   skillTags: string[]
@@ -178,8 +190,10 @@ export function buildFullExportCsv(rows: FullExportQuestion[]): string {
         row.sourceInfo.sourceSection ?? '',
         row.sourceInfo.sourceQuestionNumber ?? '',
         row.sourceInfo.licenseNotes ?? '',
-        '',
-        '',
+        row.assetGenerationPrompt ?? '',
+        row.assetAltText ?? '',
+        row.assetSpec ? JSON.stringify(row.assetSpec) : '',
+        row.assetStatus ?? '',
         row.status,
       ]
 

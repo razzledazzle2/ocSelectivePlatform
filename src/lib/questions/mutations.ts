@@ -298,6 +298,10 @@ export async function updateQuestion(questionId: string, input: QuestionWriteInp
     throw new Error('Unable to load the existing question before saving.')
   }
 
+  if (input.status === 'published') {
+    await assertAssetsReadyForPublish(questionId)
+  }
+
   const publishedAt =
     input.status === 'published'
       ? existingQuestion?.published_at ?? new Date().toISOString()
@@ -406,8 +410,52 @@ export async function archiveQuestion(questionId: string, actorId: string): Prom
   }
 }
 
+/**
+ * Asset statuses that block publishing: a placeholder with no file, or one that
+ * was reviewed and rejected. Publishing either would show students a broken /
+ * "coming soon" diagram in place of a required visual.
+ */
+const PUBLISH_BLOCKING_ASSET_STATUSES = ['pending', 'rejected'] as const
+
+/** Count of question/solution/option assets that aren't ready to show students. */
+export async function countUnreadyQuestionAssets(questionId: string): Promise<number> {
+  const supabase = await createClient()
+
+  const [{ data: linked }, { data: options }] = await Promise.all([
+    supabase.from('question_assets').select('asset:assets(status)').eq('question_id', questionId),
+    supabase
+      .from('question_options')
+      .select('asset:assets(status)')
+      .eq('question_id', questionId)
+      .not('asset_id', 'is', null),
+  ])
+
+  const rows = [...(linked ?? []), ...(options ?? [])] as Array<{
+    asset: { status: string } | { status: string }[] | null
+  }>
+
+  return rows.reduce((count, row) => {
+    const asset = Array.isArray(row.asset) ? row.asset[0] : row.asset
+    const status = asset?.status
+    return status && (PUBLISH_BLOCKING_ASSET_STATUSES as readonly string[]).includes(status) ? count + 1 : count
+  }, 0)
+}
+
+/** Throws a clear, user-facing error when a question still has unready required assets. */
+export async function assertAssetsReadyForPublish(questionId: string): Promise<void> {
+  const unready = await countUnreadyQuestionAssets(questionId)
+  if (unready > 0) {
+    throw new Error(
+      `This question has ${unready} pending or rejected asset${unready === 1 ? '' : 's'}. ` +
+        'Generate and approve the diagram(s) before publishing so students never see a missing image.'
+    )
+  }
+}
+
 export async function publishQuestion(questionId: string, actorId: string): Promise<void> {
   const supabase = await createClient()
+  await assertAssetsReadyForPublish(questionId)
+
   const { data: existingQuestion, error: loadError } = await supabase
     .from('questions')
     .select('published_at')

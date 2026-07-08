@@ -109,6 +109,7 @@ export function QuestionBankWorkspace({
   const tag = filters.tag ?? ALL
   const difficulty = filters.difficulty ?? ALL
   const status = filters.status ?? ALL
+  const assetState = filters.assetState ?? ALL
   const sort = filters.sort && filters.sort in ADMIN_QUESTION_SORT_LABELS ? filters.sort : 'updated_desc'
 
   const filteredTopics = useMemo(
@@ -128,6 +129,13 @@ export function QuestionBankWorkspace({
   const statusItems = {
     [ALL]: 'All statuses',
     ...Object.fromEntries(QUESTION_STATUSES.map((v) => [v, v[0].toUpperCase() + v.slice(1)])),
+  }
+  const assetItems = {
+    [ALL]: 'All assets',
+    has: 'Has asset',
+    pending: 'Pending asset',
+    missing: 'Missing asset',
+    approved: 'Asset approved',
   }
   const difficultyItems = {
     [ALL]: 'All difficulties',
@@ -202,7 +210,9 @@ export function QuestionBankWorkspace({
 
   const hasActiveFilters =
     Boolean(filters.query) ||
-    [examType, subjectId, topicId, questionTypeId, tag, difficulty, status].some((value) => value !== ALL)
+    [examType, subjectId, topicId, questionTypeId, tag, difficulty, status, assetState].some(
+      (value) => value !== ALL
+    )
 
   // -- Selection (preview) + bulk checkboxes ----------------------------------
   const [previewId, setPreviewId] = useState<string | null>(null)
@@ -485,6 +495,19 @@ export function QuestionBankWorkspace({
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(statusItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={assetState} onValueChange={(value) => pushFilters({ assetState: value })} items={assetItems}>
+              <SelectTrigger className="w-full" aria-label="Asset status">
+                <SelectValue placeholder="All assets" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(assetItems).map(([value, label]) => (
                   <SelectItem key={value} value={value}>
                     {label}
                   </SelectItem>

@@ -1,0 +1,35 @@
+{
+  "asset_ref": "asset://question-assets/generated/mr4-triangle-translate.svg",
+  "external_id": "mr4-001",
+  "asset_type": "svg",
+  "alt_text": "A coordinate grid numbered 0 to 8 on both axes. A right-angled triangle has corners labelled P at (1, 1), Q at (1, 4) and R at (3, 1). The right angle is at P. A dashed arrow points up and to the right, indicating the triangle will be slid 4 units right and 2 units up.",
+  "spec": {
+    "type": "coordinate_grid",
+    "width": 440,
+    "height": 440,
+    "x_min": 0,
+    "x_max": 8,
+    "y_min": 0,
+    "y_max": 8,
+    "shapes": [
+      {
+        "type": "polygon",
+        "label": "Triangle PQR",
+        "right_angle_at": "P",
+        "points": [
+          { "label": "P", "x": 1, "y": 1 },
+          { "label": "Q", "x": 1, "y": 4 },
+          { "label": "R", "x": 3, "y": 1 }
+        ]
+      },
+      {
+        "type": "translation_arrow",
+        "from": { "x": 2.4, "y": 2.2 },
+        "dx": 4,
+        "dy": 2,
+        "label": "slide 4 right, 2 up",
+        "style": "dashed"
+      }
+    ]
+  }
+}

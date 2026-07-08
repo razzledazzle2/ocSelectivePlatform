@@ -1,5 +1,6 @@
 import type {
   AnswerFormat,
+  AssetStatus,
   ExamType,
   QuestionOptionLabel,
   QuestionPresentation,
@@ -96,6 +97,10 @@ export interface QuestionImportRow {
   licenseNotes: string
   assetGenerationPrompt: string
   assetAltText: string
+  /** Raw JSON string for the structured asset spec (coordinate_grid, bar_chart, …). */
+  assetSpecJson: string
+  /** Explicit asset lifecycle state (pending/generated/approved/…). */
+  assetStatus: string
 }
 
 export interface ImportRowIssue {
@@ -164,6 +169,10 @@ export interface ResolvedImportQuestion {
   sourceInfo: QuestionSourceInfo
   assetGenerationPrompt: string | null
   assetAltText: string | null
+  /** Parsed structured asset spec (from asset_spec_json), or null when absent/invalid. */
+  assetSpec: Record<string, unknown> | null
+  /** Explicit asset status (from asset_status), or null to let the ref scheme decide. */
+  assetStatus: AssetStatus | null
   tags: string[]
   skillTags: string[]
   conceptTags: string[]

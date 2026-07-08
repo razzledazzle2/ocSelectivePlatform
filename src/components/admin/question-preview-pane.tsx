@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 
 import { QuestionPreview } from '@/components/questions/question-preview'
+import { QuestionAssetStatus } from '@/components/admin/question-asset-status'
 import { QuestionStatsPanel } from '@/components/admin/question-stats-panel'
 import { QuestionStatusBadge } from '@/components/admin/question-status-badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -184,6 +185,7 @@ export function QuestionPreviewPane({
       ) : detail ? (
         <>
           <QuestionPreview question={detail} showStatus={false} showInstruction showMeta={false} />
+          <QuestionAssetStatus assets={detail.assets} />
           {detail.tags.length > 0 ? (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs font-medium text-muted-foreground">Tags:</span>

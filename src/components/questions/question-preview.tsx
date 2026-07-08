@@ -91,6 +91,7 @@ function toStudentAssetRef(asset: AssetRecord): StudentAssetRef {
   return {
     id: asset.id,
     assetType: asset.asset_type,
+    externalRef: asset.external_ref,
     storagePath: asset.storage_path,
     externalUrl: asset.external_url,
     altText: asset.alt_text,

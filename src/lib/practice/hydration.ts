@@ -23,11 +23,12 @@ export function getRelationValue<T>(value: T | T[] | null | undefined): T | null
 }
 
 /** Columns hydrated into StudentAssetRef (no prompts/licensing/metadata). */
-export const STUDENT_ASSET_COLUMNS = 'id, asset_type, storage_path, external_url, alt_text, status'
+export const STUDENT_ASSET_COLUMNS = 'id, asset_type, external_ref, storage_path, external_url, alt_text, status'
 
 interface RawStudentAssetRow {
   id: string
   asset_type: AssetType
+  external_ref: string | null
   storage_path: string | null
   external_url: string | null
   alt_text: string | null
@@ -38,6 +39,7 @@ export function mapStudentAsset(row: RawStudentAssetRow): StudentAssetRef {
   return {
     id: row.id,
     assetType: row.asset_type,
+    externalRef: row.external_ref,
     storagePath: row.storage_path,
     externalUrl: row.external_url,
     altText: row.alt_text,
@@ -46,7 +48,7 @@ export function mapStudentAsset(row: RawStudentAssetRow): StudentAssetRef {
 }
 
 function isRenderableAsset(row: RawStudentAssetRow | null): row is RawStudentAssetRow {
-  return row !== null && row.status !== 'archived'
+  return row !== null && row.status !== 'archived' && row.status !== 'rejected'
 }
 
 /**

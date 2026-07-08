@@ -1,7 +1,6 @@
+import { resolveAssetRef } from '@/lib/assets/refs'
 import { createClient } from '@/lib/supabase/server'
-import type { AssetType } from '@/lib/types'
-
-const PENDING_REF_PREFIX = 'asset://pending/'
+import type { AssetStatus, AssetType } from '@/lib/types'
 
 /** Infers the asset type from a reference's file extension (.svg → svg, images/anything else → image). */
 export function inferAssetTypeFromRef(ref: string): AssetType {
@@ -11,15 +10,21 @@ export function inferAssetTypeFromRef(ref: string): AssetType {
 
 export interface EnsureAssetParams {
   /**
-   * External reference from an import cell. Semantics:
-   * - `asset://pending/...` → a placeholder asset (status 'pending', no storage path yet)
-   * - `http(s)://...` → an externally hosted asset (external_url, status 'uploaded')
-   * - anything else → a storage path in the question-media bucket (status 'uploaded')
+   * External reference from an import cell. Interpreted by resolveAssetRef:
+   * - `asset://pending/...`         → placeholder (status 'pending', no file yet)
+   * - `asset://question-assets/...` → generated public asset (external_url set, status 'generated')
+   * - `http(s)://...`               → externally hosted asset (external_url, status 'uploaded')
+   * - anything else                 → storage path in the question-media bucket (status 'uploaded')
    */
   ref: string
   altText?: string | null
   generationPrompt?: string | null
   licenseNotes?: string | null
+  /** Structured spec (from asset_spec_json) the SVG can be regenerated from. */
+  spec?: Record<string, unknown> | null
+  /** Explicit status from asset_status; overrides the ref-inferred default when set. */
+  assetType?: AssetType | null
+  status?: AssetStatus | null
   actorId: string
   /** ref → asset id, deduping repeated refs within one import run. */
   cache?: Map<string, string>
@@ -55,23 +60,34 @@ export async function ensureAssetByExternalRef(
     return { id: existing.id, created: false }
   }
 
-  const isPending = ref.startsWith(PENDING_REF_PREFIX)
-  const isUrl = /^https?:\/\//i.test(ref)
+  const resolved = resolveAssetRef(ref)
+  // Storage layout + default status inferred from the ref scheme.
+  const storagePath = resolved.kind === 'storage' ? resolved.storagePath : null
+  const externalUrl = resolved.kind === 'public' || resolved.kind === 'external' ? resolved.url : null
+  const defaultStatus: AssetStatus =
+    resolved.kind === 'pending' ? 'pending' : resolved.kind === 'public' ? 'generated' : 'uploaded'
+
+  const payload: Record<string, unknown> = {
+    external_ref: ref,
+    asset_type: params.assetType ?? inferAssetTypeFromRef(ref),
+    storage_path: storagePath,
+    external_url: externalUrl,
+    alt_text: params.altText?.trim() || null,
+    generation_prompt: params.generationPrompt?.trim() || null,
+    license_notes: params.licenseNotes?.trim() || null,
+    status: params.status ?? defaultStatus,
+    created_by: params.actorId,
+    updated_by: params.actorId,
+  }
+  // `spec` is only sent when present so imports still work before the
+  // assets.spec migration is pushed (see supabase/migrations).
+  if (params.spec) {
+    payload.spec = params.spec
+  }
 
   const { data: inserted, error: insertError } = await supabase
     .from('assets')
-    .insert({
-      external_ref: ref,
-      asset_type: inferAssetTypeFromRef(ref),
-      storage_path: isPending || isUrl ? null : ref,
-      external_url: isUrl ? ref : null,
-      alt_text: params.altText?.trim() || null,
-      generation_prompt: params.generationPrompt?.trim() || null,
-      license_notes: params.licenseNotes?.trim() || null,
-      status: isPending ? 'pending' : 'uploaded',
-      created_by: params.actorId,
-      updated_by: params.actorId,
-    })
+    .insert(payload)
     .select('id')
     .single()
 

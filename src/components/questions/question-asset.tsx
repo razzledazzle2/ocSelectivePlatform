@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { ImageIcon } from 'lucide-react'
 
+import { resolveAssetRef } from '@/lib/assets/refs'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { StudentAssetRef } from '@/lib/types'
@@ -18,21 +19,28 @@ interface QuestionAssetProps {
 
 /**
  * Renders a student-facing asset reference. Resolution order:
- * 1. external_url → direct <img>.
- * 2. status 'uploaded' + storage_path → short-lived signed URL from the private
+ * 1. external_url, or an external_ref that resolves to a public/external URL
+ *    (generated SVGs served from /question-assets/…) → direct <img>.
+ * 2. a storage_path on a usable asset → short-lived signed URL from the private
  *    question-media bucket (created client-side with the student's session).
- * 3. anything else (pending upload, failed load) → a clean placeholder card so
+ * 3. anything else (pending, failed load) → a clean placeholder card so
  *    rendering never breaks on missing media.
  *
  * Uses <span> wrappers (display:block) so it stays valid inside answer-option
  * <button> elements.
  */
+const STORAGE_READY_STATUSES = new Set(['uploaded', 'approved', 'generated'])
+
 export function QuestionAsset({ asset, className }: QuestionAssetProps) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
 
-  const directUrl = asset.externalUrl
-  const storagePath = asset.status === 'uploaded' ? asset.storagePath : null
+  // A generated/public asset resolves straight to a served URL with no signing.
+  const resolvedRef = asset.externalRef ? resolveAssetRef(asset.externalRef) : null
+  const publicUrl =
+    resolvedRef && (resolvedRef.kind === 'public' || resolvedRef.kind === 'external') ? resolvedRef.url : null
+  const directUrl = asset.externalUrl ?? publicUrl
+  const storagePath = STORAGE_READY_STATUSES.has(asset.status) ? asset.storagePath : null
 
   useEffect(() => {
     if (directUrl || !storagePath) {

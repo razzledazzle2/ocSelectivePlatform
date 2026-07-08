@@ -3,11 +3,13 @@ import { checkOptionCount, labelsForCount } from '@/lib/questions/option-rules'
 import { parseWritingRubric } from '@/lib/questions/rubric'
 import {
   ANSWER_FORMATS,
+  ASSET_STATUSES,
   EXAM_TYPES,
   QUESTION_OPTION_LABELS,
   QUESTION_STATUSES,
   STIMULUS_TYPES,
   type AnswerFormat,
+  type AssetStatus,
   type ExamType,
   type QuestionOptionLabel,
   type QuestionPresentation,
@@ -26,6 +28,28 @@ import type {
   ResolvedImportStimulus,
   ValidatedImportRow,
 } from '@/lib/import/types'
+
+/** Parses an asset_spec_json cell into an object, or null when blank/invalid. */
+function parseAssetSpec(cell: string): Record<string, unknown> | null {
+  const trimmed = cell.trim()
+  if (!trimmed) {
+    return null
+  }
+  try {
+    const parsed: unknown = JSON.parse(trimmed)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null
+  } catch {
+    return null
+  }
+}
+
+/** Normalises an asset_status cell to a known status, or null when blank/unknown. */
+function parseAssetStatus(cell: string): AssetStatus | null {
+  const value = cell.trim().toLowerCase()
+  return (ASSET_STATUSES as readonly string[]).includes(value) ? (value as AssetStatus) : null
+}
 
 export function normalizeQuestionText(value: string): string {
   return value.replace(/\s+/g, ' ').trim().toLowerCase()
@@ -652,6 +676,8 @@ export function validateQuestionImportRows(
             sourceInfo,
             assetGenerationPrompt: row.assetGenerationPrompt.trim() || null,
             assetAltText: row.assetAltText.trim() || null,
+            assetSpec: parseAssetSpec(row.assetSpecJson),
+            assetStatus: parseAssetStatus(row.assetStatus),
             tags,
             skillTags,
             conceptTags,

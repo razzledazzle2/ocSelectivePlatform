@@ -56,6 +56,8 @@ export const CSV_TEMPLATE_HEADERS = [
   'license_notes',
   'asset_generation_prompt',
   'asset_alt_text',
+  'asset_spec_json',
+  'asset_status',
   'status',
 ] as const
 
@@ -102,6 +104,8 @@ const EXAMPLE_ROWS: string[][] = [
     '2024 Sample',
     'Section 1',
     '12',
+    '',
+    '',
     '',
     '',
     '',
@@ -152,6 +156,8 @@ const EXAMPLE_ROWS: string[][] = [
     '',
     'A line drawing of an owl perched on a bare branch at night',
     'Owl perched on a branch under a crescent moon',
+    '',
+    'pending',
     'draft',
   ],
   [
@@ -192,6 +198,8 @@ const EXAMPLE_ROWS: string[][] = [
     'persuasive-devices, paragraphing',
     'audience-awareness',
     'writing, persuasive',
+    '',
+    '',
     '',
     '',
     '',

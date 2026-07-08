@@ -196,6 +196,8 @@ export async function importValidatedQuestions(
       ref,
       altText: row.assetAltText,
       generationPrompt: row.assetGenerationPrompt,
+      spec: row.assetSpec,
+      status: row.assetStatus,
       actorId,
       cache: assetCache,
     })
