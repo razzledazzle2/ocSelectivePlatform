@@ -92,6 +92,7 @@ interface QuestionListRowProps {
   onArchive: () => void
   onDelete: () => void
   onRestore: () => void
+  onDeleteForever: () => void
 }
 
 /** One scannable row in the question bank list; clicking it drives the preview pane. */
@@ -108,8 +109,10 @@ export function QuestionListRow({
   onArchive,
   onDelete,
   onRestore,
+  onDeleteForever,
 }: QuestionListRowProps) {
   const isDeleted = Boolean(question.deletedAt)
+  const canHardDelete = question.status === 'archived'
   return (
     <div
       role="button"
@@ -213,10 +216,17 @@ export function QuestionListRow({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {isDeleted ? (
-              <DropdownMenuItem onClick={onRestore}>
-                <Undo2Icon className="size-4" />
-                Restore
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuItem onClick={onRestore}>
+                  <Undo2Icon className="size-4" />
+                  Restore
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={onDeleteForever}>
+                  <Trash2Icon className="size-4" />
+                  Delete forever
+                </DropdownMenuItem>
+              </>
             ) : (
               <>
                 {question.status === 'published' ? (
@@ -254,6 +264,12 @@ export function QuestionListRow({
                   <Trash2Icon className="size-4" />
                   Move to trash
                 </DropdownMenuItem>
+                {canHardDelete ? (
+                  <DropdownMenuItem variant="destructive" onClick={onDeleteForever}>
+                    <Trash2Icon className="size-4" />
+                    Delete forever
+                  </DropdownMenuItem>
+                ) : null}
               </>
             )}
           </DropdownMenuContent>

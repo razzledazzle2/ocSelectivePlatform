@@ -459,6 +459,88 @@ export async function softDeleteQuestion(
 }
 
 /**
+ * Tables whose rows represent student history / analytics that a permanent
+ * delete must never destroy. If a question has ANY of these, hard delete is
+ * blocked and the question stays archived (or trashed) to preserve them.
+ */
+const HARD_DELETE_HISTORY_CHECKS = [
+  { table: 'question_attempts', label: 'student attempt' },
+  { table: 'student_mistake_questions', label: 'revision record' },
+  { table: 'mock_exam_session_questions', label: 'mock exam record' },
+  { table: 'mock_test_questions', label: 'curated mock' },
+] as const
+
+/**
+ * Permanently deletes an ARCHIVED question and its owned rows (options,
+ * question<->asset links, reports cascade at the DB level; shared assets
+ * survive). This is irreversible. It is refused unless the question is archived
+ * AND has no student attempts, revision records, mock session rows or
+ * curated-mock membership — so a purge can only ever remove a genuinely unused
+ * question, never student history or analytics.
+ */
+export async function hardDeleteQuestion(questionId: string, actorId: string): Promise<void> {
+  const supabase = await createClient()
+
+  const { data: existing, error: loadError } = await supabase
+    .from('questions')
+    .select('status')
+    .eq('id', questionId)
+    .maybeSingle()
+
+  if (loadError) {
+    throw new Error('Unable to load the question before deleting.')
+  }
+  if (!existing) {
+    throw new Error('This question could not be found.')
+  }
+  if (existing.status !== 'archived') {
+    throw new Error('Only archived questions can be permanently deleted. Archive it first.')
+  }
+
+  const counts = await Promise.all(
+    HARD_DELETE_HISTORY_CHECKS.map((check) =>
+      supabase.from(check.table).select('question_id', { count: 'exact', head: true }).eq('question_id', questionId)
+    )
+  )
+
+  const blockers: string[] = []
+  counts.forEach(({ count, error }, index) => {
+    if (error) {
+      throw new Error('Unable to check the question history before deleting.')
+    }
+    const total = count ?? 0
+    if (total > 0) {
+      const { label } = HARD_DELETE_HISTORY_CHECKS[index]
+      blockers.push(`${total} ${label}${total === 1 ? '' : 's'}`)
+    }
+  })
+
+  if (blockers.length > 0) {
+    throw new Error(
+      `This question is linked to ${blockers.join(', ')} and cannot be permanently deleted. ` +
+        'Keep it archived or in the trash to preserve that history.'
+    )
+  }
+
+  const { error, count } = await supabase
+    .from('questions')
+    .delete({ count: 'exact' })
+    .eq('id', questionId)
+
+  if (error) {
+    throw new Error('Unable to permanently delete the question.')
+  }
+  // RLS silently deletes 0 rows if the actor lacks permission — surface that.
+  if (!count) {
+    throw new Error('Unable to permanently delete the question. You may not have permission.')
+  }
+
+  // actorId is accepted for a consistent signature / future audit logging; a
+  // hard delete leaves no row to stamp.
+  void actorId
+}
+
+/**
  * Restores a trashed question. It returns to the archived state (its status was
  * preserved through the delete), so an admin can review it and re-publish or
  * move it back to draft from there.

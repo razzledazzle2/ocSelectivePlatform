@@ -7,6 +7,7 @@ import {
   archiveQuestion,
   createQuestion,
   duplicateQuestion,
+  hardDeleteQuestion,
   markQuestionReviewed,
   parseQuestionWriteInput,
   publishQuestion,
@@ -177,6 +178,27 @@ export async function softDeleteQuestionAction(
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Unable to move the question to trash right now.',
+    }
+  }
+}
+
+export async function hardDeleteQuestionAction(questionId: string): Promise<ActionResult> {
+  const profile = await requireProfile({
+    allowedRoles: [...ADMIN_PORTAL_ROLES],
+  })
+
+  try {
+    await hardDeleteQuestion(questionId, profile.id)
+    revalidateQuestionPaths(questionId)
+
+    return {
+      success: true,
+      message: 'Question permanently deleted.',
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to permanently delete the question right now.',
     }
   }
 }

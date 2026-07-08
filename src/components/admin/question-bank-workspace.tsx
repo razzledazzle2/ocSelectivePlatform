@@ -19,6 +19,7 @@ import {
   createSimilarQuestionAction,
   duplicateQuestionAction,
   getQuestionPreviewAction,
+  hardDeleteQuestionAction,
   publishQuestionAction,
   restoreQuestionAction,
   softDeleteQuestionAction,
@@ -374,6 +375,26 @@ export function QuestionBankWorkspace({
     runStatusAction(ids, restoreQuestionAction, 'Question restored')
   }
 
+  // -- Permanent delete confirmation ---------------------------------------------
+  const [hardDeleteIds, setHardDeleteIds] = useState<string[] | null>(null)
+
+  /** Only archived questions (trashed or not) can be permanently deleted. */
+  function requestHardDelete(candidates: AdminQuestionListItem[]) {
+    const ids = candidates.filter((q) => q.status === 'archived').map((q) => q.id)
+    if (ids.length === 0) {
+      toast.error('Only archived questions can be permanently deleted. Archive it first.')
+      return
+    }
+    setHardDeleteIds(ids)
+  }
+
+  function confirmHardDelete() {
+    if (hardDeleteIds && hardDeleteIds.length > 0) {
+      runStatusAction(hardDeleteIds, hardDeleteQuestionAction, 'Question permanently deleted')
+    }
+    setHardDeleteIds(null)
+  }
+
   function publishToggle(question: AdminQuestionListItem) {
     if (question.status === 'published') {
       runStatusAction([question.id], unpublishQuestionAction, 'Question moved back to draft')
@@ -398,6 +419,7 @@ export function QuestionBankWorkspace({
       onArchive={() => previewItem && setArchiveIds([previewItem.id])}
       onDelete={() => previewItem && requestDelete([previewItem])}
       onRestore={() => previewItem && restore([previewItem])}
+      onDeleteForever={() => previewItem && requestHardDelete([previewItem])}
     />
   )
 
@@ -634,6 +656,18 @@ export function QuestionBankWorkspace({
                   Move to trash
                 </Button>
               )}
+              {checkedQuestions.some((q) => q.status === 'archived') ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive hover:text-destructive"
+                  disabled={isPending}
+                  onClick={() => requestHardDelete(checkedQuestions)}
+                >
+                  <Trash2Icon className="size-3.5" />
+                  Delete forever
+                </Button>
+              ) : null}
               <Button size="sm" variant="outline" onClick={() => exportQuestionsCsv(checkedQuestions)}>
                 <DownloadIcon className="size-3.5" />
                 Export selected
@@ -716,6 +750,7 @@ export function QuestionBankWorkspace({
                   onArchive={() => setArchiveIds([question.id])}
                   onDelete={() => requestDelete([question])}
                   onRestore={() => restore([question])}
+                  onDeleteForever={() => requestHardDelete([question])}
                 />
               ))}
             </div>
@@ -787,6 +822,29 @@ export function QuestionBankWorkspace({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete}>Move to trash</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* -- Permanent delete confirmation ------------------------------------ */}
+      <AlertDialog open={hardDeleteIds !== null} onOpenChange={(open) => !open && setHardDeleteIds(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Permanently delete{' '}
+              {hardDeleteIds && hardDeleteIds.length > 1 ? `${hardDeleteIds.length} questions` : 'this question'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This cannot be undone. The question and its options are removed from the bank for good.
+              Questions that have any student attempts or mock-exam history are kept safe and cannot be
+              deleted this way.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmHardDelete}>
+              Delete forever
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

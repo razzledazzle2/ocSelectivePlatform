@@ -54,6 +54,7 @@ interface QuestionPreviewPaneProps {
   onArchive: () => void
   onDelete: () => void
   onRestore: () => void
+  onDeleteForever: () => void
   className?: string
 }
 
@@ -82,9 +83,11 @@ export function QuestionPreviewPane({
   onArchive,
   onDelete,
   onRestore,
+  onDeleteForever,
   className,
 }: QuestionPreviewPaneProps) {
   const isDeleted = Boolean(item?.deletedAt)
+  const canHardDelete = item?.status === 'archived'
   if (!item) {
     return (
       <div
@@ -138,10 +141,16 @@ export function QuestionPreviewPane({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               {isDeleted ? (
-                <DropdownMenuItem onClick={onRestore}>
-                  <Undo2Icon className="size-4" />
-                  Restore
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onClick={onRestore}>
+                    <Undo2Icon className="size-4" />
+                    Restore
+                  </DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onClick={onDeleteForever}>
+                    <Trash2Icon className="size-4" />
+                    Delete forever
+                  </DropdownMenuItem>
+                </>
               ) : (
                 <>
                   {item.status === 'published' ? (
@@ -175,6 +184,12 @@ export function QuestionPreviewPane({
                     <Trash2Icon className="size-4" />
                     Move to trash
                   </DropdownMenuItem>
+                  {canHardDelete ? (
+                    <DropdownMenuItem variant="destructive" onClick={onDeleteForever}>
+                      <Trash2Icon className="size-4" />
+                      Delete forever
+                    </DropdownMenuItem>
+                  ) : null}
                 </>
               )}
             </DropdownMenuContent>
