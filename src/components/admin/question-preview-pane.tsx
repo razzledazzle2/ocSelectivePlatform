@@ -55,6 +55,8 @@ interface QuestionPreviewPaneProps {
   onDelete: () => void
   onRestore: () => void
   onDeleteForever: () => void
+  /** Refetches the selected question after its assets change (generate/regenerate). */
+  onAssetsChanged?: () => void
   className?: string
 }
 
@@ -84,6 +86,7 @@ export function QuestionPreviewPane({
   onDelete,
   onRestore,
   onDeleteForever,
+  onAssetsChanged,
   className,
 }: QuestionPreviewPaneProps) {
   const isDeleted = Boolean(item?.deletedAt)
@@ -221,7 +224,7 @@ export function QuestionPreviewPane({
       ) : detail ? (
         <>
           <QuestionPreview question={detail} showStatus={false} showInstruction showMeta={false} />
-          <QuestionAssetStatus assets={detail.assets} />
+          <QuestionAssetStatus assets={detail.assets} questionId={detail.id} onChanged={onAssetsChanged} />
           {detail.tags.length > 0 ? (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs font-medium text-muted-foreground">Tags:</span>

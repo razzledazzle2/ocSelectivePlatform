@@ -25,6 +25,7 @@ import {
   softDeleteQuestionAction,
   unpublishQuestionAction,
 } from '@/app/admin/questions/actions'
+import { GenerateMissingAssetsButton } from '@/components/admin/generate-missing-assets-button'
 import { QuestionListRow } from '@/components/admin/question-list-row'
 import { QuestionPreviewPane } from '@/components/admin/question-preview-pane'
 import {
@@ -420,6 +421,7 @@ export function QuestionBankWorkspace({
       onDelete={() => previewItem && requestDelete([previewItem])}
       onRestore={() => previewItem && restore([previewItem])}
       onDeleteForever={() => previewItem && requestHardDelete([previewItem])}
+      onAssetsChanged={() => previewItem && loadDetail(previewItem.id, { force: true })}
     />
   )
 
@@ -702,15 +704,22 @@ export function QuestionBankWorkspace({
                 </span>
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-muted-foreground"
-              onClick={() => exportQuestionsCsv(questions)}
-            >
-              <DownloadIcon className="size-3.5" />
-              Export page
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <GenerateMissingAssetsButton
+                variant="ghost"
+                className="text-muted-foreground"
+                onGenerated={() => previewId && loadDetail(previewId, { force: true })}
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-muted-foreground"
+                onClick={() => exportQuestionsCsv(questions)}
+              >
+                <DownloadIcon className="size-3.5" />
+                Export page
+              </Button>
+            </div>
           </div>
 
           {questions.length === 0 ? (

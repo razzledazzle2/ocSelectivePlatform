@@ -1,14 +1,30 @@
 'use client'
 
-import { CheckCircle2Icon, ClockIcon, ImageOffIcon, SparklesIcon, XCircleIcon } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useTransition } from 'react'
+import {
+  CheckCircle2Icon,
+  ClockIcon,
+  ImageOffIcon,
+  RefreshCwIcon,
+  SparklesIcon,
+  XCircleIcon,
+} from 'lucide-react'
+import { toast } from 'sonner'
 
+import { generateQuestionAssetsAction, regenerateAssetAction } from '@/app/admin/questions/asset-actions'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { resolveAssetRef } from '@/lib/assets/refs'
 import { cn } from '@/lib/utils'
 import type { AssetStatus, QuestionAssetLink } from '@/lib/types'
 
 interface QuestionAssetStatusProps {
   assets: QuestionAssetLink[]
+  /** Enables the Generate / Regenerate actions and preview refresh. */
+  questionId?: string
+  /** Called after an action changes an asset (so the parent can refetch). */
+  onChanged?: () => void
   className?: string
 }
 
@@ -42,15 +58,55 @@ function isMissingFile(link: QuestionAssetLink): boolean {
 
 /**
  * Admin-only panel summarising every asset linked to a question: a status badge
- * per asset, and a "how to generate" card for any that are still pending. Keeps
- * the pipeline visible to reviewers without leaving the question workspace.
+ * per asset, a "Generate" action for pending deterministic diagrams, and a
+ * "Regenerate" action for generated (not-yet-approved) ones. Keeps the pipeline
+ * visible and actionable without leaving the question workspace.
  */
-export function QuestionAssetStatus({ assets, className }: QuestionAssetStatusProps) {
+export function QuestionAssetStatus({ assets, questionId, onChanged, className }: QuestionAssetStatusProps) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+
   if (assets.length === 0) {
     return null
   }
 
   const pending = assets.filter((link) => link.asset.status === 'pending' || isMissingFile(link))
+  const canAct = Boolean(questionId)
+
+  function afterChange() {
+    router.refresh()
+    onChanged?.()
+  }
+
+  function generateAll() {
+    if (!questionId) return
+    startTransition(async () => {
+      const result = await generateQuestionAssetsAction(questionId)
+      if (result.success) {
+        if ((result.data?.generatedCount ?? 0) > 0) {
+          toast.success(result.message ?? 'Assets generated.')
+          afterChange()
+        } else {
+          toast.info(result.message ?? 'No assets could be generated.')
+        }
+      } else {
+        toast.error(result.message ?? 'Unable to generate assets.')
+      }
+    })
+  }
+
+  function regenerate(assetId: string) {
+    if (!questionId) return
+    startTransition(async () => {
+      const result = await regenerateAssetAction(assetId, questionId)
+      if (result.success) {
+        toast.success(result.message ?? 'Asset regenerated.')
+        afterChange()
+      } else {
+        toast.error(result.message ?? 'Unable to regenerate the asset.')
+      }
+    })
+  }
 
   return (
     <div className={cn('space-y-3 rounded-2xl border border-border bg-card p-4', className)}>
@@ -74,6 +130,7 @@ export function QuestionAssetStatus({ assets, className }: QuestionAssetStatusPr
           const key = isMissingFile(link) ? 'missing' : link.asset.status
           const meta = STATUS_META[key] ?? STATUS_META.missing
           const { Icon } = meta
+          const canRegenerate = canAct && link.asset.status === 'generated'
           return (
             <li
               key={link.id}
@@ -90,6 +147,18 @@ export function QuestionAssetStatus({ assets, className }: QuestionAssetStatusPr
               {link.asset.external_ref ? (
                 <code className="truncate text-[0.7rem] text-muted-foreground">{link.asset.external_ref}</code>
               ) : null}
+              {canRegenerate ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="ml-auto h-7 px-2 text-xs"
+                  disabled={isPending}
+                  onClick={() => regenerate(link.asset.id)}
+                >
+                  <RefreshCwIcon className="size-3" />
+                  Regenerate
+                </Button>
+              ) : null}
             </li>
           )
         })}
@@ -97,9 +166,17 @@ export function QuestionAssetStatus({ assets, className }: QuestionAssetStatusPr
 
       {pending.length > 0 ? (
         <div className="space-y-3 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 p-3">
-          <p className="text-xs font-medium text-amber-900">
-            Generate the pending diagram(s) before publishing — students cannot see placeholder text.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-medium text-amber-900">
+              Generate the pending diagram(s) before publishing — students cannot see placeholder text.
+            </p>
+            {canAct ? (
+              <Button size="sm" variant="secondary" disabled={isPending} onClick={generateAll}>
+                <SparklesIcon className="size-3.5" />
+                {isPending ? 'Generating…' : 'Generate asset'}
+              </Button>
+            ) : null}
+          </div>
           {pending.map((link) => (
             <div key={link.id} className="space-y-1.5 rounded-lg bg-white/70 p-2.5 text-xs">
               {link.asset.external_ref ? (
@@ -118,9 +195,10 @@ export function QuestionAssetStatus({ assets, className }: QuestionAssetStatusPr
             </div>
           ))}
           <p className="text-[0.7rem] leading-5 text-amber-900/80">
-            Deterministic diagrams: add a spec to{' '}
-            <code>docs/generated-question-bank/asset-specs/</code> and run{' '}
-            <code>npm run generate:assets</code>, then re-import. Photos/scans: upload to the
+            Supported deterministic diagrams generate straight from their spec with{' '}
+            <span className="font-semibold">Generate asset</span> above. Types with no generator yet stay
+            pending — add a spec to <code>docs/generated-question-bank/asset-specs/</code> and run{' '}
+            <code>npm run generate:assets</code> for offline batches. Photos/scans: upload to the
             question-media bucket. See <code>docs/question-asset-pipeline.md</code>.
           </p>
         </div>

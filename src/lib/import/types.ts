@@ -220,7 +220,11 @@ export interface ImportSummary {
   createdVariantCount: number
   createdStimulusCount: number
   createdAssetCount: number
+  /** New assets whose deterministic SVG was generated during import. */
+  generatedAssetCount: number
   failedCount: number
+  /** Non-blocking notices for assets that stayed pending (unsupported/no spec). */
+  assetWarnings: string[]
 }
 
 export interface ImportReference {

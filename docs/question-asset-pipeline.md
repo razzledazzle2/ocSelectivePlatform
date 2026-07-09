@@ -9,11 +9,15 @@ see. Read this before adding image-bearing questions.
 - A question CSV **references** assets by a string ref; it never stores binary
   image data.
 - Maths / thinking-skills diagrams are **generated deterministically from a
-  structured spec** (`npm run generate:assets`) — not AI image generation.
+  structured spec** — not AI image generation. The same renderer runs three
+  ways: **at import time**, from the **admin UI** ("Generate missing assets" /
+  per-question "Generate asset"), and offline via `npm run generate:assets`.
 - Generated SVGs live in `public/question-assets/generated/` and are served at
   `/question-assets/…`. Photos/scans go in the private `question-media` bucket.
-- Import never fails on a missing asset: a `pending` placeholder is stored and a
-  clean "coming soon" card renders in its place.
+  **Commit newly generated SVGs** (they are deterministic and diff-reviewable).
+- Import never fails on a missing asset: a supported spec is generated on the
+  spot; anything unsupported stays `pending` with a clean "coming soon" card and
+  a row-level warning — the import as a whole never breaks.
 - A question **cannot be published while it has a pending or rejected asset** —
   students never see a broken required diagram.
 
@@ -107,6 +111,40 @@ Assets live in the `public.assets` table (migration `20260706081942`, extended b
 
 3. Point the CSV row's `question_asset_refs` at the generated ref and re-import.
 
+## In-app generation (no CLI)
+
+`npm run generate:assets` is still available for batch/offline runs, but it is no
+longer the only way. The same deterministic renderer
+([`scripts/lib/svg/render.mjs`](../scripts/lib/svg/render.mjs)) is reused
+server-side by [`src/lib/assets/generate.ts`](../src/lib/assets/generate.ts), so
+admins never have to touch the terminal.
+
+**At import time.** When a CSV row has a `pending` ref backed by a supported
+`asset_spec_json` (or a committed spec file for that ref), the importer renders
+the SVG, writes it to `public/question-assets/generated/`, stores the asset row
+as `generated` with the public ref, and reports `generated N diagram(s)`. If the
+SVG is already committed, it just repoints (no re-render). Generation failures or
+unsupported types **never break the import** — the asset stays `pending` and a
+warning is surfaced. The row-level spec is only ever paired with the question's
+single main diagram, never with an option image (option specs live in their own
+committed spec files, keyed by ref).
+
+**From the admin UI** (all in the Question Bank, no re-import needed):
+
+- **Generate missing assets** (bank toolbar) — renders every pending
+  deterministic asset in the bank and flips it to `generated`. This is also the
+  **sync path for already-imported questions**: it updates the existing asset row
+  in place (same id, links intact) — it never deletes or duplicates a question.
+- **Generate asset** (per question, in the Question assets panel) — generates the
+  pending assets for the selected question only.
+- **Regenerate** (per generated asset) — re-renders from the stored spec. Refuses
+  `approved`/`uploaded` assets so a human-cleared asset is never overwritten.
+
+Entry points: [`src/lib/assets/generate-missing.ts`](../src/lib/assets/generate-missing.ts)
+and the server actions in
+[`src/app/admin/questions/asset-actions.ts`](../src/app/admin/questions/asset-actions.ts).
+A row is **never** marked `generated` unless its SVG actually exists on disk.
+
 Generators live in [`scripts/lib/svg/`](../scripts/lib/svg/). Implemented today:
 `coordinate_grid`, `geometry_polygon` (grid form **and** labelled-sides form),
 `translation_arrow`, `bar_chart`, `line_chart`, `pie_chart`,
@@ -137,14 +175,40 @@ for true visuals (diagrams, charts-as-images, photos).
 
 ## Admin review
 
+Generation is deliberately **not** auto-publish. The lifecycle stays
+`pending → generated → (admin reviews) → approved → published`.
+
 - The question preview pane shows a **Question assets** panel: a status badge per
-  asset (Pending / Generated / Uploaded / Approved / Rejected / Missing) and, for
-  anything pending, a card with the ref, alt text and generation prompt.
+  asset (Pending / Generated / Uploaded / Approved / Rejected / Missing), a
+  **Generate asset** button for pending diagrams, a **Regenerate** button on
+  generated ones, and, for anything pending, a card with the ref, alt text and
+  generation prompt.
 - The question bank has an **asset filter** (Has asset / Pending asset / Missing
-  asset / Asset approved) and a "Pending asset" badge on list rows.
+  asset / Asset approved), a "Pending asset" badge on list rows, and a
+  **Generate missing assets** button in the list toolbar.
 - **Publish is blocked** when a question still has a `pending` or `rejected`
   asset (`assertAssetsReadyForPublish` in
-  [`mutations.ts`](../src/lib/questions/mutations.ts)).
+  [`mutations.ts`](../src/lib/questions/mutations.ts)). A freshly `generated`
+  asset can be previewed but should be reviewed/approved before publishing.
+
+## Validation
+
+`npm run validate:assets` ([`scripts/validate-assets.mjs`](../scripts/validate-assets.mjs))
+checks the pipeline is internally consistent and fails on any violation:
+
+- every generated ref (spec files, manifest, question CSVs) resolves to a real
+  SVG on disk;
+- nothing is marked `generated` without its SVG existing;
+- every spec `type` is known; implemented types have a committed SVG; pending
+  types are not silently marked generated;
+- `option_asset_refs_json` refs are validated like any other;
+- no question CSV reuses an `external_id` (would import as a duplicate);
+- no row is `asset_status=generated` while still carrying a pending ref.
+
+At runtime the same invariant is enforced in code: `resolveAssetGeneration`
+only returns `generated` after the SVG is confirmed on disk, and the importer's
+duplicate guard (`external_id` + normalised text) means re-import never
+duplicates a question.
 
 ## SVG vs image generation — when to use which
 
@@ -161,7 +225,10 @@ for true visuals (diagrams, charts-as-images, photos).
 
 ## Related files
 
-- Generator: [`scripts/generate-assets.mjs`](../scripts/generate-assets.mjs), [`scripts/lib/svg/`](../scripts/lib/svg/)
+- Generator (offline): [`scripts/generate-assets.mjs`](../scripts/generate-assets.mjs), [`scripts/lib/svg/`](../scripts/lib/svg/)
+- Generator (in-app, shared renderer): [`src/lib/assets/generate.ts`](../src/lib/assets/generate.ts), [`src/lib/assets/generate-missing.ts`](../src/lib/assets/generate-missing.ts)
+- Admin actions: [`src/app/admin/questions/asset-actions.ts`](../src/app/admin/questions/asset-actions.ts)
+- Validator: [`scripts/validate-assets.mjs`](../scripts/validate-assets.mjs) (`npm run validate:assets`)
 - Specs: [`docs/generated-question-bank/asset-specs/`](generated-question-bank/asset-specs/)
 - Manifest: [`docs/generated-question-bank/asset-manifest.csv`](generated-question-bank/asset-manifest.csv)
 - Notes: [`docs/generated-question-bank/asset-generation-notes.md`](generated-question-bank/asset-generation-notes.md)

@@ -82,6 +82,28 @@ scene is not a clean deterministic diagram).
 **Unsupported asset types** (no generator, stay pending): `scene_illustration`,
 `simple_table_visual`, `venn_diagram_basic`, `logic_grid_table`.
 
+## In-app generation (2026-07-09)
+
+The deterministic renderer is now reusable server-side, so pending diagrams no
+longer require the CLI. Three entry points, one renderer (byte-identical output):
+
+1. **Import-time** — a pending row with a supported spec is generated during
+   import (`src/lib/import/import-questions.ts` → `resolveAssetGeneration`); the
+   import summary reports `generated N diagram(s)`. Unsupported/failed → left
+   pending with a warning, import never breaks.
+2. **Admin UI** — **Generate missing assets** (bank toolbar, whole-bank sync),
+   per-question **Generate asset**, and per-asset **Regenerate**
+   (`src/app/admin/questions/asset-actions.ts` → `src/lib/assets/generate-missing.ts`).
+3. **Offline** — `npm run generate:assets` (unchanged).
+
+Already-imported pending assets (the live DB had **9**, all
+`asset://pending/*.png` with committed SVGs already on disk) are fixed by
+**Generate missing assets**: it updates each asset row in place (same id, all
+question/option links intact, `external_ref`→generated, `status`→`generated`) —
+no re-import, no question deletion, no duplication. A row is never marked
+`generated` unless the SVG exists on disk. Run `npm run validate:assets` to
+verify consistency.
+
 ## Generator coverage
 
 | Spec `type` | Status | Generator |

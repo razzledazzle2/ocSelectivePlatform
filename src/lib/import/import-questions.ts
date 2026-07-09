@@ -1,3 +1,4 @@
+import { resolveAssetGeneration } from '@/lib/assets/generate'
 import { ensureAssetByExternalRef, linkAssetToQuestion } from '@/lib/assets/mutations'
 import { normalizeQuestionText } from '@/lib/import/validation'
 import type { ImportSummary, ResolvedImportQuestion } from '@/lib/import/types'
@@ -152,7 +153,9 @@ export async function importValidatedQuestions(
     createdVariantCount: 0,
     createdStimulusCount: 0,
     createdAssetCount: 0,
+    generatedAssetCount: 0,
     failedCount: 0,
+    assetWarnings: [],
   }
 
   if (rows.length === 0) {
@@ -190,19 +193,44 @@ export async function importValidatedQuestions(
   let failedCount = 0
   let createdStimulusCount = 0
   let createdAssetCount = 0
+  let generatedAssetCount = 0
+  const assetWarnings: string[] = []
 
-  const ensureRowAsset = async (row: ResolvedImportQuestion, ref: string): Promise<string> => {
-    const { id, created } = await ensureAssetByExternalRef({
+  /**
+   * Ensures the asset row for one ref, auto-generating its SVG when the ref is a
+   * pending placeholder backed by a supported deterministic spec. `primary` is
+   * true only for a question's single main diagram — the row-level spec is
+   * paired with THAT ref only, never with option/solution refs (whose specs, if
+   * any, live in the committed spec files keyed by ref).
+   */
+  const ensureRowAsset = async (
+    row: ResolvedImportQuestion,
+    ref: string,
+    options: { primary?: boolean } = {}
+  ): Promise<string> => {
+    const generation = await resolveAssetGeneration({
       ref,
+      ownSpec: options.primary ? row.assetSpec : null,
+    })
+    if (!generation.generated && options.primary && generation.pendingReason) {
+      assetWarnings.push(`${ref}: ${generation.pendingReason}`)
+    }
+    const { id, created } = await ensureAssetByExternalRef({
+      ref: generation.generated ? generation.ref : ref,
       altText: row.assetAltText,
       generationPrompt: row.assetGenerationPrompt,
-      spec: row.assetSpec,
-      status: row.assetStatus,
+      // Persist the exact spec rendered from (committed spec wins over row spec).
+      spec: generation.spec ?? (options.primary ? row.assetSpec : null),
+      status: generation.generated ? 'generated' : row.assetStatus,
+      assetType: generation.generated ? generation.assetType : null,
       actorId,
       cache: assetCache,
     })
     if (created) {
       createdAssetCount += 1
+      if (generation.generated) {
+        generatedAssetCount += 1
+      }
     }
     return id
   }
@@ -277,8 +305,13 @@ export async function importValidatedQuestions(
         }
       }
 
+      // The row-level asset_spec_json belongs to the question's single main
+      // diagram; only pair it when there is exactly one question asset ref.
+      const primaryQuestionAsset = row.questionAssetRefs.length === 1
       for (let index = 0; index < row.questionAssetRefs.length; index += 1) {
-        const assetId = await ensureRowAsset(row, row.questionAssetRefs[index])
+        const assetId = await ensureRowAsset(row, row.questionAssetRefs[index], {
+          primary: primaryQuestionAsset,
+        })
         await linkAssetToQuestion(inserted.id, assetId, 'question', index + 1)
       }
       for (let index = 0; index < row.solutionAssetRefs.length; index += 1) {
@@ -306,7 +339,10 @@ export async function importValidatedQuestions(
       createdVariantCount: createdVariants.size,
       createdStimulusCount,
       createdAssetCount,
+      generatedAssetCount,
       failedCount,
+      // De-duplicated so one repeated pending spec doesn't spam the summary.
+      assetWarnings: [...new Set(assetWarnings)],
     },
     importedQuestionIds,
   }

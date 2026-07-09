@@ -180,6 +180,11 @@ export async function importQuestionsAction(
     if (summary.createdAssetCount > 0) {
       parts.push(`created ${summary.createdAssetCount} asset${summary.createdAssetCount === 1 ? '' : 's'}`)
     }
+    if (summary.generatedAssetCount > 0) {
+      parts.push(
+        `generated ${summary.generatedAssetCount} diagram${summary.generatedAssetCount === 1 ? '' : 's'}`
+      )
+    }
     if (summary.skippedDuplicateCount > 0) {
       parts.push(`skipped ${summary.skippedDuplicateCount} duplicate${summary.skippedDuplicateCount === 1 ? '' : 's'}`)
     }

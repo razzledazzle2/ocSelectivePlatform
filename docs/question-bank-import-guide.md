@@ -143,7 +143,8 @@ Assets are images (diagrams, charts, nets, maps) attached to different parts of 
 
 | Syntax | Meaning |
 |--------|---------|
-| `asset://pending/<name>.<ext>` | A file that does **not exist yet**. Import creates a *pending asset* record; upload the real file later through the admin asset screen. |
+| `asset://pending/<name>.<ext>` | A file that does **not exist yet**. Import creates a *pending asset* record; if the row carries a supported `asset_spec_json` (or a committed spec file exists for that name) the SVG is generated automatically at import — otherwise upload/generate later. |
+| `asset://question-assets/generated/<name>.svg` | A committed, deterministically generated SVG served from `/question-assets/…`. |
 | `https://...` | An already-hosted image URL. |
 | `<path>` | A storage path inside the `question-media` bucket, e.g. `diagrams/triangle-01.png`. |
 
@@ -152,12 +153,16 @@ Where refs go:
 - `stimulus_asset_refs`, `question_asset_refs`, `solution_asset_refs` — **semicolon-separated** lists of refs attached to the stimulus, the question body and the worked solution respectively. Example: `asset://pending/spinner.png;asset://pending/spinner-labels.png`.
 - `option_asset_refs_json` — a JSON map from option label to a single ref, for visual answer options: `{"A":"asset://pending/net-a.png","B":"asset://pending/net-b.png"}`. An option may be image-only (empty `option_x` text) as long as the ref is present.
 
-Describing images that still need producing:
+Describing / generating images:
 
-- `asset_generation_prompt` — a concise brief a designer or image model can work from, e.g. *"Spinner divided into 8 equal sectors: 3 red, 2 blue, 2 green, 1 yellow; flat vector style; no text labels."*
+- `asset_generation_prompt` — a concise brief a designer can work from, e.g. *"Spinner divided into 8 equal sectors…"*. Never used for AI image generation of assessed diagrams.
 - `asset_alt_text` — the accessibility text for the finished image. It is also what students would see if the asset were ever missing.
+- `asset_spec_json` — the structured spec a **deterministic** maths/thinking-skills diagram is drawn from (e.g. `{"type":"pie_chart",…}`). When present with a supported `type`, the SVG is generated automatically at import.
+- `asset_status` — explicit lifecycle override (`pending`/`generated`/`approved`/…); usually left blank and inferred.
 
-**Placeholders:** until a pending asset is uploaded, the app renders a clean placeholder showing the alt text, so draft questions remain reviewable end-to-end. Publish only after all pending assets are uploaded.
+**Auto-generation.** A pending ref with a supported `asset_spec_json` becomes a committed SVG at import (no CLI). Anything unsupported stays pending — you can generate it later without re-importing via **Generate missing assets** (Question Bank toolbar) or the per-question **Generate asset** button. See [`question-asset-pipeline.md`](question-asset-pipeline.md).
+
+**Placeholders:** until an asset is generated/uploaded, the app renders a clean placeholder showing the alt text, so draft questions stay reviewable end-to-end. Publishing is blocked while any required asset is still pending or rejected.
 
 ---
 
