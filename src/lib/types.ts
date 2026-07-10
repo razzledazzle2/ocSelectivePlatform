@@ -320,6 +320,22 @@ export interface QuestionRecord {
   variant_id: string | null
   skill_tags: string[]
   concept_tags: string[]
+  // -- Canonical taxonomy v1 (codes from src/lib/taxonomy) --------------------
+  // The subject reuses the existing subject_id FK; domain/subtopic/skill and the
+  // separate metadata dimensions are stored as stable string codes (nullable,
+  // editable, no DB enum). See docs/question-taxonomy-v1.md.
+  domain_code: string | null
+  subtopic_code: string | null
+  skill_code: string | null
+  pattern_key: string | null
+  question_family: string | null
+  /** Per-question stimulus type (canonical STIMULUS_FORMATS), distinct from the shared stimuli.stimulus_type. */
+  stimulus_format: string | null
+  stimulus_genre: string | null
+  asset_render_method: string | null
+  writing_form: string | null
+  writing_purpose: string | null
+  writing_prompt_stimulus: string | null
   rubric: WritingRubric | null
   presentation: QuestionPresentation
   source_info: QuestionSourceInfo
@@ -377,6 +393,13 @@ export interface AdminQuestionFilters {
   subjectId?: string
   topicId?: string
   questionTypeId?: string
+  /** Canonical taxonomy filters (codes from src/lib/taxonomy). */
+  domainCode?: string
+  subtopicCode?: string
+  skillCode?: string
+  questionFamily?: string
+  stimulusFormat?: string
+  patternKey?: string
   tag?: string
   difficulty?: string
   status?: string
@@ -452,6 +475,18 @@ export interface QuestionFormValues {
   subjectId: string
   topicId: string
   questionTypeId: string
+  // Canonical taxonomy v1 (stable codes; '' = not set).
+  domainCode: string
+  subtopicCode: string
+  skillCode: string
+  patternKey: string
+  questionFamily: string
+  stimulusFormat: string
+  stimulusGenre: string
+  assetRenderMethod: string
+  writingForm: string
+  writingPurpose: string
+  writingPromptStimulus: string
   yearLevel: string
   difficulty: string
   answerFormat: AnswerFormat
@@ -480,6 +515,18 @@ export interface QuestionWriteInput {
   subjectId: string
   topicId: string
   questionTypeId: string | null
+  // Canonical taxonomy v1 (stable codes; null = not set).
+  domainCode: string | null
+  subtopicCode: string | null
+  skillCode: string | null
+  patternKey: string | null
+  questionFamily: string | null
+  stimulusFormat: string | null
+  stimulusGenre: string | null
+  assetRenderMethod: string | null
+  writingForm: string | null
+  writingPurpose: string | null
+  writingPromptStimulus: string | null
   yearLevel: number | null
   difficulty: number
   answerFormat: AnswerFormat

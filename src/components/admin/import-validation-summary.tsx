@@ -6,6 +6,7 @@ interface ImportValidationSummaryProps {
 }
 
 const MAX_DIGEST_ISSUES = 8
+const MAX_FILE_LIST = 10
 
 export function ImportValidationSummary({ result }: ImportValidationSummaryProps) {
   // A short digest of the exact problems, e.g.
@@ -27,15 +28,26 @@ export function ImportValidationSummary({ result }: ImportValidationSummaryProps
       <div className="flex flex-wrap gap-2">
         <Badge variant="secondary">{result.totalRows} detected</Badge>
         <Badge variant="outline" className="border-transparent bg-success-soft text-success">
-          {result.importableCount} importable
+          {result.createCount} new
         </Badge>
+        {result.updateCount > 0 ? (
+          <Badge variant="outline" className="border-transparent bg-warning-soft text-warning">
+            {result.updateCount} updated
+          </Badge>
+        ) : null}
+        {result.unchangedCount > 0 ? <Badge variant="outline">{result.unchangedCount} unchanged</Badge> : null}
         {result.warningCount > 0 ? (
           <Badge variant="outline" className="border-transparent bg-warning-soft text-warning">
             {result.warningCount} with warnings
           </Badge>
         ) : null}
         <Badge variant={result.errorCount > 0 ? 'destructive' : 'outline'}>{result.errorCount} errors</Badge>
-        {result.duplicateCount > 0 ? <Badge variant="outline">{result.duplicateCount} duplicates</Badge> : null}
+        {result.duplicateCount > 0 ? <Badge variant="outline">{result.duplicateCount} duplicate ids</Badge> : null}
+        {result.missingAssetCount > 0 ? (
+          <Badge variant="outline" className="border-transparent bg-destructive/10 text-destructive">
+            {result.missingAssetCount} missing assets
+          </Badge>
+        ) : null}
       </div>
       {shownDigest.length > 0 ? (
         <ul className="space-y-1 rounded-xl border border-border/70 bg-muted/50 px-4 py-3 text-xs">
@@ -48,6 +60,17 @@ export function ImportValidationSummary({ result }: ImportValidationSummaryProps
             <li className="text-muted-foreground">…and {hiddenCount} more. See the table below for details.</li>
           ) : null}
         </ul>
+      ) : null}
+      {result.unusedAssetFiles.length > 0 ? (
+        <div className="rounded-xl border border-border/70 bg-muted/50 px-4 py-3 text-xs">
+          <p className="font-medium text-foreground">
+            {result.unusedAssetFiles.length} uploaded file{result.unusedAssetFiles.length === 1 ? '' : 's'} not referenced by any row:
+          </p>
+          <p className="mt-1 font-mono text-muted-foreground">
+            {result.unusedAssetFiles.slice(0, MAX_FILE_LIST).join(', ')}
+            {result.unusedAssetFiles.length > MAX_FILE_LIST ? `, +${result.unusedAssetFiles.length - MAX_FILE_LIST} more` : ''}
+          </p>
+        </div>
       ) : null}
     </div>
   )

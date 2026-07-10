@@ -1,6 +1,8 @@
+import type { ExistingQuestionSnapshot } from '@/lib/questions/queries'
 import type {
   AnswerFormat,
   AssetStatus,
+  AssetType,
   ExamType,
   QuestionOptionLabel,
   QuestionPresentation,
@@ -24,24 +26,39 @@ export const IMPORT_FORMAT_SOURCE: Record<ImportFormat, QuestionSource> = {
 }
 
 /**
+ * create            — insert rows whose external_id does not already exist; matching ids are
+ *                      flagged as duplicates and skipped (never updated).
+ * update            — update rows whose external_id already exists; ids with no existing match
+ *                      are rejected (never created).
+ * create_and_update — insert new external_ids, update matching ones. Never deletes/touches
+ *                      records that are simply absent from the file.
+ */
+export type ImportMode = 'create' | 'update' | 'create_and_update'
+
+/** How a blank incoming cell is treated on an update: preserve, or wipe, the existing value. */
+export type BlankCellBehavior = 'keep' | 'clear'
+
+/**
  * Admin-controlled import behaviour. Defaults are forgiving: import as draft,
- * auto-create missing taxonomy, allow missing short explanations, warn (not
- * block) on duplicates.
+ * auto-create missing taxonomy, allow missing short explanations, create-only
+ * (never silently overwrite existing questions), keep existing values on blank cells.
  */
 export interface ImportSettings {
   importStatus: Extract<QuestionStatus, 'draft' | 'published'>
+  mode: ImportMode
+  blankCellBehavior: BlankCellBehavior
   createMissingTopics: boolean
   createMissingQuestionTypes: boolean
   requireShortExplanation: boolean
-  blockDuplicates: boolean
 }
 
 export const DEFAULT_IMPORT_SETTINGS: ImportSettings = {
   importStatus: 'draft',
+  mode: 'create',
+  blankCellBehavior: 'keep',
   createMissingTopics: true,
   createMissingQuestionTypes: true,
   requireShortExplanation: false,
-  blockDuplicates: false,
 }
 
 /**
@@ -101,6 +118,22 @@ export interface QuestionImportRow {
   assetSpecJson: string
   /** Explicit asset lifecycle state (pending/generated/approved/…). */
   assetStatus: string
+  /** Explicit asset type override (image/svg/diagram/…); inferred from extension when blank. */
+  assetType: string
+  /** "true"/"false" — whether the row's asset refs must be ready before publish. Defaults true. */
+  assetRequired: string
+  // -- Canonical taxonomy v1 (raw codes; src/lib/taxonomy) --------------------
+  domainCode: string
+  subtopicCode: string
+  skillCode: string
+  patternKey: string
+  questionFamily: string
+  stimulusFormat: string
+  stimulusGenre: string
+  assetRenderMethod: string
+  writingForm: string
+  writingPurpose: string
+  writingPromptStimulus: string
 }
 
 export interface ImportRowIssue {
@@ -110,6 +143,9 @@ export interface ImportRowIssue {
 
 /** Whether a validated row can import cleanly, imports with warnings, or is blocked. */
 export type ImportRowStatus = 'ready' | 'warning' | 'error'
+
+/** What will actually happen to a row when the import runs. */
+export type ImportRowAction = 'create' | 'update' | 'unchanged' | 'skip_duplicate'
 
 /**
  * A stimulus definition resolved from the import file (merged across the rows
@@ -125,12 +161,46 @@ export interface ResolvedImportStimulus {
   assetRefs: string[]
 }
 
+/** One field's before/after/final value for an update row's preview diff. */
+export interface FieldDiff {
+  field: string
+  label: string
+  existing: string
+  incoming: string
+  final: string
+  changed: boolean
+}
+
+/** How one asset reference on a row resolves in the import preview. */
+export type AssetPreviewState = 'not_required' | 'ready' | 'pending' | 'missing' | 'invalid' | 'rejected'
+
+export interface AssetRefPreview {
+  ref: string
+  /** Which column/role the ref came from, e.g. "question_asset_refs", "option_asset_refs_json.A". */
+  field: string
+  state: AssetPreviewState
+  message?: string
+}
+
+/** A file extracted from an uploaded assets ZIP (or the standalone assets ZIP). */
+export interface UploadedAssetFile {
+  /** Normalised, traversal-safe relative path, e.g. "mr-area-001.svg". */
+  relativePath: string
+  filename: string
+  size: number
+  buffer: Buffer
+}
+
 /**
  * A fully resolved, insert-ready question. Taxonomy may still be pending
  * creation: a null topicId/questionTypeId together with a non-empty name means
  * "create this under the subject at import time" (auto-create was enabled).
  */
 export interface ResolvedImportQuestion {
+  /** What the import step should do with this row. */
+  action: 'create' | 'update'
+  /** Set when action === 'update'. */
+  existingQuestionId: string | null
   externalId: string | null
   subjectId: string
   topicId: string | null
@@ -162,6 +232,8 @@ export interface ResolvedImportQuestion {
   stimulusExternalRef: string | null
   /** In-file stimulus definition; null when the ref resolves to an existing DB stimulus. */
   stimulusDefinition: ResolvedImportStimulus | null
+  /** Kept so an update with a blank stimulus_id cell doesn't unlink an existing stimulus. */
+  existingStimulusId: string | null
   questionAssetRefs: string[]
   solutionAssetRefs: string[]
   rubric: WritingRubric | null
@@ -173,15 +245,31 @@ export interface ResolvedImportQuestion {
   assetSpec: Record<string, unknown> | null
   /** Explicit asset status (from asset_status), or null to let the ref scheme decide. */
   assetStatus: AssetStatus | null
+  assetType: AssetType | null
+  /** Whether this row's asset refs must be ready before the question can publish. */
+  assetRequired: boolean
   tags: string[]
   skillTags: string[]
   conceptTags: string[]
   status: QuestionStatus
+  // -- Canonical taxonomy v1 (resolved codes; null when unset) ----------------
+  domainCode: string | null
+  subtopicCode: string | null
+  skillCode: string | null
+  patternKey: string | null
+  questionFamily: string | null
+  stimulusFormat: string | null
+  stimulusGenre: string | null
+  assetRenderMethod: string | null
+  writingForm: string | null
+  writingPurpose: string | null
+  writingPromptStimulus: string | null
 }
 
 export interface ValidatedImportRow {
   rowNumber: number
   rowStatus: ImportRowStatus
+  action: ImportRowAction
   questionPreview: string
   subjectLabel: string
   topicLabel: string
@@ -194,6 +282,9 @@ export interface ValidatedImportRow {
   isDuplicate: boolean
   isImportable: boolean
   resolved: ResolvedImportQuestion | null
+  /** Only populated when action === 'update'; changed fields only need to be rendered by the UI. */
+  diffs: FieldDiff[]
+  assetPreviews: AssetRefPreview[]
 }
 
 export interface ImportValidationResult {
@@ -208,12 +299,20 @@ export interface ImportValidationResult {
   /** Rows blocked by a structural error. */
   errorCount: number
   duplicateCount: number
+  createCount: number
+  updateCount: number
+  unchangedCount: number
+  missingAssetCount: number
+  /** Uploaded asset files never referenced by any row. */
+  unusedAssetFiles: string[]
   rows: ValidatedImportRow[]
   parseError?: string
 }
 
 export interface ImportSummary {
   importedCount: number
+  updatedCount: number
+  unchangedCount: number
   skippedDuplicateCount: number
   createdTopicCount: number
   createdQuestionTypeCount: number
@@ -222,9 +321,14 @@ export interface ImportSummary {
   createdAssetCount: number
   /** New assets whose deterministic SVG was generated during import. */
   generatedAssetCount: number
+  /** Assets uploaded from a provided ZIP package. */
+  uploadedAssetCount: number
+  /** Uploaded files that failed validation/sanitisation and were rejected. */
+  rejectedAssetCount: number
   failedCount: number
   /** Non-blocking notices for assets that stayed pending (unsupported/no spec). */
   assetWarnings: string[]
+  unusedAssetFiles: string[]
 }
 
 export interface ImportReference {
@@ -237,4 +341,6 @@ export interface ImportReference {
   existingStimulusRefs: string[]
   /** questions.external_id values already in the DB. */
   existingExternalIds: string[]
+  /** Full snapshots of existing questions referenced by this file's external_ids, for diffing. */
+  existingByExternalId: Map<string, ExistingQuestionSnapshot>
 }

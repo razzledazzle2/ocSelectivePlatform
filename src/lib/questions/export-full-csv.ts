@@ -1,6 +1,7 @@
 import type {
   AnswerFormat,
   AssetStatus,
+  AssetType,
   QuestionPresentation,
   QuestionSourceInfo,
   WritingRubric,
@@ -59,6 +60,22 @@ export const FULL_EXPORT_CSV_HEADERS = [
   'asset_spec_json',
   'asset_status',
   'status',
+  // Canonical taxonomy v1 (src/lib/taxonomy). Appended so older v2 files still
+  // import; codes round-trip losslessly here.
+  'domain_code',
+  'subtopic_code',
+  'skill_code',
+  'pattern_key',
+  'question_family',
+  'stimulus_format',
+  'stimulus_genre',
+  'asset_render_method',
+  'writing_form',
+  'writing_purpose',
+  'writing_prompt_stimulus',
+  // Asset metadata (append-only, mirrors the import template).
+  'asset_type',
+  'asset_required',
 ] as const
 
 export interface FullExportOption {
@@ -103,6 +120,9 @@ export interface FullExportQuestion {
   assetAltText: string | null
   assetSpec: Record<string, unknown> | null
   assetStatus: AssetStatus | null
+  assetType: AssetType | null
+  /** Null when the row has no asset refs at all; true/false otherwise (defaults true). */
+  assetRequired: boolean | null
   presentation: QuestionPresentation
   rubric: WritingRubric | null
   skillTags: string[]
@@ -110,6 +130,18 @@ export interface FullExportQuestion {
   tags: string[]
   sourceInfo: QuestionSourceInfo
   status: string
+  // Canonical taxonomy v1 codes (nullable).
+  domainCode: string | null
+  subtopicCode: string | null
+  skillCode: string | null
+  patternKey: string | null
+  questionFamily: string | null
+  stimulusFormat: string | null
+  stimulusGenre: string | null
+  assetRenderMethod: string | null
+  writingForm: string | null
+  writingPurpose: string | null
+  writingPromptStimulus: string | null
 }
 
 function escapeCsvCell(value: string): string {
@@ -195,6 +227,19 @@ export function buildFullExportCsv(rows: FullExportQuestion[]): string {
         row.assetSpec ? JSON.stringify(row.assetSpec) : '',
         row.assetStatus ?? '',
         row.status,
+        row.domainCode ?? '',
+        row.subtopicCode ?? '',
+        row.skillCode ?? '',
+        row.patternKey ?? '',
+        row.questionFamily ?? '',
+        row.stimulusFormat ?? '',
+        row.stimulusGenre ?? '',
+        row.assetRenderMethod ?? '',
+        row.writingForm ?? '',
+        row.writingPurpose ?? '',
+        row.writingPromptStimulus ?? '',
+        row.assetType ?? '',
+        row.assetRequired === null ? '' : String(row.assetRequired),
       ]
 
       return cells.map(escapeCsvCell).join(',')

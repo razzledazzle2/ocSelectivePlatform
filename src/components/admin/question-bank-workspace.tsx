@@ -70,6 +70,17 @@ import {
   type SubjectRecord,
   type TopicRecord,
 } from '@/lib/types'
+import {
+  QUESTION_FAMILIES,
+  STIMULUS_FORMATS,
+  getAllDomains,
+  getAllSkills,
+  getAllSubtopics,
+  getDomainsForSubject,
+  getSubtopicsForDomain,
+  getSuggestedSkillsForSubtopic,
+  resolveLegacySubject,
+} from '@/lib/taxonomy'
 
 const ALL = 'all'
 const difficultyValues = ['1', '2', '3', '4', '5'] as const
@@ -138,7 +149,15 @@ export function QuestionBankWorkspace({
   const difficulty = filters.difficulty ?? ALL
   const status = filters.status ?? ALL
   const assetState = filters.assetState ?? ALL
+  const domainCode = filters.domainCode ?? ALL
+  const subtopicCode = filters.subtopicCode ?? ALL
+  const skillCode = filters.skillCode ?? ALL
+  const questionFamily = filters.questionFamily ?? ALL
+  const stimulusFormat = filters.stimulusFormat ?? ALL
   const sort = filters.sort && filters.sort in ADMIN_QUESTION_SORT_LABELS ? filters.sort : 'updated_desc'
+
+  const [patternKeyInput, setPatternKeyInput] = useState(filters.patternKey ?? '')
+  useEffect(() => setPatternKeyInput(filters.patternKey ?? ''), [filters.patternKey])
 
   const filteredTopics = useMemo(
     () => (subjectId === ALL ? topics : topics.filter((topic) => topic.subject_id === subjectId)),
@@ -151,6 +170,45 @@ export function QuestionBankWorkspace({
         : questionTypes.filter((type) => type.subject_id === subjectId),
     [questionTypes, subjectId]
   )
+
+  // -- Canonical taxonomy filters (subject → domain → subtopic → skill) -------
+  const subjectCode = useMemo(
+    () => (subjectId === ALL ? null : resolveLegacySubject(subjects.find((s) => s.id === subjectId)?.slug ?? null)),
+    [subjects, subjectId]
+  )
+  const domainOptions = useMemo(
+    () => (subjectCode ? getDomainsForSubject(subjectCode) : getAllDomains()),
+    [subjectCode]
+  )
+  const subtopicOptions = useMemo(
+    () => (domainCode === ALL ? getAllSubtopics() : getSubtopicsForDomain(domainCode)),
+    [domainCode]
+  )
+  const skillOptions = useMemo(
+    () => (subtopicCode === ALL ? getAllSkills() : getSuggestedSkillsForSubtopic(subtopicCode)),
+    [subtopicCode]
+  )
+
+  const domainItems = useMemo(
+    () => ({ [ALL]: 'All domains', ...Object.fromEntries(domainOptions.map((d) => [d.code, d.label])) }),
+    [domainOptions]
+  )
+  const subtopicItems = useMemo(
+    () => ({ [ALL]: 'All subtopics', ...Object.fromEntries(subtopicOptions.map((s) => [s.code, s.label])) }),
+    [subtopicOptions]
+  )
+  const skillItems = useMemo(
+    () => ({ [ALL]: 'All skills', ...Object.fromEntries(skillOptions.map((s) => [s.code, s.label])) }),
+    [skillOptions]
+  )
+  const questionFamilyItems = {
+    [ALL]: 'All families',
+    ...Object.fromEntries(QUESTION_FAMILIES.map((item) => [item.code, item.label])),
+  }
+  const stimulusFormatItems = {
+    [ALL]: 'All stimulus types',
+    ...Object.fromEntries(STIMULUS_FORMATS.map((item) => [item.code, item.label])),
+  }
 
   // base-ui Select needs value->label maps so triggers show names, not raw ids/values.
   const examItems = { [ALL]: 'All exam types', ...Object.fromEntries(EXAM_TYPES.map((v) => [v, v])) }
@@ -207,9 +265,16 @@ export function QuestionBankWorkspace({
       subjectId,
       topicId,
       questionTypeId,
+      domainCode,
+      subtopicCode,
+      skillCode,
+      questionFamily,
+      stimulusFormat,
+      patternKey: patternKeyInput.trim(),
       tag,
       difficulty,
       status,
+      assetState,
       sort,
       pageSize: filters.pageSize ?? '',
       ...next,
@@ -241,9 +306,22 @@ export function QuestionBankWorkspace({
 
   const hasActiveFilters =
     Boolean(filters.query) ||
-    [examType, subjectId, topicId, questionTypeId, tag, difficulty, status, assetState].some(
-      (value) => value !== ALL
-    )
+    Boolean(filters.patternKey) ||
+    [
+      examType,
+      subjectId,
+      topicId,
+      questionTypeId,
+      domainCode,
+      subtopicCode,
+      skillCode,
+      questionFamily,
+      stimulusFormat,
+      tag,
+      difficulty,
+      status,
+      assetState,
+    ].some((value) => value !== ALL)
 
   // -- Selection (preview) + bulk checkboxes ----------------------------------
   const [previewId, setPreviewId] = useState<string | null>(null)
@@ -497,7 +575,16 @@ export function QuestionBankWorkspace({
 
             <Select
               value={subjectId}
-              onValueChange={(value) => pushFilters({ subjectId: value, topicId: ALL, questionTypeId: ALL })}
+              onValueChange={(value) =>
+                pushFilters({
+                  subjectId: value,
+                  topicId: ALL,
+                  questionTypeId: ALL,
+                  domainCode: ALL,
+                  subtopicCode: ALL,
+                  skillCode: ALL,
+                })
+              }
               items={subjectItems}
             >
               <SelectTrigger className="w-full" aria-label="Subject">
@@ -541,6 +628,105 @@ export function QuestionBankWorkspace({
                 ))}
               </SelectContent>
             </Select>
+
+            <Select
+              value={domainCode}
+              onValueChange={(value) => pushFilters({ domainCode: value, subtopicCode: ALL, skillCode: ALL })}
+              items={domainItems}
+            >
+              <SelectTrigger className="w-full" aria-label="Domain">
+                <SelectValue placeholder="All domains" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(domainItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={subtopicCode}
+              onValueChange={(value) => pushFilters({ subtopicCode: value, skillCode: ALL })}
+              items={subtopicItems}
+            >
+              <SelectTrigger className="w-full" aria-label="Subtopic">
+                <SelectValue placeholder="All subtopics" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(subtopicItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={skillCode} onValueChange={(value) => pushFilters({ skillCode: value })} items={skillItems}>
+              <SelectTrigger className="w-full" aria-label="Skill">
+                <SelectValue placeholder="All skills" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(skillItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={questionFamily}
+              onValueChange={(value) => pushFilters({ questionFamily: value })}
+              items={questionFamilyItems}
+            >
+              <SelectTrigger className="w-full" aria-label="Question family">
+                <SelectValue placeholder="All families" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(questionFamilyItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={stimulusFormat}
+              onValueChange={(value) => pushFilters({ stimulusFormat: value })}
+              items={stimulusFormatItems}
+            >
+              <SelectTrigger className="w-full" aria-label="Stimulus type">
+                <SelectValue placeholder="All stimulus types" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(stimulusFormatItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Input
+              value={patternKeyInput}
+              onChange={(event) => setPatternKeyInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  pushFilters({ patternKey: patternKeyInput.trim() })
+                }
+              }}
+              onBlur={() => {
+                if ((filters.patternKey ?? '') !== patternKeyInput.trim()) {
+                  pushFilters({ patternKey: patternKeyInput.trim() })
+                }
+              }}
+              placeholder="Pattern key…"
+              aria-label="Pattern key"
+            />
 
             <Select value={tag} onValueChange={(value) => pushFilters({ tag: value })} items={tagItems}>
               <SelectTrigger className="w-full" aria-label="Tag">

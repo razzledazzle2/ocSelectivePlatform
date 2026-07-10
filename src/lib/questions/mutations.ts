@@ -2,6 +2,13 @@ import { MAX_OPTION_COUNT, MIN_OPTION_COUNT } from '@/lib/questions/option-rules
 import { parseWritingRubric } from '@/lib/questions/rubric'
 import { createClient } from '@/lib/supabase/server'
 import {
+  getSkill,
+  getSubtopic,
+  isValidDimensionValue,
+  validateCombination,
+  type DimensionName,
+} from '@/lib/taxonomy'
+import {
   ANSWER_FORMATS,
   EXAM_TYPES,
   QUESTION_OPTION_LABELS,
@@ -47,6 +54,82 @@ function buildOptions(formData: FormData): QuestionOptionRecord[] {
   )
 }
 
+/** The canonical taxonomy codes carried on a question (all nullable/editable). */
+interface CanonicalTaxonomyInput {
+  domainCode: string | null
+  subtopicCode: string | null
+  skillCode: string | null
+  patternKey: string | null
+  questionFamily: string | null
+  stimulusFormat: string | null
+  stimulusGenre: string | null
+  assetRenderMethod: string | null
+  writingForm: string | null
+  writingPurpose: string | null
+  writingPromptStimulus: string | null
+}
+
+/**
+ * Reads and validates the canonical taxonomy fields from the form. Parents are
+ * auto-filled from a more specific selection (skill → subtopic → domain) so the
+ * stored codes are always internally consistent. Invalid codes are reported as
+ * field errors rather than silently dropped. Subject alignment is enforced in
+ * the form UI (subject drives the available domains).
+ */
+function parseCanonicalTaxonomy(
+  formData: FormData,
+  fieldErrors: Record<string, string>
+): CanonicalTaxonomyInput {
+  const read = (key: string) => readTrimmedValue(formData, key) || null
+
+  let domainCode = read('domainCode')
+  let subtopicCode = read('subtopicCode')
+  const skillCode = read('skillCode')
+
+  if (skillCode && !subtopicCode) subtopicCode = getSkill(skillCode)?.subtopicCode ?? subtopicCode
+  if (subtopicCode && !domainCode) domainCode = getSubtopic(subtopicCode)?.domainCode ?? domainCode
+
+  const combination = validateCombination({ domainCode, subtopicCode, skillCode })
+  for (const issue of combination.issues) {
+    const field =
+      issue.field === 'domain' ? 'domainCode' : issue.field === 'subtopic' ? 'subtopicCode' : 'skillCode'
+    fieldErrors[field] = issue.message
+  }
+
+  const dimensionChecks: Array<[DimensionName, keyof CanonicalTaxonomyInput]> = [
+    ['question_family', 'questionFamily'],
+    ['stimulus_format', 'stimulusFormat'],
+    ['stimulus_genre', 'stimulusGenre'],
+    ['asset_render_method', 'assetRenderMethod'],
+    ['writing_form', 'writingForm'],
+    ['writing_purpose', 'writingPurpose'],
+    ['writing_prompt_stimulus', 'writingPromptStimulus'],
+  ]
+
+  const dimensionValues: Partial<Record<keyof CanonicalTaxonomyInput, string | null>> = {}
+  for (const [dimension, field] of dimensionChecks) {
+    const value = read(field)
+    if (!isValidDimensionValue(dimension, value)) {
+      fieldErrors[field] = `"${value}" is not a valid ${dimension.replace(/_/g, ' ')}.`
+    }
+    dimensionValues[field] = value
+  }
+
+  return {
+    domainCode,
+    subtopicCode,
+    skillCode,
+    patternKey: read('patternKey'),
+    questionFamily: dimensionValues.questionFamily ?? null,
+    stimulusFormat: dimensionValues.stimulusFormat ?? null,
+    stimulusGenre: dimensionValues.stimulusGenre ?? null,
+    assetRenderMethod: dimensionValues.assetRenderMethod ?? null,
+    writingForm: dimensionValues.writingForm ?? null,
+    writingPurpose: dimensionValues.writingPurpose ?? null,
+    writingPromptStimulus: dimensionValues.writingPromptStimulus ?? null,
+  }
+}
+
 export function parseQuestionWriteInput(formData: FormData): ActionResult<QuestionWriteInput> {
   const fieldErrors: Record<string, string> = {}
   const examType = readTrimmedValue(formData, 'examType')
@@ -69,6 +152,7 @@ export function parseQuestionWriteInput(formData: FormData): ActionResult<Questi
   const skillTags = parseTags(readTrimmedValue(formData, 'skillTags'))
   const conceptTags = parseTags(readTrimmedValue(formData, 'conceptTags'))
   const rubricJson = String(formData.get('rubricJson') ?? '')
+  const taxonomy = parseCanonicalTaxonomy(formData, fieldErrors)
 
   if (!isValidExamType(examType)) {
     fieldErrors.examType = 'Choose OC or Selective.'
@@ -181,6 +265,17 @@ export function parseQuestionWriteInput(formData: FormData): ActionResult<Questi
       subjectId,
       topicId,
       questionTypeId,
+      domainCode: taxonomy.domainCode,
+      subtopicCode: taxonomy.subtopicCode,
+      skillCode: taxonomy.skillCode,
+      patternKey: taxonomy.patternKey,
+      questionFamily: taxonomy.questionFamily,
+      stimulusFormat: taxonomy.stimulusFormat,
+      stimulusGenre: taxonomy.stimulusGenre,
+      assetRenderMethod: taxonomy.assetRenderMethod,
+      writingForm: taxonomy.writingForm,
+      writingPurpose: taxonomy.writingPurpose,
+      writingPromptStimulus: taxonomy.writingPromptStimulus,
       yearLevel,
       difficulty,
       answerFormat,
@@ -214,6 +309,23 @@ export async function validateStimulusExists(stimulusId: string | null): Promise
   return data ? {} : { stimulusId: 'The linked stimulus could not be found.' }
 }
 
+/** Maps the canonical taxonomy codes on a write input to their DB columns. */
+function taxonomyColumns(input: QuestionWriteInput) {
+  return {
+    domain_code: input.domainCode,
+    subtopic_code: input.subtopicCode,
+    skill_code: input.skillCode,
+    pattern_key: input.patternKey,
+    question_family: input.questionFamily,
+    stimulus_format: input.stimulusFormat,
+    stimulus_genre: input.stimulusGenre,
+    asset_render_method: input.assetRenderMethod,
+    writing_form: input.writingForm,
+    writing_purpose: input.writingPurpose,
+    writing_prompt_stimulus: input.writingPromptStimulus,
+  }
+}
+
 function buildQuestionPayload(input: QuestionWriteInput, actorId: string) {
   const publishedAt = input.status === 'published' ? new Date().toISOString() : null
 
@@ -221,6 +333,7 @@ function buildQuestionPayload(input: QuestionWriteInput, actorId: string) {
     subject_id: input.subjectId,
     topic_id: input.topicId,
     question_type_id: input.questionTypeId,
+    ...taxonomyColumns(input),
     exam_type: input.examType,
     year_level: input.yearLevel,
     difficulty: input.difficulty,
@@ -313,6 +426,7 @@ export async function updateQuestion(questionId: string, input: QuestionWriteInp
       subject_id: input.subjectId,
       topic_id: input.topicId,
       question_type_id: input.questionTypeId,
+      ...taxonomyColumns(input),
       exam_type: input.examType,
       year_level: input.yearLevel,
       difficulty: input.difficulty,
@@ -683,7 +797,7 @@ export async function duplicateQuestion(
   const { data: original, error: loadError } = await supabase
     .from('questions')
     .select(
-      'subject_id, topic_id, question_type_id, exam_type, year_level, difficulty, answer_format, marks, time_limit_seconds, question_text, passage_text, stimulus_id, variant_id, short_explanation, worked_solution, correct_option_label, tags, skill_tags, concept_tags, rubric, presentation, source_info'
+      'subject_id, topic_id, question_type_id, domain_code, subtopic_code, skill_code, pattern_key, question_family, stimulus_format, stimulus_genre, asset_render_method, writing_form, writing_purpose, writing_prompt_stimulus, exam_type, year_level, difficulty, answer_format, marks, time_limit_seconds, question_text, passage_text, stimulus_id, variant_id, short_explanation, worked_solution, correct_option_label, tags, skill_tags, concept_tags, rubric, presentation, source_info'
     )
     .eq('id', questionId)
     .maybeSingle()
@@ -710,6 +824,17 @@ export async function duplicateQuestion(
       subject_id: original.subject_id,
       topic_id: original.topic_id,
       question_type_id: original.question_type_id,
+      domain_code: original.domain_code,
+      subtopic_code: original.subtopic_code,
+      skill_code: original.skill_code,
+      pattern_key: original.pattern_key,
+      question_family: original.question_family,
+      stimulus_format: original.stimulus_format,
+      stimulus_genre: original.stimulus_genre,
+      asset_render_method: original.asset_render_method,
+      writing_form: original.writing_form,
+      writing_purpose: original.writing_purpose,
+      writing_prompt_stimulus: original.writing_prompt_stimulus,
       exam_type: original.exam_type,
       year_level: original.year_level,
       difficulty: original.difficulty,

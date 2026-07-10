@@ -61,6 +61,20 @@ const HEADER_ALIASES: Record<ScalarColumnKey, string[]> = {
   assetAltText: ['asset_alt_text'],
   assetSpecJson: ['asset_spec_json', 'asset_spec'],
   assetStatus: ['asset_status'],
+  assetType: ['asset_type'],
+  assetRequired: ['asset_required'],
+  // Canonical taxonomy v1 (codes, not labels). Optional in every CSV.
+  domainCode: ['domain_code', 'domain'],
+  subtopicCode: ['subtopic_code', 'subtopic'],
+  skillCode: ['skill_code', 'skill'],
+  patternKey: ['pattern_key'],
+  questionFamily: ['question_family'],
+  stimulusFormat: ['stimulus_format'],
+  stimulusGenre: ['stimulus_genre'],
+  assetRenderMethod: ['asset_render_method'],
+  writingForm: ['writing_form'],
+  writingPurpose: ['writing_purpose'],
+  writingPromptStimulus: ['writing_prompt_stimulus'],
 }
 
 const MULTI_REF_ALIASES: Record<MultiRefColumnKey, string[]> = {
@@ -249,6 +263,19 @@ export function parseCsvQuestions(text: string): CsvParseResult {
       assetAltText: get('assetAltText'),
       assetSpecJson: get('assetSpecJson'),
       assetStatus: get('assetStatus'),
+      assetType: get('assetType'),
+      assetRequired: get('assetRequired'),
+      domainCode: get('domainCode'),
+      subtopicCode: get('subtopicCode'),
+      skillCode: get('skillCode'),
+      patternKey: get('patternKey'),
+      questionFamily: get('questionFamily'),
+      stimulusFormat: get('stimulusFormat'),
+      stimulusGenre: get('stimulusGenre'),
+      assetRenderMethod: get('assetRenderMethod'),
+      writingForm: get('writingForm'),
+      writingPurpose: get('writingPurpose'),
+      writingPromptStimulus: get('writingPromptStimulus'),
     })
   }
 

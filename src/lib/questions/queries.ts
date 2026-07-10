@@ -382,6 +382,24 @@ export function applyAdminQuestionFilters<T>(
   if (filters.questionTypeId) {
     next = next.eq('question_type_id', filters.questionTypeId)
   }
+  if (filters.domainCode) {
+    next = next.eq('domain_code', filters.domainCode)
+  }
+  if (filters.subtopicCode) {
+    next = next.eq('subtopic_code', filters.subtopicCode)
+  }
+  if (filters.skillCode) {
+    next = next.eq('skill_code', filters.skillCode)
+  }
+  if (filters.questionFamily) {
+    next = next.eq('question_family', filters.questionFamily)
+  }
+  if (filters.stimulusFormat) {
+    next = next.eq('stimulus_format', filters.stimulusFormat)
+  }
+  if (filters.patternKey) {
+    next = next.eq('pattern_key', filters.patternKey)
+  }
   if (filters.tag) {
     next = next.contains('tags', [filters.tag])
   }
@@ -779,7 +797,7 @@ type ExportAssetRef = Pick<AssetRecord, 'external_ref' | 'storage_path' | 'exter
  * exporting it lets a re-import regenerate the exact SVG in-app via
  * resolveAssetGeneration — no committed spec files or AI needed.
  */
-type ExportAssetMeta = ExportAssetRef & Pick<AssetRecord, 'alt_text' | 'generation_prompt' | 'status' | 'spec'>
+type ExportAssetMeta = ExportAssetRef & Pick<AssetRecord, 'alt_text' | 'generation_prompt' | 'status' | 'spec' | 'asset_type'>
 
 function toExportAssetRef(asset: ExportAssetRef | ExportAssetRef[] | null): string | null {
   const resolved = getRelationValue(asset)
@@ -812,6 +830,17 @@ type FullExportRawRow = Pick<
   | 'presentation'
   | 'source_info'
   | 'status'
+  | 'domain_code'
+  | 'subtopic_code'
+  | 'skill_code'
+  | 'pattern_key'
+  | 'question_family'
+  | 'stimulus_format'
+  | 'stimulus_genre'
+  | 'asset_render_method'
+  | 'writing_form'
+  | 'writing_purpose'
+  | 'writing_prompt_stimulus'
 > & {
   subject: { name: string }[] | { name: string } | null
   topic: { name: string; strand: string | null }[] | { name: string; strand: string | null } | null
@@ -871,12 +900,23 @@ const FULL_EXPORT_SELECT = `
   presentation,
   source_info,
   status,
+  domain_code,
+  subtopic_code,
+  skill_code,
+  pattern_key,
+  question_family,
+  stimulus_format,
+  stimulus_genre,
+  asset_render_method,
+  writing_form,
+  writing_purpose,
+  writing_prompt_stimulus,
   subject:subjects(name),
   topic:topics(name, strand),
   question_type:question_types(name),
   variant:question_variants(name),
   options:question_options(label, option_text, sort_order, explanation, asset:assets(external_ref, storage_path, external_url)),
-  question_assets(role, sort_order, asset:assets(external_ref, storage_path, external_url, alt_text, generation_prompt, status, spec)),
+  question_assets(role, sort_order, asset:assets(external_ref, storage_path, external_url, alt_text, generation_prompt, status, spec, asset_type)),
   stimulus:stimuli(id, external_ref, title, stimulus_type, body_markdown, stimulus_assets(sort_order, asset:assets(external_ref, storage_path, external_url)))
 `
 
@@ -942,6 +982,8 @@ function mapFullExportRow(row: FullExportRawRow): FullExportQuestion {
     // spec is DB-sourced so a re-import can regenerate the SVG deterministically.
     assetSpec: primaryAsset?.spec ?? null,
     assetStatus: primaryAsset?.status ?? null,
+    assetType: primaryAsset?.asset_type ?? null,
+    assetRequired: primaryAsset ? true : null,
     presentation: row.presentation ?? {},
     rubric: row.rubric,
     skillTags: row.skill_tags ?? [],
@@ -949,6 +991,17 @@ function mapFullExportRow(row: FullExportRawRow): FullExportQuestion {
     tags: row.tags ?? [],
     sourceInfo: row.source_info ?? {},
     status: row.status,
+    domainCode: row.domain_code ?? null,
+    subtopicCode: row.subtopic_code ?? null,
+    skillCode: row.skill_code ?? null,
+    patternKey: row.pattern_key ?? null,
+    questionFamily: row.question_family ?? null,
+    stimulusFormat: row.stimulus_format ?? null,
+    stimulusGenre: row.stimulus_genre ?? null,
+    assetRenderMethod: row.asset_render_method ?? null,
+    writingForm: row.writing_form ?? null,
+    writingPurpose: row.writing_purpose ?? null,
+    writingPromptStimulus: row.writing_prompt_stimulus ?? null,
   }
 }
 
@@ -992,4 +1045,63 @@ export async function getQuestionsForFullExport(
   }
 
   return rows
+}
+
+/** Full export snapshot plus the raw foreign keys needed to write an update without re-resolving names. */
+export interface ExistingQuestionSnapshot extends FullExportQuestion {
+  questionId: string
+  subjectId: string
+  topicId: string
+  questionTypeId: string | null
+  variantId: string | null
+  /** The FK column (not the embedded stimulus relation's own id). */
+  stimulusIdRaw: string | null
+}
+
+type ExistingSnapshotRawRow = FullExportRawRow &
+  Pick<QuestionRecord, 'subject_id' | 'topic_id' | 'question_type_id' | 'variant_id'>
+
+/**
+ * Full-content snapshots of existing questions matching the given external_ids, keyed by
+ * external_id — powers the update-mode import's field-level diff preview. Reuses the same
+ * select/mapper as the full export so "existing value" is never a truncated/different shape
+ * from "incoming value". Matches ANY row regardless of soft-delete (external_id stays unique
+ * in the DB even for trashed questions, so it must still be treated as "taken").
+ */
+export async function getQuestionSnapshotsByExternalIds(
+  externalIds: string[]
+): Promise<Map<string, ExistingQuestionSnapshot>> {
+  const snapshots = new Map<string, ExistingQuestionSnapshot>()
+  const ids = [...new Set(externalIds.map((id) => id.trim()).filter(Boolean))]
+  if (ids.length === 0) {
+    return snapshots
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('questions')
+    .select(`${FULL_EXPORT_SELECT}, subject_id, topic_id, question_type_id, variant_id`)
+    .in('external_id', ids)
+
+  if (error) {
+    throw new Error('Unable to load existing questions for update comparison.')
+  }
+
+  for (const raw of (data ?? []) as unknown as ExistingSnapshotRawRow[]) {
+    const mapped = mapFullExportRow(raw)
+    if (!mapped.externalId) {
+      continue
+    }
+    snapshots.set(mapped.externalId, {
+      ...mapped,
+      questionId: raw.id,
+      subjectId: raw.subject_id,
+      topicId: raw.topic_id,
+      questionTypeId: raw.question_type_id,
+      variantId: raw.variant_id,
+      stimulusIdRaw: raw.stimulus_id,
+    })
+  }
+
+  return snapshots
 }

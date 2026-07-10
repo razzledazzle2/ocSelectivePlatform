@@ -59,6 +59,19 @@ function emptyRow(rowNumber: number): QuestionImportRow {
     assetAltText: '',
     assetSpecJson: '',
     assetStatus: '',
+    assetType: '',
+    assetRequired: '',
+    domainCode: '',
+    subtopicCode: '',
+    skillCode: '',
+    patternKey: '',
+    questionFamily: '',
+    stimulusFormat: '',
+    stimulusGenre: '',
+    assetRenderMethod: '',
+    writingForm: '',
+    writingPurpose: '',
+    writingPromptStimulus: '',
   }
 }
 

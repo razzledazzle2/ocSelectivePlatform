@@ -1,15 +1,31 @@
+import { findUploadedAssetFile } from '@/lib/import/asset-package'
+import { mergeRowWithExisting } from '@/lib/import/blank-cell-merge'
+import { decideRowAction } from '@/lib/import/row-action'
+import { resolveAssetRef } from '@/lib/assets/refs'
+import { validateAssetFile } from '@/lib/assets/validate-file'
 import { parseTags } from '@/lib/questions/mutations'
 import { checkOptionCount, labelsForCount } from '@/lib/questions/option-rules'
+import type { ExistingQuestionSnapshot } from '@/lib/questions/queries'
 import { parseWritingRubric } from '@/lib/questions/rubric'
+import {
+  getDomain,
+  getSkill,
+  getSubtopic,
+  isValidDimensionValue,
+  resolveLegacyTaxonomy,
+  type DimensionName,
+} from '@/lib/taxonomy'
 import {
   ANSWER_FORMATS,
   ASSET_STATUSES,
+  ASSET_TYPES,
   EXAM_TYPES,
   QUESTION_OPTION_LABELS,
   QUESTION_STATUSES,
   STIMULUS_TYPES,
   type AnswerFormat,
   type AssetStatus,
+  type AssetType,
   type ExamType,
   type QuestionOptionLabel,
   type QuestionPresentation,
@@ -18,16 +34,120 @@ import {
   type StimulusType,
 } from '@/lib/types'
 import type {
+  AssetRefPreview,
+  BlankCellBehavior,
+  FieldDiff,
   ImportFormat,
   ImportReference,
+  ImportRowAction,
   ImportRowIssue,
   ImportSettings,
   ImportValidationResult,
   QuestionImportRow,
   ResolvedImportQuestion,
   ResolvedImportStimulus,
+  UploadedAssetFile,
   ValidatedImportRow,
 } from '@/lib/import/types'
+
+/** The canonical taxonomy codes resolved for one import row. */
+interface ResolvedImportTaxonomy {
+  domainCode: string | null
+  subtopicCode: string | null
+  skillCode: string | null
+  patternKey: string | null
+  questionFamily: string | null
+  stimulusFormat: string | null
+  stimulusGenre: string | null
+  assetRenderMethod: string | null
+  writingForm: string | null
+  writingPurpose: string | null
+  writingPromptStimulus: string | null
+}
+
+/**
+ * Resolves and validates the canonical taxonomy codes on an import row.
+ * Precedence: explicit CSV codes → legacy fallback derived from the raw topic
+ * value. Unknown or inconsistent codes are dropped with a (non-blocking)
+ * warning so a re-import never stores junk and nothing is silently discarded.
+ */
+function resolveImportTaxonomy(row: QuestionImportRow, warnings: ImportRowIssue[]): ResolvedImportTaxonomy {
+  const clean = (value: string): string | null => value.trim() || null
+
+  let domainCode = clean(row.domainCode)
+  let subtopicCode = clean(row.subtopicCode)
+  let skillCode = clean(row.skillCode)
+  let stimulusGenre = clean(row.stimulusGenre)
+
+  // Legacy fallback: derive from the raw topic so re-imported legacy files that
+  // predate canonical codes still classify.
+  if (!domainCode || !subtopicCode || !stimulusGenre) {
+    const legacy = resolveLegacyTaxonomy(row.topic)
+    if (legacy.matched && legacy.mapping) {
+      domainCode = domainCode ?? legacy.mapping.domainCode ?? null
+      subtopicCode = subtopicCode ?? legacy.mapping.subtopicCode ?? null
+      stimulusGenre = stimulusGenre ?? legacy.mapping.stimulusGenre ?? null
+    }
+  }
+
+  // Auto-fill parents from a more specific code.
+  if (skillCode && !subtopicCode) subtopicCode = getSkill(skillCode)?.subtopicCode ?? subtopicCode
+  if (subtopicCode && !domainCode) domainCode = getSubtopic(subtopicCode)?.domainCode ?? domainCode
+
+  if (domainCode && !getDomain(domainCode)) {
+    warnings.push({ field: 'domain_code', message: `Unknown domain code "${domainCode}" ignored.` })
+    domainCode = null
+  }
+  if (subtopicCode && !getSubtopic(subtopicCode)) {
+    warnings.push({ field: 'subtopic_code', message: `Unknown subtopic code "${subtopicCode}" ignored.` })
+    subtopicCode = null
+  }
+  if (skillCode && !getSkill(skillCode)) {
+    warnings.push({ field: 'skill_code', message: `Unknown skill code "${skillCode}" ignored.` })
+    skillCode = null
+  }
+  if (subtopicCode && domainCode && getSubtopic(subtopicCode)?.domainCode !== domainCode) {
+    warnings.push({
+      field: 'subtopic_code',
+      message: `Subtopic "${subtopicCode}" is not in domain "${domainCode}"; keeping the domain only.`,
+    })
+    subtopicCode = null
+  }
+  if (skillCode && subtopicCode && getSkill(skillCode)?.subtopicCode !== subtopicCode) {
+    warnings.push({
+      field: 'skill_code',
+      message: `Skill "${skillCode}" is not in subtopic "${subtopicCode}"; dropped.`,
+    })
+    skillCode = null
+  }
+  if (stimulusGenre && !isValidDimensionValue('stimulus_genre', stimulusGenre)) {
+    warnings.push({ field: 'stimulus_genre', message: `"${stimulusGenre}" is not a valid stimulus genre; ignored.` })
+    stimulusGenre = null
+  }
+
+  const dimField = (dimension: DimensionName, field: string, raw: string): string | null => {
+    const value = clean(raw)
+    if (!isValidDimensionValue(dimension, value)) {
+      warnings.push({ field, message: `"${value}" is not a valid ${dimension.replace(/_/g, ' ')}; ignored.` })
+      return null
+    }
+    return value
+  }
+
+  return {
+    domainCode,
+    subtopicCode,
+    skillCode,
+    patternKey: clean(row.patternKey),
+    questionFamily: dimField('question_family', 'question_family', row.questionFamily),
+    stimulusFormat: dimField('stimulus_format', 'stimulus_format', row.stimulusFormat),
+    stimulusGenre,
+    assetRenderMethod: dimField('asset_render_method', 'asset_render_method', row.assetRenderMethod),
+    writingForm: dimField('writing_form', 'writing_form', row.writingForm),
+    writingPurpose: dimField('writing_purpose', 'writing_purpose', row.writingPurpose),
+    writingPromptStimulus: dimField('writing_prompt_stimulus', 'writing_prompt_stimulus', row.writingPromptStimulus),
+  }
+}
 
 /** Parses an asset_spec_json cell into an object, or null when blank/invalid. */
 function parseAssetSpec(cell: string): Record<string, unknown> | null {
@@ -49,6 +169,18 @@ function parseAssetSpec(cell: string): Record<string, unknown> | null {
 function parseAssetStatus(cell: string): AssetStatus | null {
   const value = cell.trim().toLowerCase()
   return (ASSET_STATUSES as readonly string[]).includes(value) ? (value as AssetStatus) : null
+}
+
+/** Normalises an asset_type cell to a known type, or null when blank/unknown. */
+function parseAssetType(cell: string): AssetType | null {
+  const value = cell.trim().toLowerCase()
+  return (ASSET_TYPES as readonly string[]).includes(value) ? (value as AssetType) : null
+}
+
+/** "false"/"0"/"no" (case-insensitive) means optional; anything else — including blank — means required. */
+function parseAssetRequired(cell: string): boolean {
+  const value = cell.trim().toLowerCase()
+  return !['false', '0', 'no'].includes(value)
 }
 
 export function normalizeQuestionText(value: string): string {
@@ -123,6 +255,7 @@ interface ReferenceMaps {
   existingTags: Set<string>
   existingStimulusRefs: Set<string>
   existingExternalIds: Set<string>
+  existingByExternalId: Map<string, ExistingQuestionSnapshot>
 }
 
 function buildReferenceMaps(reference: ImportReference): ReferenceMaps {
@@ -158,6 +291,7 @@ function buildReferenceMaps(reference: ImportReference): ReferenceMaps {
     existingTags: new Set(reference.existingTags.map((tag) => tag.trim().toLowerCase())),
     existingStimulusRefs: new Set(reference.existingStimulusRefs),
     existingExternalIds: new Set(reference.existingExternalIds),
+    existingByExternalId: reference.existingByExternalId,
   }
 }
 
@@ -203,23 +337,68 @@ function buildStimulusGroups(rows: QuestionImportRow[]): Map<string, StimulusGro
   return groups
 }
 
+// -- Asset ref preview classification ----------------------------------------------------------
+
+function classifyAssetRef(
+  ref: string,
+  field: string,
+  assetFiles: Map<string, UploadedAssetFile>,
+  assetRequired: boolean,
+  existingAssetStatus: AssetStatus | null,
+  referencedFileKeys: Set<string>
+): AssetRefPreview {
+  const trimmed = ref.trim()
+  const uploaded = assetFiles.size > 0 ? findUploadedAssetFile(assetFiles, trimmed) : null
+
+  if (uploaded) {
+    referencedFileKeys.add(uploaded.relativePath.toLowerCase())
+    const validation = validateAssetFile(uploaded)
+    return validation.ok
+      ? { ref: trimmed, field, state: 'ready' }
+      : { ref: trimmed, field, state: 'invalid', message: validation.reason }
+  }
+
+  const resolved = resolveAssetRef(trimmed)
+  if (resolved.kind === 'pending') {
+    return { ref: trimmed, field, state: assetRequired ? 'pending' : 'not_required' }
+  }
+  if (resolved.kind === 'public' || resolved.kind === 'external') {
+    return { ref: trimmed, field, state: 'ready' }
+  }
+
+  // "storage" kind: a bare key. Only treat as missing when an asset package was actually
+  // supplied for this run — otherwise trust the pre-existing convention (the admin already
+  // uploaded it to the bucket directly), unchanged from the pipeline's prior behaviour.
+  if (assetFiles.size > 0) {
+    return assetRequired
+      ? { ref: trimmed, field, state: 'missing', message: 'Referenced file was not found in the uploaded package.' }
+      : { ref: trimmed, field, state: 'not_required' }
+  }
+
+  if (existingAssetStatus === 'rejected') {
+    return { ref: trimmed, field, state: 'rejected', message: 'The existing asset was rejected during review.' }
+  }
+
+  return { ref: trimmed, field, state: 'ready' }
+}
+
 interface ValidateOptions {
   format: ImportFormat
   reference: ImportReference
   existingQuestionTexts: string[]
   settings: ImportSettings
+  /** Files extracted from an uploaded assets ZIP/package — empty map for a plain CSV/paste import. */
+  assetFiles: Map<string, UploadedAssetFile>
 }
 
-export function validateQuestionImportRows(
-  rows: QuestionImportRow[],
-  options: ValidateOptions
-): ImportValidationResult {
-  const { settings } = options
+export function validateQuestionImportRows(rows: QuestionImportRow[], options: ValidateOptions): ImportValidationResult {
+  const { settings, assetFiles } = options
   const maps = buildReferenceMaps(options.reference)
   const stimulusGroups = buildStimulusGroups(rows)
   const existingTextSet = new Set(options.existingQuestionTexts.map(normalizeQuestionText))
   const seenInFile = new Set<string>()
   const seenExternalIds = new Set<string>()
+  const referencedFileKeys = new Set<string>()
   const validatedRows: ValidatedImportRow[] = []
 
   for (const row of rows) {
@@ -227,22 +406,57 @@ export function validateQuestionImportRows(
     const errors: ImportRowIssue[] = []
     const warnings: ImportRowIssue[] = []
 
+    // -- External id (required; the stable update/duplicate key) -----------
+    const externalId = row.externalId.trim()
+    let isDuplicate = false
+    let rowAction: ImportRowAction = 'create'
+    let existingSnapshot: ExistingQuestionSnapshot | null = null
+    let existingStimulusId: string | null = null
+    let diffs: FieldDiff[] = []
+    let workingRow = row
+
+    if (!externalId) {
+      errors.push({ field: 'external_id', message: 'external_id is required for every row.' })
+    } else {
+      if (seenExternalIds.has(externalId)) {
+        errors.push({ field: 'external_id', message: `external_id "${externalId}" is duplicated within this file.` })
+      } else {
+        seenExternalIds.add(externalId)
+      }
+
+      existingSnapshot = maps.existingByExternalId.get(externalId) ?? null
+      isDuplicate = Boolean(existingSnapshot)
+
+      const decision = decideRowAction(settings.mode, Boolean(existingSnapshot), externalId)
+      if (decision.action === 'skip_duplicate') {
+        rowAction = 'skip_duplicate'
+        warnings.push({ field: 'external_id', message: decision.message })
+      } else if (decision.action === 'blocked') {
+        errors.push({ field: 'external_id', message: decision.message })
+      } else if (decision.action === 'update' && existingSnapshot) {
+        rowAction = 'update'
+        const merge = mergeRowWithExisting(row, existingSnapshot, settings.blankCellBehavior)
+        workingRow = merge.mergedRow
+        diffs = merge.diffs
+        existingStimulusId =
+          settings.blankCellBehavior === 'keep' && !row.stimulusId.trim() ? existingSnapshot.stimulusIdRaw : null
+      }
+    }
+
     // -- Subject (hard error: cannot be auto-created) -----------------------
-    const subject = row.subject ? maps.subjectByKey.get(row.subject.trim().toLowerCase()) ?? null : null
-    if (!row.subject.trim()) {
+    const subject = workingRow.subject ? maps.subjectByKey.get(workingRow.subject.trim().toLowerCase()) ?? null : null
+    if (!workingRow.subject.trim()) {
       errors.push({ field: 'subject', message: 'Subject is required.' })
     } else if (!subject) {
-      errors.push({ field: 'subject', message: `Subject "${row.subject}" was not found. Create the subject first.` })
+      errors.push({ field: 'subject', message: `Subject "${workingRow.subject}" was not found. Create the subject first.` })
     }
 
     // -- Topic (soft: auto-create or fall back to "General" when enabled) ---
     // topicName/topicId feed ResolvedImportQuestion; a null id means "create".
     let topicId: string | null = null
-    let topicName = row.topic.trim()
+    let topicName = workingRow.topic.trim()
     const existingTopic =
-      subject && topicName
-        ? maps.topicByKey.get(`${subject.id}:${topicName.toLowerCase()}`) ?? null
-        : null
+      subject && topicName ? maps.topicByKey.get(`${subject.id}:${topicName.toLowerCase()}`) ?? null : null
 
     if (subject) {
       if (existingTopic) {
@@ -268,7 +482,7 @@ export function validateQuestionImportRows(
 
     // -- Question type (optional; soft auto-create) -------------------------
     let questionTypeId: string | null = null
-    let questionTypeName: string | null = row.questionType.trim() || null
+    let questionTypeName: string | null = workingRow.questionType.trim() || null
     const existingType =
       subject && questionTypeName
         ? maps.questionTypeByKey.get(`${subject.id}:${questionTypeName.toLowerCase()}`) ?? null
@@ -293,7 +507,7 @@ export function validateQuestionImportRows(
 
     // -- Variant (optional; resolved under the question type) ---------------
     let variantId: string | null = null
-    let variantName: string | null = row.variantType.trim() || null
+    let variantName: string | null = workingRow.variantType.trim() || null
 
     if (variantName && !questionTypeName) {
       warnings.push({
@@ -324,7 +538,7 @@ export function validateQuestionImportRows(
     }
 
     // -- Answer format -------------------------------------------------------
-    const rawAnswerFormat = row.answerFormat.trim().toLowerCase()
+    const rawAnswerFormat = workingRow.answerFormat.trim().toLowerCase()
     let answerFormat: AnswerFormat = 'single_choice'
     if (rawAnswerFormat && !ANSWER_FORMATS.includes(rawAnswerFormat as AnswerFormat)) {
       errors.push({
@@ -337,19 +551,19 @@ export function validateQuestionImportRows(
     const isSingleChoice = answerFormat === 'single_choice'
 
     // -- Core content -------------------------------------------------------
-    if (!row.questionText.trim()) {
+    if (!workingRow.questionText.trim()) {
       errors.push({ field: 'question_text', message: 'Question text is required.' })
     }
 
     // -- Per-option asset refs / explanations (JSON keyed by label) ---------
-    const optionAssetRefsParsed = parseLabelKeyedJson(row.optionAssetRefsJson)
+    const optionAssetRefsParsed = parseLabelKeyedJson(workingRow.optionAssetRefsJson)
     if (optionAssetRefsParsed.invalid) {
       errors.push({
         field: 'option_asset_refs_json',
         message: 'option_asset_refs_json must be a JSON object keyed by option label (e.g. {"A": "a.svg"}).',
       })
     }
-    const optionExplanationsParsed = parseLabelKeyedJson(row.optionExplanationsJson)
+    const optionExplanationsParsed = parseLabelKeyedJson(workingRow.optionExplanationsJson)
     if (optionExplanationsParsed.invalid) {
       errors.push({
         field: 'option_explanations_json',
@@ -360,7 +574,7 @@ export function validateQuestionImportRows(
     const optionExplanationMap = optionExplanationsParsed.map ?? {}
 
     // -- Options (flexible A–E, subject-aware count rules) ------------------
-    let optionTexts = row.options.map((option) => option.trim())
+    let optionTexts = workingRow.options.map((option) => option.trim())
 
     if (isSingleChoice) {
       // Visual-only options: a label may have an asset ref instead of text —
@@ -388,7 +602,7 @@ export function validateQuestionImportRows(
       if (optionTexts.length === 0) {
         errors.push({ field: 'options', message: 'No answer options were parsed for this question.' })
       } else {
-        const countCheck = checkOptionCount(subject?.name ?? row.subject, optionTexts.length, answerFormat)
+        const countCheck = checkOptionCount(subject?.name ?? workingRow.subject, optionTexts.length, answerFormat)
         if (countCheck.error) {
           errors.push({ field: 'options', message: countCheck.error })
         } else if (countCheck.warning) {
@@ -411,7 +625,7 @@ export function validateQuestionImportRows(
     }
 
     // -- Correct answer -------------------------------------------------------
-    const correctOptionLabel = row.correctAnswer.trim().toUpperCase()
+    const correctOptionLabel = workingRow.correctAnswer.trim().toUpperCase()
     if (isSingleChoice) {
       const optionLabels = labelsForCount(optionTexts.length)
       if (!correctOptionLabel) {
@@ -436,21 +650,21 @@ export function validateQuestionImportRows(
       })
     }
 
-    const examType = normalizeExamType(row.examType)
-    if (!row.examType.trim()) {
+    const examType = normalizeExamType(workingRow.examType)
+    if (!workingRow.examType.trim()) {
       errors.push({ field: 'exam_type', message: 'Exam type is required (OC or Selective).' })
     } else if (!examType) {
       errors.push({ field: 'exam_type', message: 'Exam type must be OC or Selective.' })
     }
 
-    const difficulty = Number(row.difficulty)
-    if (!row.difficulty.trim() || Number.isNaN(difficulty) || difficulty < 1 || difficulty > 5) {
+    const difficulty = Number(workingRow.difficulty)
+    if (!workingRow.difficulty.trim() || Number.isNaN(difficulty) || difficulty < 1 || difficulty > 5) {
       errors.push({ field: 'difficulty', message: 'Difficulty must be a number from 1 to 5.' })
     }
 
     let yearLevel: number | null = null
-    if (row.yearLevel.trim()) {
-      const parsedYear = Number(row.yearLevel)
+    if (workingRow.yearLevel.trim()) {
+      const parsedYear = Number(workingRow.yearLevel)
       if (Number.isNaN(parsedYear) || parsedYear < 3 || parsedYear > 12) {
         errors.push({ field: 'year_level', message: 'Year level must be between 3 and 12 when provided.' })
       } else {
@@ -459,8 +673,8 @@ export function validateQuestionImportRows(
     }
 
     let marks = 1
-    if (row.marks.trim()) {
-      const parsedMarks = Number(row.marks)
+    if (workingRow.marks.trim()) {
+      const parsedMarks = Number(workingRow.marks)
       if (!Number.isInteger(parsedMarks) || parsedMarks < 1) {
         errors.push({ field: 'marks', message: 'Marks must be a positive whole number when provided.' })
       } else {
@@ -469,8 +683,8 @@ export function validateQuestionImportRows(
     }
 
     let timeLimitSeconds: number | null = null
-    if (row.timeLimitSeconds.trim()) {
-      const parsedTimeLimit = Number(row.timeLimitSeconds)
+    if (workingRow.timeLimitSeconds.trim()) {
+      const parsedTimeLimit = Number(workingRow.timeLimitSeconds)
       if (!Number.isInteger(parsedTimeLimit) || parsedTimeLimit < 1) {
         errors.push({
           field: 'time_limit_seconds',
@@ -482,8 +696,8 @@ export function validateQuestionImportRows(
     }
 
     // -- Rubric (required for extended response) -----------------------------
-    const { rubric, error: rubricError } = parseWritingRubric(row.rubricJson)
-    if (!isSingleChoice && !row.rubricJson.trim()) {
+    const { rubric, error: rubricError } = parseWritingRubric(workingRow.rubricJson)
+    if (!isSingleChoice && !workingRow.rubricJson.trim()) {
       errors.push({
         field: 'rubric_json',
         message: 'Extended response questions need a rubric_json with at least one marking criterion.',
@@ -493,13 +707,13 @@ export function validateQuestionImportRows(
     }
 
     // -- Worked solution (soft for MCQ, optional for extended response) -----
-    const workedSolution = row.workedSolution.trim()
+    const workedSolution = workingRow.workedSolution.trim()
     if (isSingleChoice && !workedSolution) {
       warnings.push({ field: 'solution', message: 'No worked solution — students will not see a full explanation.' })
     }
 
     // -- Short explanation (optional unless required; derive when missing) --
-    let shortExplanation = row.shortExplanation.trim() || null
+    let shortExplanation = workingRow.shortExplanation.trim() || null
     if (!shortExplanation) {
       if (settings.requireShortExplanation) {
         errors.push({ field: 'short_explanation', message: 'A short explanation is required.' })
@@ -515,7 +729,7 @@ export function validateQuestionImportRows(
     }
 
     // -- Stimulus (grouped by external ref; definition may be on any row) ---
-    const stimulusExternalRef = row.stimulusId.trim() || null
+    const stimulusExternalRef = workingRow.stimulusId.trim() || null
     let stimulusDefinition: ResolvedImportStimulus | null = null
     if (stimulusExternalRef) {
       const group = stimulusGroups.get(stimulusExternalRef)
@@ -554,15 +768,15 @@ export function validateQuestionImportRows(
 
     // -- Presentation hints ---------------------------------------------------
     const presentation: QuestionPresentation = {}
-    if (row.inputMethod.trim()) {
-      presentation.inputMethod = row.inputMethod.trim()
+    if (workingRow.inputMethod.trim()) {
+      presentation.inputMethod = workingRow.inputMethod.trim()
     }
-    if (row.displayMode.trim()) {
-      presentation.displayMode = row.displayMode.trim()
+    if (workingRow.displayMode.trim()) {
+      presentation.displayMode = workingRow.displayMode.trim()
     }
-    if (row.answerValidationJson.trim()) {
+    if (workingRow.answerValidationJson.trim()) {
       try {
-        const parsed: unknown = JSON.parse(row.answerValidationJson)
+        const parsed: unknown = JSON.parse(workingRow.answerValidationJson)
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
           throw new Error('not an object')
         }
@@ -577,78 +791,66 @@ export function validateQuestionImportRows(
 
     // -- Provenance -----------------------------------------------------------
     const sourceInfo: QuestionSourceInfo = {}
-    if (row.sourceName.trim()) sourceInfo.sourceName = row.sourceName.trim()
-    if (row.sourcePaper.trim()) sourceInfo.sourcePaper = row.sourcePaper.trim()
-    if (row.sourceSection.trim()) sourceInfo.sourceSection = row.sourceSection.trim()
-    if (row.sourceQuestionNumber.trim()) sourceInfo.sourceQuestionNumber = row.sourceQuestionNumber.trim()
-    if (row.licenseNotes.trim()) sourceInfo.licenseNotes = row.licenseNotes.trim()
+    if (workingRow.sourceName.trim()) sourceInfo.sourceName = workingRow.sourceName.trim()
+    if (workingRow.sourcePaper.trim()) sourceInfo.sourcePaper = workingRow.sourcePaper.trim()
+    if (workingRow.sourceSection.trim()) sourceInfo.sourceSection = workingRow.sourceSection.trim()
+    if (workingRow.sourceQuestionNumber.trim()) sourceInfo.sourceQuestionNumber = workingRow.sourceQuestionNumber.trim()
+    if (workingRow.licenseNotes.trim()) sourceInfo.licenseNotes = workingRow.licenseNotes.trim()
 
     // -- Tags (soft: brand-new tags are a heads-up, never blocking) ---------
-    const tags = parseTags(row.tags)
-    const skillTags = parseTags(row.skillTags)
-    const conceptTags = parseTags(row.conceptTags)
+    const tags = parseTags(workingRow.tags)
+    const skillTags = parseTags(workingRow.skillTags)
+    const conceptTags = parseTags(workingRow.conceptTags)
     const newTags = tags.filter((tag) => !maps.existingTags.has(tag.toLowerCase()))
     if (newTags.length > 0) {
       warnings.push({ field: 'tags', message: `New tag${newTags.length === 1 ? '' : 's'}: ${newTags.join(', ')}.` })
     }
 
     // -- Status -------------------------------------------------------------
-    const rawStatus = row.status.trim().toLowerCase()
+    const rawStatus = workingRow.status.trim().toLowerCase()
     if (rawStatus && !QUESTION_STATUSES.includes(rawStatus as QuestionStatus)) {
-      warnings.push({ field: 'status', message: `Unknown status "${row.status}" ignored.` })
+      warnings.push({ field: 'status', message: `Unknown status "${workingRow.status}" ignored.` })
     }
-    // Import status is an admin setting, applied uniformly.
-    const resolvedStatus: QuestionStatus = settings.importStatus
+    // Create rows always land on the uniform admin setting (review-first draft by default).
+    // Update rows respect the merged per-row status so a re-import never silently reverts a
+    // published question back to draft.
+    const resolvedStatus: QuestionStatus =
+      rowAction === 'update' && rawStatus && QUESTION_STATUSES.includes(rawStatus as QuestionStatus)
+        ? (rawStatus as QuestionStatus)
+        : settings.importStatus
 
-    // -- Duplicate detection ------------------------------------------------
-    const normalizedText = normalizeQuestionText(row.questionText)
-    let isDuplicate = false
+    // -- Duplicate detection (question text) ---------------------------------
+    const normalizedText = normalizeQuestionText(workingRow.questionText)
     if (normalizedText) {
       if (seenInFile.has(normalizedText)) {
         errors.push({ field: 'question_text', message: 'This question is duplicated within the import.' })
       } else {
         seenInFile.add(normalizedText)
       }
-      if (existingTextSet.has(normalizedText)) {
-        isDuplicate = true
-        const message = 'A very similar question already exists in the bank.'
-        if (settings.blockDuplicates) {
-          errors.push({ field: 'question_text', message: `${message} Duplicates are set to block.` })
-        } else {
-          warnings.push({ field: 'question_text', message: `${message} Importing anyway (duplicates set to warn).` })
-        }
-      }
-    }
-
-    const externalId = row.externalId.trim() || null
-    if (externalId) {
-      if (seenExternalIds.has(externalId)) {
-        errors.push({ field: 'external_id', message: `external_id "${externalId}" is duplicated within the import.` })
-      } else {
-        seenExternalIds.add(externalId)
-      }
-      if (maps.existingExternalIds.has(externalId)) {
-        isDuplicate = true
-        const message = `A question with external_id "${externalId}" already exists in the bank.`
-        if (settings.blockDuplicates) {
-          errors.push({ field: 'external_id', message: `${message} Duplicates are set to block.` })
-        } else {
-          warnings.push({ field: 'external_id', message: `${message} It will be skipped at import time.` })
-        }
+      if (existingTextSet.has(normalizedText) && rowAction === 'create') {
+        warnings.push({ field: 'question_text', message: 'A very similar question already exists in the bank.' })
       }
     }
 
     const isImportable = errors.length === 0
 
+    const taxonomy = resolveImportTaxonomy(workingRow, warnings)
+    const assetType = parseAssetType(workingRow.assetType)
+    const assetRequired = parseAssetRequired(workingRow.assetRequired)
+
     const optionLabels = labelsForCount(optionTexts.length)
     const resolved: ResolvedImportQuestion | null =
       isImportable && subject && examType
         ? {
+            // rowAction is only 'create' | 'update' | 'skip_duplicate' at this point ('unchanged'
+            // is decided afterwards, once every diff has been computed).
+            action: rowAction === 'skip_duplicate' ? 'create' : (rowAction as 'create' | 'update'),
+            existingQuestionId: existingSnapshot?.questionId ?? null,
             externalId,
             subjectId: subject.id,
             topicId,
             topicName,
-            strand: row.strand.trim() || null,
+            strand: workingRow.strand.trim() || null,
             questionTypeId,
             questionTypeName,
             variantId,
@@ -659,8 +861,8 @@ export function validateQuestionImportRows(
             marks,
             timeLimitSeconds,
             answerFormat,
-            questionText: row.questionText.trim(),
-            passageText: row.passageText.trim() || null,
+            questionText: workingRow.questionText.trim(),
+            passageText: workingRow.passageText.trim() || null,
             options: optionTexts,
             optionAssetRefs: optionLabels.map((label) => optionAssetRefMap[label] ?? null),
             optionExplanations: optionLabels.map((label) => optionExplanationMap[label] ?? null),
@@ -669,29 +871,55 @@ export function validateQuestionImportRows(
             shortExplanation,
             stimulusExternalRef,
             stimulusDefinition,
-            questionAssetRefs: row.questionAssetRefs,
-            solutionAssetRefs: row.solutionAssetRefs,
+            existingStimulusId,
+            questionAssetRefs: workingRow.questionAssetRefs,
+            solutionAssetRefs: workingRow.solutionAssetRefs,
             rubric,
             presentation,
             sourceInfo,
-            assetGenerationPrompt: row.assetGenerationPrompt.trim() || null,
-            assetAltText: row.assetAltText.trim() || null,
-            assetSpec: parseAssetSpec(row.assetSpecJson),
-            assetStatus: parseAssetStatus(row.assetStatus),
+            assetGenerationPrompt: workingRow.assetGenerationPrompt.trim() || null,
+            assetAltText: workingRow.assetAltText.trim() || null,
+            assetSpec: parseAssetSpec(workingRow.assetSpecJson),
+            assetStatus: parseAssetStatus(workingRow.assetStatus),
+            assetType,
+            assetRequired,
             tags,
             skillTags,
             conceptTags,
             status: resolvedStatus,
+            ...taxonomy,
           }
         : null
+
+    // "unchanged" is only meaningful once every field has had its chance to diff.
+    if (rowAction === 'update' && diffs.length > 0 && !diffs.some((diff) => diff.changed)) {
+      rowAction = 'unchanged'
+    }
+
+    // -- Asset ref preview (missing/pending/invalid/rejected/ready) ---------
+    const assetPreviews: AssetRefPreview[] = []
+    const existingAssetStatus = rowAction !== 'create' ? existingSnapshot?.assetStatus ?? null : null
+    for (const ref of workingRow.questionAssetRefs) {
+      assetPreviews.push(classifyAssetRef(ref, 'question_asset_refs', assetFiles, assetRequired, existingAssetStatus, referencedFileKeys))
+    }
+    for (const ref of workingRow.solutionAssetRefs) {
+      assetPreviews.push(classifyAssetRef(ref, 'solution_asset_refs', assetFiles, assetRequired, null, referencedFileKeys))
+    }
+    for (const ref of workingRow.stimulusAssetRefs) {
+      assetPreviews.push(classifyAssetRef(ref, 'stimulus_asset_refs', assetFiles, assetRequired, null, referencedFileKeys))
+    }
+    for (const [label, ref] of Object.entries(optionAssetRefMap)) {
+      assetPreviews.push(classifyAssetRef(ref, `option_asset_refs_json.${label}`, assetFiles, assetRequired, null, referencedFileKeys))
+    }
 
     const rowStatus = !isImportable ? 'error' : warnings.length > 0 ? 'warning' : 'ready'
 
     validatedRows.push({
       rowNumber: row.rowNumber,
       rowStatus,
-      questionPreview: row.questionText.trim() || '(missing question text)',
-      subjectLabel: subject?.name ?? (row.subject || '—'),
+      action: rowAction,
+      questionPreview: workingRow.questionText.trim() || '(missing question text)',
+      subjectLabel: subject?.name ?? (workingRow.subject || '—'),
       topicLabel: topicName || '—',
       questionTypeLabel: questionTypeName ?? 'Untagged',
       statusLabel: resolvedStatus,
@@ -702,8 +930,14 @@ export function validateQuestionImportRows(
       isDuplicate,
       isImportable,
       resolved,
+      diffs,
+      assetPreviews,
     })
   }
+
+  const unusedAssetFiles = [...assetFiles.entries()]
+    .filter(([key]) => !referencedFileKeys.has(key))
+    .map(([, file]) => file.relativePath)
 
   return {
     format: options.format,
@@ -713,6 +947,14 @@ export function validateQuestionImportRows(
     warningCount: validatedRows.filter((row) => row.warnings.length > 0).length,
     errorCount: validatedRows.filter((row) => !row.isImportable).length,
     duplicateCount: validatedRows.filter((row) => row.isDuplicate).length,
+    createCount: validatedRows.filter((row) => row.isImportable && row.action === 'create').length,
+    updateCount: validatedRows.filter((row) => row.isImportable && row.action === 'update').length,
+    unchangedCount: validatedRows.filter((row) => row.isImportable && row.action === 'unchanged').length,
+    missingAssetCount: validatedRows.reduce(
+      (sum, row) => sum + row.assetPreviews.filter((preview) => preview.state === 'missing').length,
+      0
+    ),
+    unusedAssetFiles,
     rows: validatedRows,
   }
 }

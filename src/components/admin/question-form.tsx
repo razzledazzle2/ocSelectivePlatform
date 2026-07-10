@@ -26,6 +26,20 @@ import {
   labelsForCount,
   MAX_OPTION_COUNT,
 } from '@/lib/questions/option-rules'
+import {
+  ASSET_RENDER_METHODS,
+  QUESTION_FAMILIES,
+  STIMULUS_FORMATS,
+  STIMULUS_GENRES,
+  WRITING_FORMS,
+  WRITING_PROMPT_STIMULI,
+  WRITING_PURPOSES,
+  getDomainsForSubject,
+  getSubtopicsForDomain,
+  getSuggestedSkillsForSubtopic,
+  resolveLegacySubject,
+  type DimensionItem,
+} from '@/lib/taxonomy'
 import { cn } from '@/lib/utils'
 import {
   ANSWER_FORMAT_LABELS,
@@ -55,6 +69,68 @@ const difficultyValues = ['1', '2', '3', '4', '5'] as const
 
 /** Sentinel for "no linked stimulus" (base-ui Select cannot use '' as a value). */
 const NO_STIMULUS = 'none'
+
+/** Sentinel for an unset optional code select (base-ui Select cannot use ''). */
+const UNSET = '__unset__'
+
+function toItemsMap(items: DimensionItem[]): Record<string, string> {
+  return Object.fromEntries(items.map((item) => [item.code, item.label]))
+}
+
+const QUESTION_FAMILY_ITEMS = toItemsMap(QUESTION_FAMILIES)
+const STIMULUS_FORMAT_ITEMS = toItemsMap(STIMULUS_FORMATS)
+const STIMULUS_GENRE_ITEMS = toItemsMap(STIMULUS_GENRES)
+const ASSET_RENDER_METHOD_ITEMS = toItemsMap(ASSET_RENDER_METHODS)
+const WRITING_FORM_ITEMS = toItemsMap(WRITING_FORMS)
+const WRITING_PURPOSE_ITEMS = toItemsMap(WRITING_PURPOSES)
+const WRITING_PROMPT_STIMULUS_ITEMS = toItemsMap(WRITING_PROMPT_STIMULI)
+
+/** An optional taxonomy/dimension select. '' means "unset"; renders a "(none)" choice. */
+function CodeSelect({
+  label,
+  value,
+  onValueChange,
+  items,
+  placeholder,
+  disabled,
+  hint,
+  error,
+}: {
+  label: string
+  value: string
+  onValueChange: (value: string) => void
+  items: Record<string, string>
+  placeholder: string
+  disabled?: boolean
+  hint?: string
+  error?: string
+}) {
+  const withNone = { [UNSET]: '(none)', ...items }
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Select
+        value={value || UNSET}
+        onValueChange={(next) => onValueChange(next === UNSET ? '' : next)}
+        items={withNone}
+        disabled={disabled}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {Object.entries(withNone).map(([code, itemLabel]) => (
+            <SelectItem key={code} value={code}>
+              {itemLabel}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      <FieldError message={error} />
+    </div>
+  )
+}
 
 const RUBRIC_PLACEHOLDER = `{
   "textType": "persuasive",
@@ -136,6 +212,56 @@ export function QuestionForm({
     [stimuli]
   )
 
+  // -- Canonical taxonomy (Subject → Domain → Subtopic → Skill) --------------
+  // The selected subject (a DB uuid) maps to a canonical subject code via its
+  // slug, which drives the available domains.
+  const subjectCode = useMemo(() => {
+    const slug = subjects.find((subject) => subject.id === values.subjectId)?.slug ?? null
+    return resolveLegacySubject(slug)
+  }, [subjects, values.subjectId])
+
+  const domains = useMemo(() => getDomainsForSubject(subjectCode), [subjectCode])
+  const subtopics = useMemo(() => getSubtopicsForDomain(values.domainCode), [values.domainCode])
+  const skills = useMemo(() => getSuggestedSkillsForSubtopic(values.subtopicCode), [values.subtopicCode])
+
+  const domainItems = useMemo(() => Object.fromEntries(domains.map((d) => [d.code, d.label])), [domains])
+  const subtopicItems = useMemo(() => Object.fromEntries(subtopics.map((s) => [s.code, s.label])), [subtopics])
+  const skillItems = useMemo(() => Object.fromEntries(skills.map((s) => [s.code, s.label])), [skills])
+
+  const isReading = subjectCode === 'reading'
+  const isWriting = subjectCode === 'writing'
+
+  function handleDomainChange(nextDomainCode: string) {
+    setValues((current) => {
+      const subtopicStillValid = getSubtopicsForDomain(nextDomainCode).some(
+        (subtopic) => subtopic.code === current.subtopicCode
+      )
+      const nextSubtopic = subtopicStillValid ? current.subtopicCode : ''
+      const skillStillValid = getSuggestedSkillsForSubtopic(nextSubtopic).some(
+        (skill) => skill.code === current.skillCode
+      )
+      return {
+        ...current,
+        domainCode: nextDomainCode,
+        subtopicCode: nextSubtopic,
+        skillCode: skillStillValid ? current.skillCode : '',
+      }
+    })
+  }
+
+  function handleSubtopicChange(nextSubtopicCode: string) {
+    setValues((current) => {
+      const skillStillValid = getSuggestedSkillsForSubtopic(nextSubtopicCode).some(
+        (skill) => skill.code === current.skillCode
+      )
+      return {
+        ...current,
+        subtopicCode: nextSubtopicCode,
+        skillCode: skillStillValid ? current.skillCode : '',
+      }
+    })
+  }
+
   const isWritingPrompt = values.answerFormat === 'extended_response'
 
   // Flexible options: labels follow the current count (A, B, C, D[, E]).
@@ -200,6 +326,15 @@ export function QuestionForm({
       const allEmpty = current.options.every((option) => !option.trim())
       const nextOptions = allEmpty ? Array.from({ length: preferredCount }, () => '') : current.options
 
+      // Canonical taxonomy is subject-scoped — a new subject means re-choosing
+      // its domain/subtopic/skill and the subject-specific genre/writing fields.
+      const nextSubjectCode = resolveLegacySubject(
+        subjects.find((subject) => subject.id === nextSubjectId)?.slug ?? null
+      )
+      const domainStillValid = getDomainsForSubject(nextSubjectCode).some(
+        (domain) => domain.code === current.domainCode
+      )
+
       return {
         ...current,
         subjectId: nextSubjectId,
@@ -207,6 +342,13 @@ export function QuestionForm({
         questionTypeId: nextTypes.some((questionType) => questionType.id === current.questionTypeId)
           ? current.questionTypeId
           : '',
+        domainCode: domainStillValid ? current.domainCode : '',
+        subtopicCode: domainStillValid ? current.subtopicCode : '',
+        skillCode: domainStillValid ? current.skillCode : '',
+        stimulusGenre: nextSubjectCode === 'reading' ? current.stimulusGenre : '',
+        writingForm: nextSubjectCode === 'writing' ? current.writingForm : '',
+        writingPurpose: nextSubjectCode === 'writing' ? current.writingPurpose : '',
+        writingPromptStimulus: nextSubjectCode === 'writing' ? current.writingPromptStimulus : '',
         options: nextOptions,
         correctOptionLabel: labelsForCount(nextOptions.length).includes(current.correctOptionLabel)
           ? current.correctOptionLabel
@@ -281,6 +423,16 @@ export function QuestionForm({
           <input type="hidden" name="status" value={values.status} />
           <input type="hidden" name="answerFormat" value={values.answerFormat} />
           <input type="hidden" name="stimulusId" value={values.stimulusId} />
+          <input type="hidden" name="domainCode" value={values.domainCode} />
+          <input type="hidden" name="subtopicCode" value={values.subtopicCode} />
+          <input type="hidden" name="skillCode" value={values.skillCode} />
+          <input type="hidden" name="questionFamily" value={values.questionFamily} />
+          <input type="hidden" name="stimulusFormat" value={values.stimulusFormat} />
+          <input type="hidden" name="stimulusGenre" value={values.stimulusGenre} />
+          <input type="hidden" name="assetRenderMethod" value={values.assetRenderMethod} />
+          <input type="hidden" name="writingForm" value={values.writingForm} />
+          <input type="hidden" name="writingPurpose" value={values.writingPurpose} />
+          <input type="hidden" name="writingPromptStimulus" value={values.writingPromptStimulus} />
           {!isWritingPrompt ? (
             <input type="hidden" name="correctOptionLabel" value={values.correctOptionLabel} />
           ) : null}
@@ -391,6 +543,142 @@ export function QuestionForm({
                 Tagging the type powers precise analytics later (e.g. multi-step percentage problems).
               </p>
             </div>
+          </div>
+
+          {/* Canonical taxonomy v1 — Subject drives Domain → Subtopic → Skill;
+              the metadata dimensions are independent. Progressive disclosure keeps
+              child selects disabled until their parent is chosen. */}
+          <div className="space-y-4 rounded-xl border border-border/70 bg-muted/20 p-4">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-brand">
+                Taxonomy &amp; classification
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Choose where this question sits in the canonical taxonomy. Domain and subtopic follow the subject
+                above; the remaining fields are independent metadata.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <CodeSelect
+                label="Domain"
+                value={values.domainCode}
+                onValueChange={handleDomainChange}
+                items={domainItems}
+                placeholder={subjectCode ? 'Choose a domain' : 'Choose a subject first'}
+                disabled={!subjectCode || domains.length === 0}
+                hint={
+                  subjectCode && domains.length === 0
+                    ? 'This subject has no student-facing domains yet.'
+                    : undefined
+                }
+                error={fieldErrors.domainCode}
+              />
+              <CodeSelect
+                label="Subtopic"
+                value={values.subtopicCode}
+                onValueChange={handleSubtopicChange}
+                items={subtopicItems}
+                placeholder={values.domainCode ? 'Choose a subtopic' : 'Choose a domain first'}
+                disabled={!values.domainCode}
+                error={fieldErrors.subtopicCode}
+              />
+              <CodeSelect
+                label="Skill (optional)"
+                value={values.skillCode}
+                onValueChange={(value) => updateValue('skillCode', value)}
+                items={skillItems}
+                placeholder={skills.length > 0 ? 'Choose a skill' : 'No suggested skills'}
+                disabled={skills.length === 0}
+                hint={
+                  values.subtopicCode && skills.length === 0
+                    ? 'This subtopic has no suggested skills — leave blank.'
+                    : undefined
+                }
+                error={fieldErrors.skillCode}
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <CodeSelect
+                label="Question family"
+                value={values.questionFamily}
+                onValueChange={(value) => updateValue('questionFamily', value)}
+                items={QUESTION_FAMILY_ITEMS}
+                placeholder="Choose a family"
+                error={fieldErrors.questionFamily}
+              />
+              <CodeSelect
+                label="Stimulus type"
+                value={values.stimulusFormat}
+                onValueChange={(value) => updateValue('stimulusFormat', value)}
+                items={STIMULUS_FORMAT_ITEMS}
+                placeholder="Choose a stimulus type"
+                error={fieldErrors.stimulusFormat}
+              />
+              <CodeSelect
+                label="Asset render method"
+                value={values.assetRenderMethod}
+                onValueChange={(value) => updateValue('assetRenderMethod', value)}
+                items={ASSET_RENDER_METHOD_ITEMS}
+                placeholder="Choose a render method"
+                error={fieldErrors.assetRenderMethod}
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="patternKey">Pattern key</Label>
+                <Input
+                  id="patternKey"
+                  name="patternKey"
+                  value={values.patternKey}
+                  onChange={(event) => updateValue('patternKey', event.target.value)}
+                  placeholder="Optional, e.g. area-composite-rectangles"
+                />
+                <p className="text-xs text-muted-foreground">Groups near-identical question templates.</p>
+              </div>
+              {isReading ? (
+                <CodeSelect
+                  label="Stimulus genre"
+                  value={values.stimulusGenre}
+                  onValueChange={(value) => updateValue('stimulusGenre', value)}
+                  items={STIMULUS_GENRE_ITEMS}
+                  placeholder="Choose a genre"
+                  hint="Reading only — e.g. narrative fiction, informative text."
+                  error={fieldErrors.stimulusGenre}
+                />
+              ) : null}
+            </div>
+
+            {isWriting ? (
+              <div className="grid gap-4 md:grid-cols-3">
+                <CodeSelect
+                  label="Writing form"
+                  value={values.writingForm}
+                  onValueChange={(value) => updateValue('writingForm', value)}
+                  items={WRITING_FORM_ITEMS}
+                  placeholder="Choose a form"
+                  error={fieldErrors.writingForm}
+                />
+                <CodeSelect
+                  label="Writing purpose"
+                  value={values.writingPurpose}
+                  onValueChange={(value) => updateValue('writingPurpose', value)}
+                  items={WRITING_PURPOSE_ITEMS}
+                  placeholder="Choose a purpose"
+                  error={fieldErrors.writingPurpose}
+                />
+                <CodeSelect
+                  label="Writing prompt stimulus"
+                  value={values.writingPromptStimulus}
+                  onValueChange={(value) => updateValue('writingPromptStimulus', value)}
+                  items={WRITING_PROMPT_STIMULUS_ITEMS}
+                  placeholder="Choose a prompt stimulus"
+                  error={fieldErrors.writingPromptStimulus}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-5">
