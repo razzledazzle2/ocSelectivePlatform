@@ -775,13 +775,11 @@ type ExportAssetRef = Pick<AssetRecord, 'external_ref' | 'storage_path' | 'exter
 
 /**
  * Question/solution asset with the metadata columns needed for a lossless export.
- * `spec` is intentionally NOT selected here: it is a column added by a migration
- * that may not be pushed yet, and selecting a missing column would break the
- * whole export. The spec round-trips through the committed spec files + manifest
- * instead (docs/generated-question-bank/). Re-add it to the select + this type
- * once the migration is live if DB-sourced spec export is wanted.
+ * `spec` is the structured diagram spec (assets.spec, migration 20260708001849):
+ * exporting it lets a re-import regenerate the exact SVG in-app via
+ * resolveAssetGeneration — no committed spec files or AI needed.
  */
-type ExportAssetMeta = ExportAssetRef & Pick<AssetRecord, 'alt_text' | 'generation_prompt' | 'status'>
+type ExportAssetMeta = ExportAssetRef & Pick<AssetRecord, 'alt_text' | 'generation_prompt' | 'status' | 'spec'>
 
 function toExportAssetRef(asset: ExportAssetRef | ExportAssetRef[] | null): string | null {
   const resolved = getRelationValue(asset)
@@ -878,7 +876,7 @@ const FULL_EXPORT_SELECT = `
   question_type:question_types(name),
   variant:question_variants(name),
   options:question_options(label, option_text, sort_order, explanation, asset:assets(external_ref, storage_path, external_url)),
-  question_assets(role, sort_order, asset:assets(external_ref, storage_path, external_url, alt_text, generation_prompt, status)),
+  question_assets(role, sort_order, asset:assets(external_ref, storage_path, external_url, alt_text, generation_prompt, status, spec)),
   stimulus:stimuli(id, external_ref, title, stimulus_type, body_markdown, stimulus_assets(sort_order, asset:assets(external_ref, storage_path, external_url)))
 `
 
@@ -941,8 +939,8 @@ function mapFullExportRow(row: FullExportRawRow): FullExportQuestion {
     solutionAssetRefs: refsForRole('solution'),
     assetGenerationPrompt: primaryAsset?.generation_prompt ?? null,
     assetAltText: primaryAsset?.alt_text ?? null,
-    // spec is not DB-sourced (see ExportAssetMeta); it lives in the manifest/spec files.
-    assetSpec: null,
+    // spec is DB-sourced so a re-import can regenerate the SVG deterministically.
+    assetSpec: primaryAsset?.spec ?? null,
     assetStatus: primaryAsset?.status ?? null,
     presentation: row.presentation ?? {},
     rubric: row.rubric,
@@ -958,14 +956,23 @@ const EXPORT_BATCH_SIZE = 1000
 
 /**
  * Every question matching the admin filters (no page limit; batched), hydrated
- * with options, stimulus and asset refs for the round-trip CSV export.
+ * with options, stimulus and asset refs for the round-trip CSV export. Pass
+ * `idConstraint` to scope the export to a specific set of question ids (e.g. the
+ * rows the admin checked) instead of the whole filtered bank.
  */
-export async function getQuestionsForFullExport(filters: AdminQuestionFilters = {}): Promise<FullExportQuestion[]> {
+export async function getQuestionsForFullExport(
+  filters: AdminQuestionFilters = {},
+  idConstraint: AssetIdConstraint | null = null
+): Promise<FullExportQuestion[]> {
   const supabase = await createClient()
   const rows: FullExportQuestion[] = []
 
   for (let from = 0; ; from += EXPORT_BATCH_SIZE) {
-    const query = applyAdminQuestionFilters(supabase.from('questions').select(FULL_EXPORT_SELECT), filters)
+    const query = applyAdminQuestionFilters(
+      supabase.from('questions').select(FULL_EXPORT_SELECT),
+      filters,
+      idConstraint
+    )
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
       .range(from, from + EXPORT_BATCH_SIZE - 1)

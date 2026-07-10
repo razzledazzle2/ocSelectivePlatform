@@ -54,7 +54,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { exportQuestionsCsv } from '@/lib/questions/export-csv'
+import { exportQuestionsCsvAction } from '@/app/admin/questions/export-actions'
 import type { QuestionStatusCounts } from '@/lib/questions/queries'
 import {
   ADMIN_QUESTION_SORT_LABELS,
@@ -103,6 +103,28 @@ export function QuestionBankWorkspace({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [isNavigating, startNavigation] = useTransition()
+  const [isExporting, startExport] = useTransition()
+
+  // Round-trip CSV export (v2 import header): whatever is exported can be fed
+  // straight back into Import. `questionIds` scopes to the selected rows; omit
+  // it to export every question matching the current filters.
+  const runExport = (questionIds?: string[]) => {
+    startExport(async () => {
+      const result = await exportQuestionsCsvAction(filters, questionIds)
+      if (!result.success || !result.data) {
+        toast.error(result.message ?? 'Unable to export questions.')
+        return
+      }
+      const { csv, filename } = result.data
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = filename
+      anchor.click()
+      URL.revokeObjectURL(url)
+      toast.success(result.message ?? 'Export ready.')
+    })
+  }
 
   const questions = data.items
 
@@ -670,7 +692,12 @@ export function QuestionBankWorkspace({
                   Delete forever
                 </Button>
               ) : null}
-              <Button size="sm" variant="outline" onClick={() => exportQuestionsCsv(checkedQuestions)}>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isExporting}
+                onClick={() => runExport(checkedQuestions.map((q) => q.id))}
+              >
                 <DownloadIcon className="size-3.5" />
                 Export selected
               </Button>
@@ -714,10 +741,11 @@ export function QuestionBankWorkspace({
                 size="sm"
                 variant="ghost"
                 className="text-muted-foreground"
-                onClick={() => exportQuestionsCsv(questions)}
+                disabled={isExporting}
+                onClick={() => runExport()}
               >
                 <DownloadIcon className="size-3.5" />
-                Export page
+                Export CSV
               </Button>
             </div>
           </div>
