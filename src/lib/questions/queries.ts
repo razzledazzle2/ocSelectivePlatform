@@ -363,6 +363,9 @@ export function applyAdminQuestionFilters<T>(
   } else {
     next = next.is('deleted_at', null)
   }
+  // Mock-only questions (authored inside a mock CSV, origin='mock_import') stay out
+  // of the bank browse, pickers and exports until an admin promotes them to the bank.
+  next = next.eq('origin', 'bank')
   if (assetIds) {
     if (assetIds.mode === 'in') {
       next = next.in('id', assetIds.ids.length ? assetIds.ids : [IMPOSSIBLE_ID])

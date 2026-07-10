@@ -1,4 +1,5 @@
 import { SECTIONED_MOCK_SECTIONS } from '@/lib/mock-exams/config'
+import { countUnreadyQuestionAssets } from '@/lib/questions/mutations'
 import { createClient } from '@/lib/supabase/server'
 import type { MockTestMetaInput, MockTestStatus, MockType } from '@/lib/mock-tests/types'
 
@@ -152,8 +153,46 @@ export async function assertMockReadyForPublish(mockTestId: string): Promise<voi
   }
 }
 
+/**
+ * Publishes the mock-only questions (origin='mock_import') that were authored for
+ * this mock and whose required assets are ready. This lets a CSV-imported mock be
+ * published in one step: its bespoke questions come along, while any question with
+ * a pending/rejected asset is left as a draft so the publish gate still blocks it.
+ * Bank questions (origin='bank') are never touched — they publish on their own.
+ */
+async function publishMockOwnedQuestions(mockTestId: string, userId: string): Promise<void> {
+  const supabase = await createClient()
+  const { data: rows } = await supabase
+    .from('mock_test_questions')
+    .select('question:questions(id, status, origin, deleted_at)')
+    .eq('mock_test_id', mockTestId)
+
+  const owned = ((rows ?? []) as Array<{
+    question: { id: string; status: string; origin: string; deleted_at: string | null }[] | { id: string; status: string; origin: string; deleted_at: string | null } | null
+  }>)
+    .map((row) => (Array.isArray(row.question) ? row.question[0] ?? null : row.question))
+    .filter(
+      (question): question is { id: string; status: string; origin: string; deleted_at: string | null } =>
+        Boolean(question) && question!.origin === 'mock_import' && question!.status !== 'published' && !question!.deleted_at
+    )
+
+  const now = new Date().toISOString()
+  for (const question of owned) {
+    // Never publish over a missing diagram — leave it a draft; the gate reports it.
+    if ((await countUnreadyQuestionAssets(question.id)) > 0) {
+      continue
+    }
+    await supabase
+      .from('questions')
+      .update({ status: 'published', published_at: now, updated_by: userId })
+      .eq('id', question.id)
+  }
+}
+
 export async function setMockTestStatus(id: string, status: MockTestStatus, userId: string): Promise<void> {
   if (status === 'published') {
+    // Bring the mock's own questions along before the readiness check.
+    await publishMockOwnedQuestions(id, userId)
     await assertMockReadyForPublish(id)
   }
 

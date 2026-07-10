@@ -49,6 +49,8 @@ async function scanQuestions(): Promise<QuestionScanRow[]> {
       .from('questions')
       .select(QUESTION_SCAN_SELECT)
       .is('deleted_at', null)
+      // Coverage measures the bank; mock-only imported questions are excluded.
+      .eq('origin', 'bank')
       .order('id', { ascending: true })
       .range(from, from + SCAN_BATCH_SIZE - 1)
     if (error) {

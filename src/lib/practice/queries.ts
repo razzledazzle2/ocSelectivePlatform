@@ -105,6 +105,8 @@ export async function getPracticeQuestionPool(
     .from('questions')
     .select(STUDENT_QUESTION_SELECT)
     .eq('status', 'published')
+    // Mock-only imported questions never enter the student practice pool.
+    .eq('origin', 'bank')
     .is('deleted_at', null)
     .eq('answer_format', 'single_choice')
     .eq('exam_type', filters.examType)

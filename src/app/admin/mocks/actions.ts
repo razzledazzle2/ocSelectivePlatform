@@ -23,6 +23,11 @@ import {
 } from '@/lib/mock-tests/types'
 import { getMockProgramCoverage, type MockProgramFilters } from '@/lib/mock-tests/queries'
 import type { MockProgramCoverage } from '@/lib/mock-tests/types'
+import { getBlueprintSelectionPool, getMockBlueprintById } from '@/lib/mock-blueprints/queries'
+import { selectQuestionsForBlueprint } from '@/lib/mock-blueprints/select'
+import { evaluateBlueprint } from '@/lib/mock-blueprints/evaluate'
+import type { BlueprintEvaluation, BlueprintQuestion } from '@/lib/mock-blueprints/types'
+import { createClient } from '@/lib/supabase/server'
 import { getAdminQuestionsPage } from '@/lib/questions/queries'
 import {
   ADMIN_PORTAL_ROLES,
@@ -335,5 +340,109 @@ export async function assistedMockSuggestionsAction(input: {
     return { success: true, data: { questions } }
   } catch {
     return { success: false, message: 'Unable to build suggestions from the question bank.' }
+  }
+}
+
+/**
+ * Automatic (internal) builder: deterministically fill a section from a blueprint.
+ * Selects published bank questions satisfying the blueprint, excluding questions
+ * already in the mock, then appends them. Never publishes; the admin still reviews.
+ */
+export async function autoFillMockSectionAction(input: {
+  mockTestId: string
+  sectionId: string
+  blueprintId: string
+  seed?: number
+  targetCount?: number
+}): Promise<ActionResult<{ added: number; evaluation: BlueprintEvaluation | null; notes: string[] }>> {
+  await requireProfile({ allowedRoles: [...ADMIN_PORTAL_ROLES] })
+
+  try {
+    const blueprint = await getMockBlueprintById(input.blueprintId)
+    if (!blueprint) {
+      return { success: false, message: 'Blueprint not found.' }
+    }
+
+    const supabase = await createClient()
+    const [{ data: section }, { data: existing }] = await Promise.all([
+      supabase.from('mock_test_sections').select('subject_id').eq('id', input.sectionId).maybeSingle(),
+      supabase.from('mock_test_questions').select('question_id').eq('mock_test_id', input.mockTestId),
+    ])
+
+    if (!section?.subject_id) {
+      return { success: false, message: 'This section has no subject to draw questions from.' }
+    }
+
+    const exclude = new Set(((existing ?? []) as Array<{ question_id: string }>).map((row) => row.question_id))
+    const pool = await getBlueprintSelectionPool(section.subject_id)
+    const { selected, notes } = selectQuestionsForBlueprint(pool, blueprint.spec, {
+      seed: input.seed ?? 1,
+      exclude,
+      targetCount: input.targetCount,
+    })
+
+    if (selected.length === 0) {
+      return { success: true, data: { added: 0, evaluation: null, notes }, message: 'No eligible questions matched the blueprint.' }
+    }
+
+    const added = await addQuestionsToSection(
+      input.mockTestId,
+      input.sectionId,
+      selected.map((candidate) => candidate.questionId)
+    )
+    const evaluation = evaluateBlueprint(selected, blueprint.spec, {
+      blueprintId: blueprint.id,
+      blueprintTitle: blueprint.title,
+    })
+    revalidateMockPaths(input.mockTestId)
+    return {
+      success: true,
+      data: { added, evaluation, notes },
+      message: `${added} question${added === 1 ? '' : 's'} added from “${blueprint.title}”.`,
+    }
+  } catch (caught) {
+    return { success: false, message: caught instanceof Error ? caught.message : 'Unable to auto-fill from the blueprint.' }
+  }
+}
+
+/** Evaluate the mock's current questions against a blueprint (compliance panel). */
+export async function evaluateMockBlueprintAction(
+  mockTestId: string,
+  blueprintId: string
+): Promise<ActionResult<BlueprintEvaluation>> {
+  await requireProfile({ allowedRoles: [...ADMIN_PORTAL_ROLES] })
+  try {
+    const blueprint = await getMockBlueprintById(blueprintId)
+    if (!blueprint) return { success: false, message: 'Blueprint not found.' }
+
+    const supabase = await createClient()
+    const { data: rows } = await supabase
+      .from('mock_test_questions')
+      .select('question:questions(difficulty, domain_code, subtopic_code, pattern_key, correct_option_label)')
+      .eq('mock_test_id', mockTestId)
+
+    const questions: BlueprintQuestion[] = ((rows ?? []) as Array<{
+      question:
+        | { difficulty: number; domain_code: string | null; subtopic_code: string | null; pattern_key: string | null; correct_option_label: string | null }[]
+        | { difficulty: number; domain_code: string | null; subtopic_code: string | null; pattern_key: string | null; correct_option_label: string | null }
+        | null
+    }>)
+      .map((row) => (Array.isArray(row.question) ? row.question[0] : row.question))
+      .filter((question): question is NonNullable<typeof question> => question != null)
+      .map((question) => ({
+        difficulty: question.difficulty,
+        domainCode: question.domain_code,
+        subtopicCode: question.subtopic_code,
+        patternKey: question.pattern_key,
+        correctOptionLabel: question.correct_option_label,
+      }))
+
+    const evaluation = evaluateBlueprint(questions, blueprint.spec, {
+      blueprintId: blueprint.id,
+      blueprintTitle: blueprint.title,
+    })
+    return { success: true, data: evaluation }
+  } catch (caught) {
+    return { success: false, message: caught instanceof Error ? caught.message : 'Unable to evaluate the blueprint.' }
   }
 }

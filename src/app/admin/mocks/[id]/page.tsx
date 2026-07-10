@@ -2,11 +2,13 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeftIcon } from 'lucide-react'
 
+import { MockCsvTools } from '@/components/admin/mocks/mock-csv-tools'
 import { MockEditor } from '@/components/admin/mocks/mock-editor'
 import { PageHeader } from '@/components/layout/page-header'
 import { requireProfile } from '@/lib/auth/require-profile'
 import { computeMockCoverage } from '@/lib/mock-tests/coverage'
 import { getMockTestAttemptStats, getMockTestById } from '@/lib/mock-tests/queries'
+import { getActiveBlueprints } from '@/lib/mock-blueprints/queries'
 import { getExistingTags, getSubjects, getTopicsBySubject } from '@/lib/questions/queries'
 import { ADMIN_PORTAL_ROLES, type QuestionOptionLabel } from '@/lib/types'
 
@@ -34,12 +36,20 @@ export default async function AdminMockDetailPage({ params }: AdminMockDetailPag
 
   const coverage = computeMockCoverage(detail)
 
-  const [stats, subjects, topics, tags] = await Promise.all([
+  const [stats, subjects, topics, tags, blueprints] = await Promise.all([
     getMockTestAttemptStats(id, correctByQuestionId),
     getSubjects(),
     getTopicsBySubject(),
     getExistingTags(),
+    getActiveBlueprints().catch(() => []),
   ])
+
+  const sectionOptions = detail.sections.map((section) => ({
+    id: section.id,
+    name: section.name,
+    hasSubject: section.subjectId !== null,
+  }))
+  const blueprintOptions = blueprints.map((blueprint) => ({ id: blueprint.id, title: blueprint.title }))
 
   return (
     <div className="space-y-6">
@@ -62,6 +72,8 @@ export default async function AdminMockDetailPage({ params }: AdminMockDetailPag
         topics={topics}
         tags={tags.sort((a, b) => a.localeCompare(b))}
       />
+
+      <MockCsvTools mockTestId={detail.id} sections={sectionOptions} blueprints={blueprintOptions} />
     </div>
   )
 }

@@ -116,6 +116,8 @@ export async function fetchMockCandidates(
       question_type:question_types(name)
     `)
     .eq('status', 'published')
+    // Randomised mocks draw from the bank only; mock-only imported questions stay out.
+    .eq('origin', 'bank')
     // Mock exams are MCQ-only: never select writing prompts (extended_response).
     .eq('answer_format', 'single_choice')
     .eq('exam_type', examType)
@@ -144,6 +146,7 @@ export async function countAvailableMockQuestions(
     .from('questions')
     .select('id', { count: 'exact', head: true })
     .eq('status', 'published')
+    .eq('origin', 'bank')
     .eq('answer_format', 'single_choice')
     .eq('exam_type', examType)
 
