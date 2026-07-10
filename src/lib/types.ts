@@ -3,6 +3,12 @@ import type { LucideIcon } from 'lucide-react'
 export const APP_ROLES = ['student', 'admin', 'tutor', 'parent', 'external_customer', 'super_admin'] as const
 export const EXAM_TYPES = ['OC', 'Selective'] as const
 export const QUESTION_STATUSES = ['draft', 'reviewed', 'published', 'archived'] as const
+// Content sign-off, independent of the publish lifecycle in QUESTION_STATUSES.
+// Mirrors the CHECK constraint in migration 20260710042911.
+//   unreviewed  → not yet checked by a human
+//   validated   → content confirmed correct and usable
+//   needs_fixes → reviewed and found wanting; do not treat as usable
+export const VALIDATION_STATUSES = ['unreviewed', 'validated', 'needs_fixes'] as const
 export const QUESTION_OPTION_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
 export const QUESTION_SOURCES = ['manual', 'csv', 'bulk_paste'] as const
 export const PRACTICE_MODES = ['practice'] as const
@@ -188,6 +194,7 @@ export interface StudentStimulus {
 export type AppRole = (typeof APP_ROLES)[number]
 export type ExamType = (typeof EXAM_TYPES)[number]
 export type QuestionStatus = (typeof QUESTION_STATUSES)[number]
+export type ValidationStatus = (typeof VALIDATION_STATUSES)[number]
 export type QuestionOptionLabel = (typeof QUESTION_OPTION_LABELS)[number]
 export type QuestionSource = (typeof QUESTION_SOURCES)[number]
 export type PracticeMode = (typeof PRACTICE_MODES)[number]
@@ -310,6 +317,10 @@ export interface QuestionRecord {
   worked_solution: string | null
   correct_option_label: QuestionOptionLabel | null
   status: QuestionStatus
+  /** Content sign-off, independent of the publish lifecycle in `status`. */
+  validation_status: ValidationStatus
+  validated_at: string | null
+  validated_by: string | null
   source: QuestionSource
   tags: string[]
   answer_format: AnswerFormat
@@ -403,6 +414,8 @@ export interface AdminQuestionFilters {
   tag?: string
   difficulty?: string
   status?: string
+  /** Content sign-off filter (VALIDATION_STATUSES): 'unreviewed' | 'validated' | 'needs_fixes'. */
+  validationStatus?: string
   answerFormat?: string
   /** Asset readiness filter: 'has' | 'pending' | 'missing' | 'approved'. */
   assetState?: string

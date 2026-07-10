@@ -44,6 +44,7 @@ export default async function AdminQuestionsPage({ searchParams }: AdminQuestion
     tag: getSearchParamValue(resolvedSearchParams, 'tag'),
     difficulty: getSearchParamValue(resolvedSearchParams, 'difficulty'),
     status: getSearchParamValue(resolvedSearchParams, 'status'),
+    validationStatus: getSearchParamValue(resolvedSearchParams, 'validationStatus'),
     assetState: getSearchParamValue(resolvedSearchParams, 'assetState'),
     query: getSearchParamValue(resolvedSearchParams, 'query'),
     sort: getSearchParamValue(resolvedSearchParams, 'sort'),

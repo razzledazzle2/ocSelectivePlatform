@@ -410,6 +410,9 @@ export function applyAdminQuestionFilters<T>(
   if (filters.status && filters.status !== DELETED_STATUS_FILTER) {
     next = next.eq('status', filters.status)
   }
+  if (filters.validationStatus) {
+    next = next.eq('validation_status', filters.validationStatus)
+  }
   if (filters.answerFormat) {
     next = next.eq('answer_format', filters.answerFormat)
   }

@@ -7,6 +7,7 @@ import { ADMIN_PORTAL_ROLES, type NavigationItem } from '@/lib/types'
 const navigation: NavigationItem[] = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: 'gauge' },
   { href: '/admin/questions', label: 'Question Bank', icon: 'clipboard-list' },
+  { href: '/admin/coverage', label: 'Coverage', icon: 'chart' },
   { href: '/admin/mocks', label: 'Mock Tests', icon: 'timer' },
   { href: '/admin/import', label: 'Imports', icon: 'upload' },
   { href: '/admin/taxonomy', label: 'Taxonomy', icon: 'layers' },
