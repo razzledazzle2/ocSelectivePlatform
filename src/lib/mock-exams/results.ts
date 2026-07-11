@@ -125,16 +125,15 @@ export async function getMockExamResults(
   sessionId: string,
   studentId: string
 ): Promise<MockExamResults | null> {
-  const summary = await getMockExamSummary(sessionId, studentId)
-
-  if (!summary) {
-    return null
-  }
-
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('mock_exam_session_questions')
-    .select(`
+
+  // Both reads are scoped by `sessionId` alone (RLS restricts rows to the owning
+  // student), so the summary is only a null-guard — no need to serialise on it.
+  const [summary, { data, error }] = await Promise.all([
+    getMockExamSummary(sessionId, studentId),
+    supabase
+      .from('mock_exam_session_questions')
+      .select(`
       question_order,
       selected_option_label,
       is_flagged,
@@ -152,8 +151,13 @@ export async function getMockExamResults(
         question_type:question_types(name)
       )
     `)
-    .eq('session_id', sessionId)
-    .order('question_order', { ascending: true })
+      .eq('session_id', sessionId)
+      .order('question_order', { ascending: true }),
+  ])
+
+  if (!summary) {
+    return null
+  }
 
   if (error) {
     throw new Error('Unable to load your mock exam results.')

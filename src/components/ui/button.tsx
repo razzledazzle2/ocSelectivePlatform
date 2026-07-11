@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { Button as ButtonPrimitive } from '@base-ui/react/button'
 import { cva, type VariantProps } from 'class-variance-authority'
+import { Loader2Icon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -44,20 +45,32 @@ const buttonVariants = cva(
 type ButtonVariants = VariantProps<typeof buttonVariants>
 export type ButtonVariant = NonNullable<ButtonVariants['variant']>
 
-type ButtonProps = React.ComponentProps<typeof ButtonPrimitive> & ButtonVariants
+type ButtonProps = React.ComponentProps<typeof ButtonPrimitive> &
+  ButtonVariants & {
+    /** Shows an inline spinner and disables the button, for in-flight actions (saving, importing, etc). */
+    loading?: boolean
+  }
 
 function Button({
   className,
   variant = 'default',
   size = 'default',
+  loading = false,
+  disabled,
+  children,
   ...props
 }: ButtonProps) {
   return (
     <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
-    />
+    >
+      {loading ? <Loader2Icon className="animate-spin" /> : null}
+      {children}
+    </ButtonPrimitive>
   )
 }
 

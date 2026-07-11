@@ -1004,7 +1004,7 @@ export function QuestionForm({
           ) : null}
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending} loading={isPending}>
               {isPending ? 'Saving...' : mode === 'create' ? 'Create question' : 'Save changes'}
             </Button>
             <Link href="/admin/questions" className={cn(buttonVariants({ variant: 'outline' }))}>

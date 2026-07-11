@@ -132,6 +132,36 @@ export async function getPracticeQuestionPool(
 }
 
 /**
+ * Loads specific published questions in the student-facing pool shape, preserving
+ * the order of `ids`. Used by targeted subtopic practice, where the selection has
+ * already been made (see `selectTargetedPractice`).
+ */
+export async function getPracticeQuestionsByIds(ids: string[]): Promise<PracticePoolQuestion[]> {
+  if (ids.length === 0) {
+    return []
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('questions')
+    .select(STUDENT_QUESTION_SELECT)
+    .in('id', ids)
+    .eq('status', 'published')
+    .is('deleted_at', null)
+    .eq('answer_format', 'single_choice')
+
+  if (error) {
+    throw new Error('Unable to load practice questions.')
+  }
+
+  const byId = new Map(
+    ((data ?? []) as unknown as StudentQuestionRow[]).map((question) => [question.id, mapPoolQuestion(question)])
+  )
+
+  return ids.map((id) => byId.get(id)).filter((question): question is PracticePoolQuestion => Boolean(question))
+}
+
+/**
  * Hydrates a picked set of pool questions into full PracticeQuestionItems:
  * answer options (with visual assets), the linked stimulus (with its assets)
  * and question-level assets. Questions sharing a stimulus are reordered to be

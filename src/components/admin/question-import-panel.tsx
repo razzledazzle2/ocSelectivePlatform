@@ -508,8 +508,8 @@ export function QuestionImportPanel() {
                 <ArrowLeftIcon className="size-4" />
                 Back
               </Button>
-              <Button type="button" variant="outline" disabled={isPending} onClick={runPreview}>
-                <UploadCloudIcon className="size-4" />
+              <Button type="button" variant="outline" disabled={isPending} loading={isPending} onClick={runPreview}>
+                {isPending ? null : <UploadCloudIcon className="size-4" />}
                 {isPending ? 'Checking…' : 'Preview & validate'}
               </Button>
               {fileName ? <Badge variant="outline">{fileName}</Badge> : null}

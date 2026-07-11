@@ -476,7 +476,7 @@ function RetryDialog({ questionId, open, onOpenChange }: RetryDialogProps) {
 
             <div className="flex justify-end gap-2">
               {!feedback ? (
-                <Button disabled={!selected || isPending} onClick={submitRetry}>
+                <Button disabled={!selected || isPending} loading={isPending} onClick={submitRetry}>
                   {isPending ? 'Saving...' : 'Submit retry'}
                 </Button>
               ) : (

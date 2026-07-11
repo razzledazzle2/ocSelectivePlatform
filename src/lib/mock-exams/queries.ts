@@ -231,14 +231,39 @@ export async function getMockExamRunnerData(
   studentId: string
 ): Promise<MockExamRunnerData | null> {
   const supabase = await createClient()
-  const { data: session, error } = await supabase
-    .from('mock_exam_sessions')
-    .select(
-      'id, student_id, mock_type, exam_type, status, time_limit_seconds, started_at, subject:subjects(name)'
-    )
-    .eq('id', sessionId)
-    .eq('student_id', studentId)
-    .maybeSingle()
+  const [{ data: session, error }, { data: sessionQuestions, error: questionsError }] = await Promise.all([
+    supabase
+      .from('mock_exam_sessions')
+      .select(
+        'id, student_id, mock_type, exam_type, status, time_limit_seconds, started_at, subject:subjects(name)'
+      )
+      .eq('id', sessionId)
+      .eq('student_id', studentId)
+      .maybeSingle(),
+    supabase
+      .from('mock_exam_session_questions')
+      .select(`
+        question_order,
+        selected_option_label,
+        is_flagged,
+        question:questions(
+          id,
+          subject_id,
+          topic_id,
+          question_type_id,
+          exam_type,
+          difficulty,
+          stimulus_id,
+          question_text,
+          passage_text,
+          subject:subjects(name),
+          topic:topics(name),
+          question_type:question_types(name)
+        )
+      `)
+      .eq('session_id', sessionId)
+      .order('question_order', { ascending: true }),
+  ])
 
   if (error) {
     throw new Error('Unable to load this mock exam.')
@@ -247,30 +272,6 @@ export async function getMockExamRunnerData(
   if (!session) {
     return null
   }
-
-  const { data: sessionQuestions, error: questionsError } = await supabase
-    .from('mock_exam_session_questions')
-    .select(`
-      question_order,
-      selected_option_label,
-      is_flagged,
-      question:questions(
-        id,
-        subject_id,
-        topic_id,
-        question_type_id,
-        exam_type,
-        difficulty,
-        stimulus_id,
-        question_text,
-        passage_text,
-        subject:subjects(name),
-        topic:topics(name),
-        question_type:question_types(name)
-      )
-    `)
-    .eq('session_id', sessionId)
-    .order('question_order', { ascending: true })
 
   if (questionsError) {
     throw new Error('Unable to load the questions for this mock exam.')

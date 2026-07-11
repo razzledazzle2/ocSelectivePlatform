@@ -6,7 +6,7 @@ import { STUDENT_PORTAL_ROLES, type NavigationItem } from '@/lib/types'
 
 const navigation: NavigationItem[] = [
   { href: '/student/dashboard', label: 'Dashboard', icon: 'gauge' },
-  { href: '/student/library', label: 'Skill Library', icon: 'layers' },
+  { href: '/student/mastery', label: 'Mastery', icon: 'layers' },
   { href: '/student/practice', label: 'Practice', icon: 'book-open' },
   { href: '/student/revision', label: 'Revision', icon: 'revision' },
   { href: '/student/mock-exams', label: 'Mocks', icon: 'timer' },

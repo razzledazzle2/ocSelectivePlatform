@@ -20,13 +20,18 @@ import {
 } from '@/components/ui/table'
 import { CoverageStateBadge, DifficultyDistribution } from '@/components/admin/coverage/coverage-visuals'
 import { BlankTemplateButton } from '@/components/admin/coverage/blank-template-button'
+import { StudentMasteryPanel } from '@/components/admin/coverage/student-mastery-panel'
 import { getCoverageOverview } from '@/lib/coverage/queries'
+import { getSubtopicMasteryAnalytics } from '@/lib/mastery/admin-queries'
 import type { CoverageAudit, SubjectCoverage } from '@/lib/coverage/types'
 
 export const dynamic = 'force-dynamic'
 
 export default async function CoverageOverviewPage() {
-  const { subjects, audit, totalQuestions } = await getCoverageOverview()
+  const [{ subjects, audit, totalQuestions }, masteryAnalytics] = await Promise.all([
+    getCoverageOverview(),
+    getSubtopicMasteryAnalytics(),
+  ])
 
   return (
     <div className="space-y-8">
@@ -46,6 +51,8 @@ export default async function CoverageOverviewPage() {
       ) : (
         subjects.map((subject) => <SubjectSection key={subject.code} subject={subject} />)
       )}
+
+      <StudentMasteryPanel analytics={masteryAnalytics} />
 
       <AuditSection audit={audit} totalQuestions={totalQuestions} />
     </div>

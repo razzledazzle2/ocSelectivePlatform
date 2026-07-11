@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/require-profile'
 import {
   getPracticeQuestionPool,
+  getPracticeQuestionsByIds,
   hydratePracticeQuestions,
   shuffleArray,
 } from '@/lib/practice/queries'
@@ -14,6 +15,9 @@ import {
   saveQuestionAttempt,
   updatePracticeSessionResults,
 } from '@/lib/practice/mutations'
+import { selectTargetedPractice } from '@/lib/mastery/core'
+import { getTargetedPracticeContext } from '@/lib/mastery/queries'
+import { getSubtopic } from '@/lib/taxonomy'
 import {
   EXAM_TYPES,
   PRACTICE_SET_MODES,
@@ -52,6 +56,68 @@ async function getStudentQuestionHistory(studentId: string): Promise<{
   }
 }
 
+const emptyStart = (message: string): ActionResult<PracticeStartResult> => ({
+  success: true,
+  message,
+  data: { sessionId: '', startedAt: new Date().toISOString(), questions: [] },
+})
+
+/**
+ * Targeted practice for one canonical subtopic. The pool is already restricted to
+ * published, gradable, asset-ready questions; `selectTargetedPractice` then picks
+ * a varied set (distinct skills and distinct internal pattern keys), avoids the
+ * questions the student just saw, and adapts difficulty modestly to their recent
+ * accuracy. A thin or repetitive subtopic is reported honestly rather than padded.
+ */
+async function startSubtopicPractice(
+  studentId: string,
+  subtopicCode: string,
+  examType: (typeof EXAM_TYPES)[number],
+  limit: number
+): Promise<ActionResult<PracticeStartResult>> {
+  const subtopic = getSubtopic(subtopicCode)
+  if (!subtopic) {
+    return { success: false, message: 'That subtopic is no longer part of the syllabus.' }
+  }
+
+  const { candidates, recentAccuracy } = await getTargetedPracticeContext(studentId, subtopicCode, examType)
+
+  // Shuffle first so equally-good candidates vary between sessions; the selector
+  // itself is deterministic, which is what keeps it testable.
+  const selection = selectTargetedPractice(shuffleArray(candidates), {
+    count: limit,
+    recentAccuracy,
+  })
+
+  if (selection.questionIds.length === 0) {
+    return emptyStart(
+      selection.notice ?? `No ${examType} questions are ready in ${subtopic.label} yet.`
+    )
+  }
+
+  const picked = await getPracticeQuestionsByIds(selection.questionIds)
+  const questions = await hydratePracticeQuestions(picked)
+
+  if (questions.length === 0) {
+    return emptyStart(`No ${examType} questions are ready in ${subtopic.label} yet.`)
+  }
+
+  const sessionId = await createPracticeSession({
+    studentId,
+    examType,
+    subjectId: questions[0].subjectId,
+    topicId: null,
+    difficulty: null,
+    totalQuestions: questions.length,
+  })
+
+  return {
+    success: true,
+    message: selection.notice ?? undefined,
+    data: { sessionId, startedAt: new Date().toISOString(), questions },
+  }
+}
+
 export async function startPracticeAction(formData: FormData): Promise<ActionResult<PracticeStartResult>> {
   const profile = await requireProfile({
     allowedRoles: [...STUDENT_PORTAL_ROLES],
@@ -59,6 +125,7 @@ export async function startPracticeAction(formData: FormData): Promise<ActionRes
   const examType = String(formData.get('examType') ?? '').trim()
   const subjectId = String(formData.get('subjectId') ?? '').trim()
   const topicId = String(formData.get('topicId') ?? '').trim() || undefined
+  const subtopicCode = String(formData.get('subtopicCode') ?? '').trim()
   const difficultyValue = String(formData.get('difficulty') ?? '').trim()
   const limitValue = String(formData.get('questionCount') ?? '').trim()
   const limit = parsePositiveNumber(limitValue)
@@ -71,17 +138,34 @@ export async function startPracticeAction(formData: FormData): Promise<ActionRes
     }
   }
 
-  if (!subjectId) {
-    return {
-      success: false,
-      message: 'Choose a subject before starting practice.',
-    }
-  }
-
   if (!limit) {
     return {
       success: false,
       message: 'Choose how many questions you want to practise.',
+    }
+  }
+
+  // A subtopic focus replaces the subject/topic filters entirely.
+  if (subtopicCode) {
+    try {
+      return await startSubtopicPractice(
+        profile.id,
+        subtopicCode,
+        examType as (typeof EXAM_TYPES)[number],
+        limit
+      )
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unable to start practice right now.',
+      }
+    }
+  }
+
+  if (!subjectId) {
+    return {
+      success: false,
+      message: 'Choose a subject before starting practice.',
     }
   }
 

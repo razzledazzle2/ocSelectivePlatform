@@ -56,8 +56,10 @@ Tailwind is v4 (CSS-first config in `src/app/globals.css`, `@tailwindcss/postcss
 Six roles in `profiles.role`: `student`, `parent`, `external_customer` (student portal) and `tutor`, `admin`, `super_admin` (admin portal). Role sets and path rules live in `src/lib/types.ts` (`ADMIN_PORTAL_ROLES`, `STUDENT_PORTAL_ROLES`) and `src/lib/auth/access.ts` (`canAccessPath`, `getRoleRedirectPath`).
 
 Two enforcement layers, both required:
-1. **`middleware.ts`** (root) calls `updateSession` (refreshes the Supabase session cookie) and redirects based on role for `/student`, `/admin`, `/tutor` prefixes.
-2. **Layouts / server actions** call `requireProfile({ allowedRoles })` (`src/lib/auth/require-profile.ts`), which redirects if the role isn't allowed. `getCurrentUserProfile()` (`src/lib/auth/get-current-profile.ts`) is React-`cache`d and is the canonical way to read the signed-in user server-side.
+1. **`src/middleware.ts`** calls `updateSession` (refreshes the Supabase session cookie) and redirects anonymous users away from `/student`, `/admin`, `/tutor`. It must live in `src/` — the app router is at `src/app`, so a root-level `middleware.ts` is never registered and silently never runs. It deliberately does **not** query `profiles`: that would add a DB round trip to every request including every `<Link>` prefetch.
+2. **Layouts / server actions** call `requireProfile({ allowedRoles })` (`src/lib/auth/require-profile.ts`), which redirects if the role isn't allowed. This is where role/portal enforcement actually lives (`/login` and `/signup` redirect signed-in users themselves). `getCurrentUserProfile()` (`src/lib/auth/get-current-profile.ts`) is React-`cache`d and is the canonical way to read the signed-in user server-side.
+
+**Never call `supabase.auth.getUser()` on a render path.** It sends a request to the Auth server on *every* call and will trip `over_request_rate_limit` (429) once prefetches multiply it. Use `getVerifiedIdentity()` (`src/lib/auth/claims.ts`), which wraps `auth.getClaims()` to verify the JWT locally against the project's cached ES256 JWKS — zero network calls. Reserve `getUser()` for the rare case that genuinely needs a fresh Auth user record.
 
 `/admin` and `/tutor` both require admin-portal roles; the admin shell nav is defined in `src/app/admin/layout.tsx`.
 
@@ -90,11 +92,20 @@ Feature areas: `questions` (admin bank + student-facing published queries), `pra
 
 `subjects → topics → question_types → questions (+ question_options)`. Student activity: `practice_sessions`, `question_attempts` (has `is_correct`, `selected_option_label`, `time_taken_seconds`; practice mode only), `student_mistake_questions` (spaced-repetition fields `next_review_at`, `correct_streak`, `status`). Mock exams use separate `mock_exam_sessions` / `mock_exam_session_questions`. Question lifecycle is `draft → published → archived` (`questions.status`); students only ever read `published`.
 
+### Mandatory frontend completion rule
+
+Whenever creating or modifying a frontend page, always implement and test its loading, empty, error and mutation states as part of the same task.
+
+Use page-specific skeletons for initial data loads, inline descriptive spinners for actions, and preserve existing content during background refetches. Never use blank pages or generic full-page centred spinners for normal navigation.
+
+Do not consider a frontend page complete until loading behaviour, layout stability, duplicate-submission prevention and obvious data-fetching performance issues have been addressed.
+
 ## Gotchas
 
 - **Base UI `Select`**: pass an `items` map (`{ value: label }`) to `<Select>` or the trigger renders the raw value instead of the label. See `src/components/admin/question-filters.tsx`.
 - Admin nav icons are a fixed union (`NavigationIconName` in `src/lib/types.ts`) mapped in `src/components/layout/app-shell.tsx` — add both when introducing a new nav item.
 - `getRelationValue` helpers appear across `queries.ts` files because Supabase embedded relations come back as either an object or a one-element array depending on the query; normalize before use.
+- **Middleware cookie rotation**: in `updateSession`, `setAll` must rebuild the response with `NextResponse.next({ request })` *after* mutating `request.cookies`. Skip that and the refreshed token never reaches the Server Components, so every `createClient()` in the render re-refreshes the same expired session — a refresh storm against the Auth API.
 
 ## Question Asset / Diagram Generation Rules
 

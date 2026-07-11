@@ -1,60 +1,48 @@
 import { cache } from 'react'
-import type { User } from '@supabase/supabase-js'
 
+import { getVerifiedIdentity, type VerifiedIdentity } from '@/lib/auth/claims'
 import { normalizeRole } from '@/lib/auth/role-redirect'
 import { createClient } from '@/lib/supabase/server'
 import type { AppProfile } from '@/lib/types'
-
-type UserMetadata = {
-  full_name?: string
-  role?: string
-}
 
 type ProfileRecord = Partial<AppProfile> & {
   role?: string | null
 }
 
-function getUserMetadata(user: User): UserMetadata {
-  return (user.user_metadata ?? {}) as UserMetadata
-}
-
-function getFallbackName(user: User): string {
-  return user.email?.split('@')[0] ?? 'User'
+function getFallbackName(identity: VerifiedIdentity): string {
+  return identity.email?.split('@')[0] ?? 'User'
 }
 
 export const getCurrentUserProfile = cache(async (): Promise<AppProfile | null> => {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const identity = await getVerifiedIdentity(supabase)
 
-  if (!user) {
+  if (!identity) {
     return null
   }
 
   const { data } = await supabase
     .from('profiles')
-    .select('*')
-    .eq('id', user.id)
+    .select('id, role, email, full_name')
+    .eq('id', identity.userId)
     .maybeSingle()
 
   const profile = data as ProfileRecord | null
-  const metadata = getUserMetadata(user)
-  const fallbackName = getFallbackName(user)
+  const fallbackName = getFallbackName(identity)
 
   if (profile) {
     return {
-      id: profile.id ?? user.id,
+      id: profile.id ?? identity.userId,
       role: normalizeRole(profile.role),
-      email: profile.email ?? user.email,
-      full_name: profile.full_name ?? metadata.full_name ?? fallbackName,
+      email: profile.email ?? identity.email,
+      full_name: profile.full_name ?? identity.metadataFullName ?? fallbackName,
     }
   }
 
   return {
-    id: user.id,
-    email: user.email,
-    full_name: metadata.full_name ?? fallbackName,
-    role: normalizeRole(metadata.role),
+    id: identity.userId,
+    email: identity.email,
+    full_name: identity.metadataFullName ?? fallbackName,
+    role: normalizeRole(identity.metadataRole),
   }
 })

@@ -19,8 +19,7 @@ export default async function AdminMocksPage() {
   let mocks: MockTestListItem[] | null = null
   let programCoverage: MockProgramCoverage | null = null
   try {
-    mocks = await getMockTests()
-    programCoverage = await getMockProgramCoverage()
+    ;[mocks, programCoverage] = await Promise.all([getMockTests(), getMockProgramCoverage()])
   } catch {
     mocks = null
     programCoverage = null

@@ -247,7 +247,7 @@ export function RevisionSessionRunner({ items, totalDue }: RevisionSessionRunner
 
         <div className="flex flex-wrap gap-3">
           {!feedback ? (
-            <Button disabled={isPending || !selected} onClick={submitAnswer}>
+            <Button disabled={isPending || !selected} loading={isPending} onClick={submitAnswer}>
               {isPending ? 'Saving…' : 'Submit answer'}
             </Button>
           ) : (
