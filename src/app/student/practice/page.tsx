@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/layout/page-header'
 import { PracticeSession, type PracticeHubData } from '@/components/student/practice-session'
 import { requireProfile } from '@/lib/auth/require-profile'
-import { getStudentDashboardData } from '@/lib/dashboard/queries'
+import { getPracticeHubData } from '@/lib/dashboard/queries'
 import { MASTERY_SUBJECT_CODES } from '@/lib/mastery/core'
 import { getSubjects, getTopicsBySubject } from '@/lib/questions/queries'
 import { getSubtopic } from '@/lib/taxonomy'
@@ -13,20 +13,20 @@ interface StudentPracticePageProps {
 
 export default async function StudentPracticePage({ searchParams }: StudentPracticePageProps) {
   const profile = await requireProfile({ allowedRoles: [...STUDENT_PORTAL_ROLES] })
-  const [params, subjects, topics, dashboard] = await Promise.all([
+  const [params, subjects, topics, hubStats] = await Promise.all([
     searchParams,
     getSubjects(),
     getTopicsBySubject(),
-    getStudentDashboardData(profile.id),
+    getPracticeHubData(profile.id),
   ])
 
   const hub: PracticeHubData = {
-    hasActivity: dashboard.hasActivity,
-    revisionDueCount: dashboard.revisionDue.dueCount,
-    revisionTopAreas: dashboard.revisionDue.topAreas.map((area) => area.name),
-    hasEnoughInsightData: dashboard.insights.hasEnoughData,
-    weakest: dashboard.insights.weakest,
-    strongest: dashboard.insights.strongest,
+    hasActivity: hubStats.hasActivity,
+    revisionDueCount: hubStats.revisionDue.dueCount,
+    revisionTopAreas: hubStats.revisionDue.topAreas.map((area) => area.name),
+    hasEnoughInsightData: hubStats.insights.hasEnoughData,
+    weakest: hubStats.insights.weakest,
+    strongest: hubStats.insights.strongest,
   }
 
   // Deep links from Subtopic Mastery focus the session on one canonical subtopic.

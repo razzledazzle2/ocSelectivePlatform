@@ -30,6 +30,18 @@ export interface AttemptActivityInput {
   isRevision: boolean
 }
 
+/**
+ * One Australia/Sydney day of attempt counts, as returned pre-grouped by the
+ * `get_student_daily_activity` Postgres function. `dayKey` is a YYYY-MM-DD date
+ * string already in the activity timezone, so no re-bucketing is needed.
+ */
+export interface DailyActivityRow {
+  dayKey: string
+  practice: number
+  revision: number
+  total: number
+}
+
 export interface DayActivity {
   total: number
   practice: number
@@ -74,6 +86,28 @@ export function summariseActivity(attempts: AttemptActivityInput[]): ActivitySum
     dayActivity.set(key, existing)
   }
 
+  return finaliseSummary(dayActivity)
+}
+
+/**
+ * Builds the same ActivitySummary from day rows already grouped in Postgres.
+ * Semantically identical to summariseActivity — a day is active if it has
+ * >= ACTIVE_PRACTICE_THRESHOLD practice attempts or any revision retry — but no
+ * per-attempt rows are downloaded.
+ */
+export function summariseActivityFromDays(rows: DailyActivityRow[]): ActivitySummary {
+  const dayActivity = new Map<string, DayActivity>()
+  for (const row of rows) {
+    dayActivity.set(row.dayKey, {
+      total: row.total,
+      practice: row.practice,
+      revision: row.revision,
+    })
+  }
+  return finaliseSummary(dayActivity)
+}
+
+function finaliseSummary(dayActivity: Map<string, DayActivity>): ActivitySummary {
   const activeDays = new Set<string>()
   for (const [key, activity] of dayActivity.entries()) {
     if (isDayActive(activity)) {
@@ -137,16 +171,32 @@ export function countActiveDaysThisMonth(activeDays: Set<string>, now: Date): nu
   return count
 }
 
-/** Number of attempts in the current ISO week (Monday–Sunday) in the activity timezone. */
-export function countQuestionsThisWeek(attempts: AttemptActivityInput[], now: Date): number {
+/** Day number of the Monday that starts the current ISO week in the activity timezone. */
+function weekStartDayNumber(now: Date): number {
   const todayNumber = dayNumberFromKey(toDateKey(now))
   // Monday = 0 offset. Date.UTC weekday: Sunday=0..Saturday=6.
   const weekday = new Date(todayNumber * DAY_MS).getUTCDay()
   const mondayOffset = (weekday + 6) % 7
-  const weekStartNumber = todayNumber - mondayOffset
+  return todayNumber - mondayOffset
+}
 
+/** Number of attempts in the current ISO week (Monday–Sunday) in the activity timezone. */
+export function countQuestionsThisWeek(attempts: AttemptActivityInput[], now: Date): number {
+  const weekStartNumber = weekStartDayNumber(now)
   return attempts.filter((attempt) => dayNumberFromKey(toDateKey(new Date(attempt.attemptedAt))) >= weekStartNumber)
     .length
+}
+
+/**
+ * Number of attempts in the current ISO week from pre-grouped day rows. Sums the
+ * total (practice + revision) of every day on or after this week's Monday —
+ * identical to counting the raw attempts, without downloading them.
+ */
+export function countQuestionsThisWeekFromDays(rows: DailyActivityRow[], now: Date): number {
+  const weekStartNumber = weekStartDayNumber(now)
+  return rows
+    .filter((row) => dayNumberFromKey(row.dayKey) >= weekStartNumber)
+    .reduce((sum, row) => sum + row.total, 0)
 }
 
 /** Builds a calendar grid for the current month with per-day activity counts. */

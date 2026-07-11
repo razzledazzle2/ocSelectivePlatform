@@ -35,7 +35,6 @@ import type {
 /** Asset statuses that mean "not ready" — mirrors the publish gate and coverage. */
 const NOT_READY_ASSET_STATUSES = new Set(['pending', 'rejected'])
 
-const ATTEMPT_SCAN_CAP = 5000
 const BATCH_SIZE = 1000
 
 /** Postgres "column does not exist" — the taxonomy-snapshot migration is not pushed yet. */
@@ -75,6 +74,52 @@ function toAttemptRow(row: {
 }
 
 /**
+ * Fetches EVERY matching attempt row for a student, page by page. Mastery scores
+ * from the raw history (recency weighting, evidence caps, ever-mastered replay),
+ * so it must see the whole history — an arbitrary cap would silently drop the
+ * oldest attempts and skew scores for heavy users. Paged by (attempted_at desc,
+ * id desc), a total order, so offset paging never skips or duplicates a row.
+ * Passing `subtopicCode` narrows the scan to one subtopic (uses the
+ * student+subtopic index) for the subtopic detail view.
+ */
+async function fetchAllAttemptPages<T>(
+  select: string,
+  studentId: string,
+  subtopicCode?: string
+): Promise<T[]> {
+  const supabase = await createClient()
+  const rows: T[] = []
+
+  for (let from = 0; ; from += BATCH_SIZE) {
+    let query = supabase
+      .from('question_attempts')
+      .select(select)
+      .eq('student_id', studentId)
+
+    if (subtopicCode) {
+      query = query.eq('subtopic_code', subtopicCode)
+    }
+
+    const { data, error } = await query
+      .order('attempted_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + BATCH_SIZE - 1)
+
+    if (error) {
+      throw error
+    }
+
+    const batch = (data ?? []) as T[]
+    rows.push(...batch)
+    if (batch.length < BATCH_SIZE) {
+      break
+    }
+  }
+
+  return rows
+}
+
+/**
  * Pre-migration fallback: read the attempts without their taxonomy snapshot and
  * resolve the codes from the questions themselves. Attempts on questions the
  * student can no longer read (archived) resolve to null and are reported as
@@ -82,23 +127,17 @@ function toAttemptRow(row: {
  */
 async function fetchAttemptRowsViaQuestions(studentId: string): Promise<AttemptRow[]> {
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('question_attempts')
-    .select('question_id, is_correct, difficulty, attempted_at')
-    .eq('student_id', studentId)
-    .order('attempted_at', { ascending: false })
-    .limit(ATTEMPT_SCAN_CAP)
-
-  if (error) {
-    throw new Error('Unable to load your practice history.')
-  }
-
-  const rows = (data ?? []) as Array<{
+  let rows: Array<{
     question_id: string
     is_correct: boolean
     difficulty: number | null
     attempted_at: string
   }>
+  try {
+    rows = await fetchAllAttemptPages('question_id, is_correct, difficulty, attempted_at', studentId)
+  } catch {
+    throw new Error('Unable to load your practice history.')
+  }
   const ids = [...new Set(rows.map((row) => row.question_id))]
   const taxonomy = new Map<string, { subtopic: string | null; skill: string | null; pattern: string | null }>()
 
@@ -136,24 +175,24 @@ async function fetchAttemptRowsViaQuestions(studentId: string): Promise<AttemptR
   })
 }
 
-/** The student's newest attempts, with their canonical taxonomy snapshot. */
-async function fetchAttemptRows(studentId: string): Promise<AttemptRow[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('question_attempts')
-    .select(ATTEMPT_SELECT)
-    .eq('student_id', studentId)
-    .order('attempted_at', { ascending: false })
-    .limit(ATTEMPT_SCAN_CAP)
-
-  if (error) {
-    if (error.code === UNDEFINED_COLUMN) {
+/**
+ * The student's whole attempt history, with its canonical taxonomy snapshot.
+ * Pass `subtopicCode` to scan a single subtopic (subtopic detail view) — the
+ * only caller that needs one subtopic in isolation.
+ */
+async function fetchAttemptRows(studentId: string, subtopicCode?: string): Promise<AttemptRow[]> {
+  type RawRow = Parameters<typeof toAttemptRow>[0]
+  let data: RawRow[]
+  try {
+    data = await fetchAllAttemptPages<RawRow>(ATTEMPT_SELECT, studentId, subtopicCode)
+  } catch (error) {
+    if ((error as { code?: string })?.code === UNDEFINED_COLUMN) {
       return fetchAttemptRowsViaQuestions(studentId)
     }
     throw new Error('Unable to load your practice history.')
   }
 
-  return (data ?? []).map((row) => toAttemptRow(row as Parameters<typeof toAttemptRow>[0]))
+  return data.map((row) => toAttemptRow(row))
 }
 
 /** Groups attempts by canonical subtopic; rows with no subtopic are counted separately. */
@@ -397,7 +436,9 @@ export async function getSubtopicMasteryDetail(
   const subjectNode = getSubject(subtopicNode.subjectCode)!
 
   const [attemptRows, readyQuestions] = await Promise.all([
-    fetchAttemptRows(studentId),
+    // Scoped to this subtopic server-side; the filter below still guards the
+    // pre-migration fallback path, which returns the whole history.
+    fetchAttemptRows(studentId, subtopicCode),
     getPracticeReadyQuestions(),
   ])
 

@@ -222,6 +222,45 @@ function computeDeadlineMs(startedAt: string, timeLimitSeconds: number): number 
   return new Date(startedAt).getTime() + timeLimitSeconds * 1000
 }
 
+export interface MockSessionRoutingMeta {
+  mockType: MockExamType
+  status: MockExamStatus
+}
+
+/**
+ * The minimal session metadata the runner page needs to decide WHICH loader to
+ * run: is it finished (→ results), and is it a sectioned `randomised_full` mock
+ * (→ sectioned loader) or a flat one (→ flat loader)? Fetching this first means
+ * exactly one full question-hydration path runs, instead of hydrating a
+ * randomised_full session twice. Returns null when the session is missing or not
+ * owned by the student (RLS also enforces ownership).
+ */
+export async function getMockSessionRoutingMeta(
+  sessionId: string,
+  studentId: string
+): Promise<MockSessionRoutingMeta | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('mock_exam_sessions')
+    .select('mock_type, status')
+    .eq('id', sessionId)
+    .eq('student_id', studentId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error('Unable to load this mock exam.')
+  }
+
+  if (!data) {
+    return null
+  }
+
+  return {
+    mockType: data.mock_type as MockExamType,
+    status: data.status as MockExamStatus,
+  }
+}
+
 /**
  * Loads a mock exam session for its owner, in the client-runner shape (no correct answers).
  * Returns null when the session does not exist or is not owned by the student (RLS also enforces this).
