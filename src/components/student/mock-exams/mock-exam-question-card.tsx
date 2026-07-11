@@ -60,11 +60,12 @@ export function MockExamQuestionCard({
 
       <div className="space-y-4">
         {question.stimulus ? (
-          <StimulusPanel stimulus={question.stimulus} />
+          <StimulusPanel stimulus={question.stimulus} subjectName={question.subjectName} />
         ) : question.passageText ? (
-          <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4 text-sm leading-7 text-foreground/80">
-            {question.passageText}
-          </div>
+          <QuestionMarkdown
+            text={question.passageText}
+            className="rounded-2xl border border-border bg-card px-4 py-4 text-base leading-7 text-foreground"
+          />
         ) : null}
         <QuestionMarkdown text={question.questionText} className="text-lg leading-8 text-foreground" />
         {question.questionAssets.length ? (

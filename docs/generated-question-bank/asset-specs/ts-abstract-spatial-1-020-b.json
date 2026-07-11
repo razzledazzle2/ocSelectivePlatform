@@ -1,0 +1,30 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-020-b.svg",
+  "external_id": "ts-abstract-spatial-1-020-b",
+  "asset_type": "svg",
+  "alt_text": "A flat row of three single cubes.",
+  "spec": {
+    "type": "isometric_3d_views",
+    "width": 200,
+    "height": 190,
+    "solid": {
+      "cells": [
+        {
+          "col": 0,
+          "row": 0,
+          "level": 0
+        },
+        {
+          "col": 1,
+          "row": 0,
+          "level": 0
+        },
+        {
+          "col": 2,
+          "row": 0,
+          "level": 0
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-016-a.svg",
+  "external_id": "ts-abstract-spatial-1-016-a",
+  "asset_type": "svg",
+  "alt_text": "An unfolded square with two holes side by side near the top.",
+  "spec": {
+    "type": "paper_folding",
+    "holes": [
+      {
+        "x": 0.28,
+        "y": 0.33
+      },
+      {
+        "x": 0.72,
+        "y": 0.33
+      }
+    ]
+  }
+}

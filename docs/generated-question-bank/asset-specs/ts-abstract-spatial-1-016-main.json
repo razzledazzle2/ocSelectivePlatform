@@ -1,0 +1,10 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-016-main.svg",
+  "external_id": "ts-abstract-spatial-1-016-main",
+  "asset_type": "svg",
+  "alt_text": "A square sheet; then the sheet folded bottom-up into a wide half-height rectangle with a crease along the top edge; then the folded sheet with a hole punched near its top-left.",
+  "spec": {
+    "type": "paper_folding",
+    "fold": "horizontal"
+  }
+}

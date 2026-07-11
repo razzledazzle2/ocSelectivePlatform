@@ -1,0 +1,41 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-018-main.svg",
+  "external_id": "ts-abstract-spatial-1-018-main",
+  "asset_type": "svg",
+  "alt_text": "A dashed L-shaped gap made of three squares: two along the top and one below the right-hand square.",
+  "spec": {
+    "type": "spatial_assembly",
+    "stimulus": true,
+    "width": 200,
+    "height": 150,
+    "target": {
+      "points": [
+        [
+          70,
+          40
+        ],
+        [
+          130,
+          40
+        ],
+        [
+          130,
+          100
+        ],
+        [
+          100,
+          100
+        ],
+        [
+          100,
+          70
+        ],
+        [
+          70,
+          70
+        ]
+      ]
+    },
+    "caption": "Which piece exactly fills this shape? (no turning or flipping)"
+  }
+}

@@ -238,12 +238,6 @@ function ImportSettingsPanel({
           items={{ create: 'Create automatically', error: 'Treat as error' }}
           onChange={(value) => onChange({ ...settings, createMissingQuestionTypes: value === 'create' })}
         />
-        <SettingSelect
-          label="Missing short explanation"
-          value={settings.requireShortExplanation ? 'require' : 'allow'}
-          items={{ allow: 'Allow (derive from solution)', require: 'Require' }}
-          onChange={(value) => onChange({ ...settings, requireShortExplanation: value === 'require' })}
-        />
       </div>
     </div>
   )

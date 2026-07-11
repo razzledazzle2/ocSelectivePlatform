@@ -1,0 +1,15 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-013-a.svg",
+  "external_id": "ts-abstract-spatial-1-013-a",
+  "asset_type": "svg",
+  "alt_text": "An L-shaped block, mirror image (foot on the left).",
+  "spec": {
+    "type": "reflection",
+    "figure": "l_tetromino",
+    "width": 150,
+    "height": 150,
+    "transform": {
+      "reflect": "vertical"
+    }
+  }
+}

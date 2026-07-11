@@ -6,6 +6,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { PlusIcon, XIcon } from 'lucide-react'
 
 import { createQuestionAction, updateQuestionAction } from '@/app/admin/questions/actions'
+import { QuestionMarkdown } from '@/components/questions/question-markdown'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -155,6 +156,34 @@ function FieldError({ message }: { message?: string }) {
   }
 
   return <p className="text-xs font-medium text-destructive">{message}</p>
+}
+
+/**
+ * Concise authoring reference for the safe Markdown + LaTeX subset supported by
+ * question text, options and the worked solution. Same renderer as the student.
+ */
+function ContentSyntaxGuide() {
+  return (
+    <details className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+      <summary className="cursor-pointer font-medium text-foreground">Formatting help (Markdown &amp; maths)</summary>
+      <ul className="mt-2 space-y-1">
+        <li>
+          <code>**bold**</code>, <code>*italic*</code>, <code>- bullet</code>, <code>1. numbered</code>,{' '}
+          <code>&gt; quote</code>, <code># Heading</code>
+        </li>
+        <li>
+          Tables: <code>| A | B |</code> then a <code>|---|---|</code> separator row
+        </li>
+        <li>
+          Inline maths: <code>{'\\( \\frac{3}{4} \\)'}</code> or <code>$x + 7 = 19$</code>
+        </li>
+        <li>
+          Display maths: <code>{'\\[ \\frac{9}{10} - \\frac{3}{5} = \\frac{3}{10} \\]'}</code>
+        </li>
+        <li>Raw HTML is not supported and is shown as plain text.</li>
+      </ul>
+    </details>
+  )
 }
 
 export function QuestionForm({
@@ -884,39 +913,27 @@ export function QuestionForm({
             <FieldError message={optionCountCheck.error ?? fieldErrors.options} />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Correct answer</Label>
-              <Select
-                value={values.correctOptionLabel}
-                onValueChange={(value) =>
-                  updateValue('correctOptionLabel', value as QuestionFormValues['correctOptionLabel'])
-                }
-                items={correctOptionItems}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose the correct option" />
-                </SelectTrigger>
-                <SelectContent>
-                  {optionLabels.map((label) => (
-                    <SelectItem key={label} value={label}>
-                      Option {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError message={fieldErrors.correctOptionLabel} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="shortExplanation">Short explanation</Label>
-              <Input
-                id="shortExplanation"
-                name="shortExplanation"
-                value={values.shortExplanation}
-                onChange={(event) => updateValue('shortExplanation', event.target.value)}
-                placeholder="A quick explanation for instant feedback"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label>Correct answer</Label>
+            <Select
+              value={values.correctOptionLabel}
+              onValueChange={(value) =>
+                updateValue('correctOptionLabel', value as QuestionFormValues['correctOptionLabel'])
+              }
+              items={correctOptionItems}
+            >
+              <SelectTrigger className="w-full md:w-1/2">
+                <SelectValue placeholder="Choose the correct option" />
+              </SelectTrigger>
+              <SelectContent>
+                {optionLabels.map((label) => (
+                  <SelectItem key={label} value={label}>
+                    Option {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldError message={fieldErrors.correctOptionLabel} />
           </div>
           </>
           ) : (
@@ -992,8 +1009,21 @@ export function QuestionForm({
               rows={6}
               value={values.workedSolution}
               onChange={(event) => updateValue('workedSolution', event.target.value)}
+              placeholder={'Step-by-step solution. Supports Markdown and LaTeX, e.g.\n\\[ \\frac{9}{10} - \\frac{3}{5} = \\frac{3}{10} \\]'}
             />
             <FieldError message={fieldErrors.workedSolution} />
+            <ContentSyntaxGuide />
+            {values.workedSolution.trim() ? (
+              <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Preview
+                </p>
+                <QuestionMarkdown
+                  text={values.workedSolution}
+                  className="text-sm leading-7 text-foreground/90"
+                />
+              </div>
+            ) : null}
           </div>
 
           {result.message && !result.success ? (

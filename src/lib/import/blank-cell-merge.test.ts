@@ -102,7 +102,6 @@ function baseExisting(overrides = {}) {
     ],
     correctOptionLabel: 'C',
     workedSolution: 'A quarter of 360 is 90.',
-    shortExplanation: 'One quarter of 360.',
     stimulus: null,
     questionAssetRefs: [],
     solutionAssetRefs: [],

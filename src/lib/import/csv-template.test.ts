@@ -8,9 +8,25 @@ import { test } from 'node:test'
 
 import { buildCsvTemplate, CSV_TEMPLATE_HEADERS } from './csv-template.ts'
 import { FULL_EXPORT_CSV_HEADERS } from '../questions/export-full-csv.ts'
+import { parseCsvText } from '../csv/parse.ts'
 
 test('the import template header matches the full-export header exactly (round-trip)', () => {
   assert.deepEqual([...CSV_TEMPLATE_HEADERS], [...FULL_EXPORT_CSV_HEADERS])
+})
+
+test('the deprecated short_explanation column is absent from both the template and the export', () => {
+  assert.ok(!CSV_TEMPLATE_HEADERS.includes('short_explanation'))
+  assert.ok(!FULL_EXPORT_CSV_HEADERS.includes('short_explanation'))
+  // The single authoritative solution column remains.
+  assert.ok(CSV_TEMPLATE_HEADERS.includes('worked_solution'))
+})
+
+test('every built example row parses to exactly one cell per header (RFC-4180 aware)', () => {
+  const rows = parseCsvText(buildCsvTemplate())
+  assert.equal(rows[0].length, CSV_TEMPLATE_HEADERS.length)
+  for (const row of rows.slice(1)) {
+    assert.equal(row.length, CSV_TEMPLATE_HEADERS.length)
+  }
 })
 
 test('the template includes external_id, the new asset_type/asset_required columns, and canonical taxonomy codes', () => {

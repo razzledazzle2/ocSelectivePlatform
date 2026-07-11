@@ -1,0 +1,26 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-004-b.svg",
+  "external_id": "ts-abstract-spatial-1-004-b",
+  "asset_type": "svg",
+  "alt_text": "A circle with 3 dots inside.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 84,
+    "cells": [
+      {
+        "glyphs": [
+          {
+            "shape": "circle",
+            "scale": 0.95,
+            "fill": "none"
+          },
+          {
+            "shape": "dot",
+            "count": 3,
+            "scale": 0.6
+          }
+        ]
+      }
+    ]
+  }
+}

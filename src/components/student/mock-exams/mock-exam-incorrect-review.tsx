@@ -1,6 +1,6 @@
 import { CheckCircle2Icon, FlagIcon } from 'lucide-react'
 
-import { QuestionMarkdown } from '@/components/questions/question-markdown'
+import { QuestionMarkdown, renderInlineMarkdown } from '@/components/questions/question-markdown'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -36,7 +36,7 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
         <CardTitle>Review incorrect questions</CardTitle>
         <CardDescription>
           These {missed.length} question{missed.length === 1 ? '' : 's'} went into your Smart
-          Revision queue. Compare your answer with the worked solution.
+          Revision queue. Compare your answer with the solution.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 pt-6">
@@ -67,9 +67,10 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
               </div>
 
               {question.passageText ? (
-                <p className="mb-2 rounded-xl border border-border bg-white px-3 py-2 text-sm leading-6 text-foreground/80">
-                  {question.passageText}
-                </p>
+                <QuestionMarkdown
+                  text={question.passageText}
+                  className="mb-2 rounded-xl border border-border bg-card px-3 py-2 text-sm leading-6 text-foreground"
+                />
               ) : null}
               <QuestionMarkdown
                 text={question.questionText}
@@ -87,9 +88,13 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
                     Your answer
                   </p>
                   <p className="mt-0.5 leading-6">
-                    {question.isAnswered
-                      ? `${question.selectedOptionLabel}. ${selectedText ?? ''}`
-                      : 'Not answered'}
+                    {question.isAnswered ? (
+                      <>
+                        {question.selectedOptionLabel}. {renderInlineMarkdown(selectedText ?? '')}
+                      </>
+                    ) : (
+                      'Not answered'
+                    )}
                   </p>
                 </div>
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
@@ -97,35 +102,25 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
                     Correct answer
                   </p>
                   <p className="mt-0.5 leading-6">
-                    {question.correctOptionLabel}. {correctText ?? ''}
+                    {question.correctOptionLabel}. {renderInlineMarkdown(correctText ?? '')}
                   </p>
                 </div>
               </div>
 
               <Separator className="my-3" />
 
-              {question.shortExplanation ? (
-                <div className="mb-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Explanation
-                  </p>
-                  <p className="mt-0.5 text-sm leading-7 text-foreground/80">
-                    {question.shortExplanation}
-                  </p>
-                </div>
-              ) : null}
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Worked solution
+                  Solution
                 </p>
-                {question.workedSolution ? (
+                {question.workedSolution || question.shortExplanation ? (
                   <QuestionMarkdown
-                    text={question.workedSolution}
+                    text={question.workedSolution || question.shortExplanation}
                     className="mt-0.5 text-sm leading-7 text-foreground/80"
                   />
                 ) : (
                   <p className="mt-0.5 text-sm leading-7 text-foreground/80">
-                    No worked solution was added for this question yet.
+                    No solution was added for this question yet.
                   </p>
                 )}
               </div>

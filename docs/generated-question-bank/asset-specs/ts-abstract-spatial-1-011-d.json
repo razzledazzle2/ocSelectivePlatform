@@ -1,0 +1,26 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-011-d.svg",
+  "external_id": "ts-abstract-spatial-1-011-d",
+  "asset_type": "svg",
+  "alt_text": "A circle with a small square inside.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 84,
+    "cells": [
+      {
+        "glyphs": [
+          {
+            "shape": "circle",
+            "scale": 0.95,
+            "fill": "none"
+          },
+          {
+            "shape": "square",
+            "scale": 0.42,
+            "fill": "none"
+          }
+        ]
+      }
+    ]
+  }
+}

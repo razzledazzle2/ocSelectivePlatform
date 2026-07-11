@@ -1,0 +1,35 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-019-b.svg",
+  "external_id": "ts-abstract-spatial-1-019-b",
+  "asset_type": "svg",
+  "alt_text": "A staircase of six squares stepping down to the right in three pairs.",
+  "spec": {
+    "type": "cube_net",
+    "squares": [
+      [
+        0,
+        0
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        2,
+        2
+      ],
+      [
+        3,
+        2
+      ]
+    ]
+  }
+}

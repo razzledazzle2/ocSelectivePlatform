@@ -33,6 +33,54 @@ const FIGURES = {
       {}
     )
   },
+  // Block capital L: spine left, foot arm to the right (chiral — mirrors to a
+  // reversed L). Good for reflection items where the flip is unmistakable.
+  block_letter_L() {
+    return group(
+      [
+        rect(-20, -38, 13, 76, { fill: PALETTE.ink }), // spine
+        rect(-20, 25, 40, 13, { fill: PALETTE.ink }), // foot
+      ],
+      {}
+    )
+  },
+  // Block capital P: spine left with a bowl on the upper-right (chiral).
+  block_letter_P() {
+    return group(
+      [
+        rect(-20, -38, 13, 76, { fill: PALETTE.ink }), // spine
+        rect(-20, -38, 40, 12, { fill: PALETTE.ink }), // top arm
+        rect(20, -38, 13, 34, { fill: PALETTE.ink }), // right side of bowl
+        rect(-20, -14, 40, 12, { fill: PALETTE.ink }), // middle arm closing the bowl
+      ],
+      {}
+    )
+  },
+  // L-tetromino: a vertical bar of three unit squares with a foot at the bottom
+  // right. Chiral (its mirror is the J-tetromino), so rotation and reflection
+  // give visibly different results — ideal for rotation items.
+  l_tetromino() {
+    const u = 20
+    // cells (col,row): three stacked + one foot; centred on the origin.
+    const cells = [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+      [1, 2],
+    ]
+    const cx0 = u // cols span 0..1 -> width 2u, centre x = u
+    const cy0 = 1.5 * u // rows span 0..2 -> height 3u, centre y = 1.5u
+    return group(
+      cells.map(([c, r]) =>
+        rect(c * u - cx0, r * u - cy0, u, u, {
+          fill: PALETTE.ink,
+          stroke: '#ffffff',
+          'stroke-width': 1.5,
+        })
+      ),
+      {}
+    )
+  },
 }
 
 function transformAttr(cx, cy, transform) {

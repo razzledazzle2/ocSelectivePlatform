@@ -1,3 +1,4 @@
+import { resolveSolution } from '@/lib/content/solution'
 import { findUploadedAssetFile } from '@/lib/import/asset-package'
 import { normalizeQuestionText } from '@/lib/import/validation'
 import type { ImportSummary, ResolvedImportQuestion, UploadedAssetFile } from '@/lib/import/types'
@@ -39,8 +40,9 @@ function buildQuestionPayload(
     question_text: row.questionText,
     passage_text: row.passageText,
     stimulus_id: stimulusId,
-    short_explanation: row.shortExplanation,
-    worked_solution: row.workedSolution || null,
+    // short_explanation is deprecated and no longer written; a legacy CSV's
+    // short_explanation is folded into the authoritative worked solution.
+    worked_solution: resolveSolution(row.workedSolution, row.shortExplanation),
     correct_option_label: row.correctOptionLabel,
     rubric: row.rubric,
     presentation: row.presentation,
@@ -465,8 +467,7 @@ export async function applyValidatedImport(
         stimulusId,
         options: buildOptionRecords(row, optionAssetIds),
         correctOptionLabel: row.correctOptionLabel,
-        shortExplanation: row.shortExplanation,
-        workedSolution: row.workedSolution || null,
+        workedSolution: resolveSolution(row.workedSolution, row.shortExplanation),
         tags: row.tags,
         skillTags: row.skillTags,
         conceptTags: row.conceptTags,

@@ -1,0 +1,130 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-001-main.svg",
+  "external_id": "ts-abstract-spatial-1-001-main",
+  "asset_type": "svg",
+  "alt_text": "A 4 by 4 grid. Every 2 by 2 block repeats the same four shapes: a circle and a square on top, a triangle and a diamond below. One cell in the third row, second column is covered by a question mark.",
+  "spec": {
+    "type": "matrix_pattern",
+    "rows": 4,
+    "cols": 4,
+    "cell_size": 60,
+    "grid": [
+      [
+        {
+          "glyph": {
+            "shape": "circle",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "square",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "circle",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "square",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        }
+      ],
+      [
+        {
+          "glyph": {
+            "shape": "triangle",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "diamond",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "triangle",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "diamond",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        }
+      ],
+      [
+        {
+          "glyph": {
+            "shape": "circle",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        },
+        {
+          "question": true
+        },
+        {
+          "glyph": {
+            "shape": "circle",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "square",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        }
+      ],
+      [
+        {
+          "glyph": {
+            "shape": "triangle",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "diamond",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "triangle",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "diamond",
+            "scale": 0.55,
+            "fill": "none"
+          }
+        }
+      ]
+    ]
+  }
+}

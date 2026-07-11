@@ -1,0 +1,34 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-010-main.svg",
+  "external_id": "ts-abstract-spatial-1-010-main",
+  "asset_type": "svg",
+  "alt_text": "An analogy. Top row: one square becomes two squares side by side. Bottom row: a triangle becomes a question box.",
+  "spec": {
+    "type": "shape_analogy",
+    "rows": [
+      {
+        "from": {
+          "shape": "square"
+        },
+        "to": {
+          "pair": [
+            {
+              "shape": "square"
+            },
+            {
+              "shape": "square"
+            }
+          ]
+        }
+      },
+      {
+        "from": {
+          "shape": "triangle"
+        },
+        "to": {
+          "question": true
+        }
+      }
+    ]
+  }
+}

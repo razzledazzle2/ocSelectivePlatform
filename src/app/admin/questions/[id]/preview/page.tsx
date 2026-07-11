@@ -38,7 +38,7 @@ export default async function PreviewAdminQuestionPage({ params }: PreviewAdminQ
         </Link>
       </div>
 
-      <QuestionPreview question={question} />
+      <QuestionPreview question={question} audience="admin" />
     </div>
   )
 }

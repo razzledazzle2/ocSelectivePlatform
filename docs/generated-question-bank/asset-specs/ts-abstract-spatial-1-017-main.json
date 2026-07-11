@@ -1,0 +1,19 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-017-main.svg",
+  "external_id": "ts-abstract-spatial-1-017-main",
+  "asset_type": "svg",
+  "alt_text": "A dashed rectangle three squares wide and two squares tall to be filled by two pieces.",
+  "spec": {
+    "type": "spatial_assembly",
+    "stimulus": true,
+    "width": 200,
+    "height": 140,
+    "target": {
+      "rect": [
+        90,
+        60
+      ]
+    },
+    "caption": "Fill this 3×2 rectangle with two pieces"
+  }
+}

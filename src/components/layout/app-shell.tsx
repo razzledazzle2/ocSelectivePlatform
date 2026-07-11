@@ -50,9 +50,10 @@ interface ShellNavProps {
   pathname: string
   profile: AppProfile
   portalLabel: string
+  accessory?: ReactNode
 }
 
-function ShellNav({ navigation, pathname, profile, portalLabel }: ShellNavProps) {
+function ShellNav({ navigation, pathname, profile, portalLabel, accessory }: ShellNavProps) {
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       {/* Brand */}
@@ -71,6 +72,8 @@ function ShellNav({ navigation, pathname, profile, portalLabel }: ShellNavProps)
       <p className="px-5 pb-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-sidebar-foreground/50">
         {portalLabel}
       </p>
+
+      {accessory ? <div className="px-4 pb-4">{accessory}</div> : null}
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 px-3">
@@ -135,16 +138,34 @@ interface AppShellProps {
   navigation: NavigationItem[]
   profile: AppProfile
   children: ReactNode
+  /** Rendered under the portal label in the sidebar (e.g. program switcher). */
+  sidebarAccessory?: ReactNode
+  /** Rendered in the top bar where the desktop sidebar is hidden (mobile/tablet). */
+  headerAccessory?: ReactNode
 }
 
-export function AppShell({ title, description, navigation, profile, children }: AppShellProps) {
+export function AppShell({
+  title,
+  description,
+  navigation,
+  profile,
+  children,
+  sidebarAccessory,
+  headerAccessory,
+}: AppShellProps) {
   const pathname = usePathname()
 
   return (
     <div className="flex min-h-screen">
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 lg:block">
-        <ShellNav navigation={navigation} pathname={pathname} profile={profile} portalLabel={title} />
+        <ShellNav
+          navigation={navigation}
+          pathname={pathname}
+          profile={profile}
+          portalLabel={title}
+          accessory={sidebarAccessory}
+        />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -166,6 +187,7 @@ export function AppShell({ title, description, navigation, profile, children }: 
                     pathname={pathname}
                     profile={profile}
                     portalLabel={title}
+                    accessory={sidebarAccessory}
                   />
                 </SheetContent>
               </Sheet>
@@ -174,8 +196,11 @@ export function AppShell({ title, description, navigation, profile, children }: 
                 <p className="hidden truncate text-xs text-muted-foreground sm:block">{description}</p>
               </div>
             </div>
-            <div className="hidden sm:block">
-              <UserNav profile={profile} />
+            <div className="flex items-center gap-3">
+              {headerAccessory ? <div className="lg:hidden">{headerAccessory}</div> : null}
+              <div className="hidden sm:block">
+                <UserNav profile={profile} />
+              </div>
             </div>
           </div>
         </header>

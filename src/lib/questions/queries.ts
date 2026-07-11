@@ -966,8 +966,9 @@ function mapFullExportRow(row: FullExportRawRow): FullExportQuestion {
         assetRef: toExportAssetRef(option.asset),
       })),
     correctOptionLabel: row.correct_option_label,
-    workedSolution: row.worked_solution,
-    shortExplanation: row.short_explanation,
+    // Fold any legacy short_explanation into the authoritative worked solution so
+    // deprecated-only content still round-trips through the single solution column.
+    workedSolution: row.worked_solution ?? row.short_explanation,
     stimulus: stimulus
       ? {
           id: stimulus.id,

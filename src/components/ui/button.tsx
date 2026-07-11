@@ -44,6 +44,7 @@ const buttonVariants = cva(
 
 type ButtonVariants = VariantProps<typeof buttonVariants>
 export type ButtonVariant = NonNullable<ButtonVariants['variant']>
+export type ButtonSize = NonNullable<ButtonVariants['size']>
 
 type ButtonProps = React.ComponentProps<typeof ButtonPrimitive> &
   ButtonVariants & {

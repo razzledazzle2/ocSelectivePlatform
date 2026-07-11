@@ -1,0 +1,43 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-005-main.svg",
+  "external_id": "ts-abstract-spatial-1-005-main",
+  "asset_type": "svg",
+  "alt_text": "A row of five cells: small empty circle; large filled square; small empty triangle; large filled circle; then a question box.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 84,
+    "cells": [
+      {
+        "glyph": {
+          "shape": "circle",
+          "scale": 0.55,
+          "fill": "none"
+        }
+      },
+      {
+        "glyph": {
+          "shape": "square",
+          "scale": 0.95,
+          "fill": "#1f2933"
+        }
+      },
+      {
+        "glyph": {
+          "shape": "triangle",
+          "scale": 0.55,
+          "fill": "none"
+        }
+      },
+      {
+        "glyph": {
+          "shape": "circle",
+          "scale": 0.95,
+          "fill": "#1f2933"
+        }
+      },
+      {
+        "question": true
+      }
+    ]
+  }
+}

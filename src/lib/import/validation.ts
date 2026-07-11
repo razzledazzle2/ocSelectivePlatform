@@ -198,21 +198,6 @@ function normalizeStimulusType(value: string): StimulusType | null {
 }
 
 /**
- * When no short explanation is supplied, derive a one-line summary from the
- * worked solution (first sentence, capped) so students still get quick feedback.
- * Returns null when there is nothing to derive from.
- */
-export function deriveShortExplanation(workedSolution: string): string | null {
-  const collapsed = workedSolution.replace(/\s+/g, ' ').trim()
-  if (!collapsed) {
-    return null
-  }
-  const firstSentence = collapsed.split(/(?<=[.!?])\s/)[0] ?? collapsed
-  const candidate = firstSentence.length <= 160 ? firstSentence : `${collapsed.slice(0, 157)}...`
-  return candidate
-}
-
-/**
  * Parses a JSON cell keyed by option label ({"A": "...", "B": "..."}).
  * Returns null for an empty cell, and an error flag for anything that is not
  * a flat object of string values keyed A–E.
@@ -706,26 +691,21 @@ export function validateQuestionImportRows(rows: QuestionImportRow[], options: V
       errors.push({ field: 'rubric_json', message: rubricError })
     }
 
-    // -- Worked solution (soft for MCQ, optional for extended response) -----
+    // -- Worked solution: the single authoritative explanation ---------------
     const workedSolution = workingRow.workedSolution.trim()
-    if (isSingleChoice && !workedSolution) {
+    // short_explanation is deprecated. It is no longer stored on its own column;
+    // a legacy CSV's value is folded into the worked solution on import.
+    const shortExplanation = workingRow.shortExplanation.trim() || null
+    if (isSingleChoice && !workedSolution && !shortExplanation) {
       warnings.push({ field: 'solution', message: 'No worked solution — students will not see a full explanation.' })
     }
-
-    // -- Short explanation (optional unless required; derive when missing) --
-    let shortExplanation = workingRow.shortExplanation.trim() || null
-    if (!shortExplanation) {
-      if (settings.requireShortExplanation) {
-        errors.push({ field: 'short_explanation', message: 'A short explanation is required.' })
-      } else if (isSingleChoice) {
-        shortExplanation = deriveShortExplanation(workedSolution)
-        warnings.push({
-          field: 'short_explanation',
-          message: shortExplanation
-            ? 'No short explanation — derived a summary from the worked solution.'
-            : 'No short explanation provided.',
-        })
-      }
+    if (shortExplanation) {
+      warnings.push({
+        field: 'short_explanation',
+        message: workedSolution
+          ? 'short_explanation is deprecated and was ignored — the worked solution is used instead.'
+          : 'short_explanation is deprecated — its text was moved into the worked solution.',
+      })
     }
 
     // -- Stimulus (grouped by external ref; definition may be on any row) ---

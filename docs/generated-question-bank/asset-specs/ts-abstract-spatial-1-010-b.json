@@ -1,0 +1,19 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-010-b.svg",
+  "external_id": "ts-abstract-spatial-1-010-b",
+  "asset_type": "svg",
+  "alt_text": "Two triangles side by side.",
+  "spec": {
+    "type": "shape_analogy",
+    "figure": {
+      "pair": [
+        {
+          "shape": "triangle"
+        },
+        {
+          "shape": "triangle"
+        }
+      ]
+    }
+  }
+}

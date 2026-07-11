@@ -1,0 +1,19 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-003-b.svg",
+  "external_id": "ts-abstract-spatial-1-003-b",
+  "asset_type": "svg",
+  "alt_text": "An arrow pointing right.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 84,
+    "cells": [
+      {
+        "glyph": {
+          "shape": "arrow",
+          "rotation": 0,
+          "scale": 0.7
+        }
+      }
+    ]
+  }
+}

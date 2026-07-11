@@ -1,0 +1,19 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-010-c.svg",
+  "external_id": "ts-abstract-spatial-1-010-c",
+  "asset_type": "svg",
+  "alt_text": "Two squares side by side.",
+  "spec": {
+    "type": "shape_analogy",
+    "figure": {
+      "pair": [
+        {
+          "shape": "square"
+        },
+        {
+          "shape": "square"
+        }
+      ]
+    }
+  }
+}

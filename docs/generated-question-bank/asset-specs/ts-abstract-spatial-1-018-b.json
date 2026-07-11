@@ -1,0 +1,41 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-018-b.svg",
+  "external_id": "ts-abstract-spatial-1-018-b",
+  "asset_type": "svg",
+  "alt_text": "An L-piece: two squares along the top and one below the right.",
+  "spec": {
+    "type": "spatial_assembly",
+    "width": 220,
+    "height": 120,
+    "pieces": [
+      {
+        "points": [
+          [
+            80,
+            30
+          ],
+          [
+            140,
+            30
+          ],
+          [
+            140,
+            90
+          ],
+          [
+            110,
+            90
+          ],
+          [
+            110,
+            60
+          ],
+          [
+            80,
+            60
+          ]
+        ]
+      }
+    ]
+  }
+}

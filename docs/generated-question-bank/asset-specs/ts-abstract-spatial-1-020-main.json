@@ -1,0 +1,54 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-020-main.svg",
+  "external_id": "ts-abstract-spatial-1-020-main",
+  "asset_type": "svg",
+  "alt_text": "Reference views: the top view is a straight row of three unit squares; the front view shows three columns of squares that are 2, 1 and 3 squares tall from left to right.",
+  "spec": {
+    "type": "isometric_3d_views",
+    "stimulus": true,
+    "top_view": {
+      "squares": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ]
+      ]
+    },
+    "front_view": {
+      "squares": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          2,
+          2
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-006-d.svg",
+  "external_id": "ts-abstract-spatial-1-006-d",
+  "asset_type": "svg",
+  "alt_text": "A row of symbols: plus, plus, plus, star.",
+  "spec": {
+    "type": "symbol_key",
+    "symbols": [
+      "plus",
+      "plus",
+      "plus",
+      "star"
+    ]
+  }
+}

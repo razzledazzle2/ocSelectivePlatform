@@ -22,20 +22,31 @@ export function renderSpatialAssembly(spec) {
   if (spec.stimulus) {
     const width = spec.width ?? 200
     const height = spec.height ?? 180
-    const s = 90
+    const caption = spec.caption ?? 'Fit two pieces to make this square'
+    const outline = {
+      fill: PALETTE.fillSoft,
+      stroke: PALETTE.accent,
+      'stroke-width': 2,
+      'stroke-dasharray': '7 5',
+      rx: 3,
+    }
+
+    let targetMarkup
+    if (spec.target?.points) {
+      // A polygon target (e.g. an L-shape) in the drawing's own coordinates.
+      targetMarkup = polygon(spec.target.points, { ...outline, rx: undefined })
+    } else if (spec.target?.rect) {
+      const [w, h] = spec.target.rect
+      targetMarkup = rect((width - w) / 2, 24, w, h, outline)
+    } else {
+      // Default (back-compatible): a 90×90 dashed square.
+      const s = 90
+      targetMarkup = rect((width - s) / 2, 24, s, s, outline)
+    }
+
     const body = [
-      rect((width - s) / 2, 24, s, s, {
-        fill: PALETTE.fillSoft,
-        stroke: PALETTE.accent,
-        'stroke-width': 2,
-        'stroke-dasharray': '7 5',
-        rx: 3,
-      }),
-      text(width / 2, height - 14, 'Fit two pieces to make this square', {
-        anchor: 'middle',
-        size: 10.5,
-        fill: PALETTE.muted,
-      }),
+      targetMarkup,
+      text(width / 2, height - 14, caption, { anchor: 'middle', size: 10.5, fill: PALETTE.muted }),
     ]
     return svgDocument({ width, height, title: spec.alt_text, body: body.join('') })
   }

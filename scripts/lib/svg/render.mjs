@@ -18,6 +18,7 @@ import { renderFigureTransform } from './figure-transform.mjs'
 import { renderPaperFolding } from './paper-folding.mjs'
 import { renderIsometric3dViews } from './isometric-3d-views.mjs'
 import { renderSpatialAssembly } from './spatial-assembly.mjs'
+import { renderCubeNet } from './cube-net.mjs'
 
 /** Spec types the pipeline knows about (implemented + planned). */
 export const KNOWN_ASSET_TYPES = [
@@ -41,6 +42,7 @@ export const KNOWN_ASSET_TYPES = [
   'paper_folding',
   'isometric_3d_views',
   'spatial_assembly',
+  'cube_net',
   'scene_illustration',
 ]
 
@@ -62,6 +64,7 @@ export const IMPLEMENTED_ASSET_TYPES = [
   'paper_folding',
   'isometric_3d_views',
   'spatial_assembly',
+  'cube_net',
 ]
 
 class NotImplementedError extends Error {
@@ -129,6 +132,8 @@ export function renderAssetSpec(spec) {
       return renderIsometric3dViews(spec)
     case 'spatial_assembly':
       return renderSpatialAssembly(spec)
+    case 'cube_net':
+      return renderCubeNet(spec)
     case 'simple_table_visual':
     case 'venn_diagram_basic':
     case 'logic_grid_table':

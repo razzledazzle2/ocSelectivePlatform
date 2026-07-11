@@ -144,7 +144,6 @@ export function parseQuestionWriteInput(formData: FormData): ActionResult<Questi
   const questionText = readTrimmedValue(formData, 'questionText')
   const passageText = readTrimmedValue(formData, 'passageText')
   const stimulusId = readTrimmedValue(formData, 'stimulusId') || null
-  const shortExplanation = readTrimmedValue(formData, 'shortExplanation')
   const workedSolution = readTrimmedValue(formData, 'workedSolution')
   const correctOptionLabel = readTrimmedValue(formData, 'correctOptionLabel')
   const status = readTrimmedValue(formData, 'status')
@@ -286,7 +285,6 @@ export function parseQuestionWriteInput(formData: FormData): ActionResult<Questi
       stimulusId,
       options,
       correctOptionLabel: isSingleChoice ? (correctOptionLabel as QuestionOptionLabel) : null,
-      shortExplanation: shortExplanation || null,
       workedSolution: workedSolution || null,
       tags,
       skillTags,
@@ -343,7 +341,6 @@ function buildQuestionPayload(input: QuestionWriteInput, actorId: string) {
     question_text: input.questionText,
     passage_text: input.passageText,
     stimulus_id: input.stimulusId,
-    short_explanation: input.shortExplanation,
     worked_solution: input.workedSolution,
     correct_option_label: input.correctOptionLabel,
     status: input.status,
@@ -436,7 +433,6 @@ export async function updateQuestion(questionId: string, input: QuestionWriteInp
       question_text: input.questionText,
       passage_text: input.passageText,
       stimulus_id: input.stimulusId,
-      short_explanation: input.shortExplanation,
       worked_solution: input.workedSolution,
       correct_option_label: input.correctOptionLabel,
       status: input.status,
@@ -845,8 +841,9 @@ export async function duplicateQuestion(
       passage_text: original.passage_text,
       stimulus_id: original.stimulus_id,
       variant_id: original.variant_id,
-      short_explanation: original.short_explanation,
-      worked_solution: original.worked_solution,
+      // short_explanation is deprecated; carry any legacy-only content forward
+      // in the authoritative worked solution instead of duplicating the column.
+      worked_solution: original.worked_solution ?? original.short_explanation,
       correct_option_label: original.correct_option_label,
       tags: original.tags ?? [],
       skill_tags: original.skill_tags ?? [],

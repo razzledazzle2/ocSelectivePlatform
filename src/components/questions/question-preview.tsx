@@ -30,6 +30,11 @@ interface QuestionPreviewProps {
   showInstruction?: boolean
   /** Hide the exam/subject/topic badge row when the surrounding UI already shows it. */
   showMeta?: boolean
+  /**
+   * `admin` keeps internal metadata (stimulus-type badge) visible; `student`
+   * mirrors the student experience and hides it. Defaults to `student`.
+   */
+  audience?: 'admin' | 'student'
 }
 
 function getDifficultyLabel(difficulty: number | null | undefined): string {
@@ -211,14 +216,19 @@ export function QuestionPreview({
   showMistakeSummary = false,
   showInstruction = false,
   showMeta = true,
+  audience = 'student',
 }: QuestionPreviewProps) {
   const answerFormat = getAnswerFormat(question)
   const isWritingPrompt = answerFormat === 'extended_response'
   const stimulus = getStimulus(question)
+  const subjectName = getSubjectLabel(question)
+  const isReading = (subjectName ?? '').toLowerCase().includes('reading')
   const questionAssets = getAssetsByRole(question, 'question')
   const solutionAssets = getAssetsByRole(question, 'solution')
   const rubric = getRubric(question)
-  const workedSolution = getWorkedSolution(question)
+  // Worked solution is the single authoritative explanation; fall back to any
+  // legacy short explanation so pre-migration content is not lost.
+  const solution = getWorkedSolution(question) || getShortExplanation(question)
 
   return (
     <Card className="rounded-2xl shadow-sm ring-border">
@@ -239,19 +249,28 @@ export function QuestionPreview({
           </div>
         ) : null}
         <div className="space-y-3">
+          {/* Supporting stimulus renders BEFORE the prompt it supports. */}
+          {stimulus ? (
+            <StimulusPanel
+              stimulus={stimulus}
+              subjectName={subjectName}
+              showTypeLabel={audience === 'admin'}
+            />
+          ) : getPassageText(question) ? (
+            <QuestionMarkdown
+              text={getPassageText(question)}
+              className={
+                isReading
+                  ? 'rounded-2xl border border-border bg-card px-5 py-5 text-base leading-8 text-foreground'
+                  : 'rounded-xl border border-border bg-card px-4 py-4 text-base leading-7 text-foreground'
+              }
+            />
+          ) : null}
           <CardTitle className="text-xl leading-relaxed">
             <QuestionMarkdown text={getQuestionText(question)} className="font-semibold" />
           </CardTitle>
           {showInstruction && !isWritingPrompt ? (
             <p className="text-sm text-muted-foreground">Select the correct answer.</p>
-          ) : null}
-          {stimulus ? (
-            <StimulusPanel stimulus={stimulus} />
-          ) : getPassageText(question) ? (
-            <QuestionMarkdown
-              text={getPassageText(question)}
-              className="rounded-2xl border border-border bg-muted/50 px-4 py-3 text-sm leading-7 text-foreground/80"
-            />
           ) : null}
           {questionAssets.length ? (
             <div className="space-y-3">
@@ -310,40 +329,22 @@ export function QuestionPreview({
           </div>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4">
-            <h3 className="text-sm font-semibold text-foreground">Short explanation</h3>
-            {getShortExplanation(question) ? (
-              <QuestionMarkdown
-                text={getShortExplanation(question)}
-                className="mt-2 text-sm leading-7 text-foreground/80"
-              />
-            ) : (
-              <p className="mt-2 text-sm leading-7 text-foreground/80">
-                No short explanation has been added yet.
-              </p>
-            )}
-          </div>
-          <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4">
-            <h3 className="text-sm font-semibold text-foreground">Worked solution</h3>
-            {workedSolution ? (
-              <QuestionMarkdown
-                text={workedSolution}
-                className="mt-2 text-sm leading-7 text-foreground/80"
-              />
-            ) : (
-              <p className="mt-2 text-sm leading-7 text-foreground/80">
-                No worked solution has been added yet.
-              </p>
-            )}
-            {solutionAssets.length ? (
-              <div className="mt-3 space-y-3">
-                {solutionAssets.map((asset) => (
-                  <QuestionAsset key={asset.id} asset={asset} />
-                ))}
-              </div>
-            ) : null}
-          </div>
+        <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4">
+          <h3 className="text-sm font-semibold text-foreground">Solution</h3>
+          {solution ? (
+            <QuestionMarkdown text={solution} className="mt-2 text-base leading-7 text-foreground/90" />
+          ) : (
+            <p className="mt-2 text-sm leading-7 text-foreground/80">
+              No solution has been added yet.
+            </p>
+          )}
+          {solutionAssets.length ? (
+            <div className="mt-3 space-y-3">
+              {solutionAssets.map((asset) => (
+                <QuestionAsset key={asset.id} asset={asset} />
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {showMistakeSummary && isMistakeQuestion(question) ? (

@@ -130,14 +130,14 @@ export function StudentDashboardOverview({
                 <ArrowRightIcon className="size-4" />
               </Link>
               <Link
-                href="/student/mastery"
+                href="/student/progress"
                 className={cn(
                   buttonVariants({ variant: 'ghost', size: 'lg' }),
                   'rounded-xl border border-white/20 px-4 text-primary-foreground hover:bg-white/10 hover:text-primary-foreground'
                 )}
               >
                 <LayersIcon className="size-4" />
-                Mastery
+                My progress
               </Link>
               {metrics.revisionDueToday > 0 ? (
                 <Link

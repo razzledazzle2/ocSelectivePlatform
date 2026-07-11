@@ -122,7 +122,7 @@ export function ReportDetailDialog({ questionId }: ReportDetailDialogProps) {
               </Link>
             </div>
 
-            <QuestionPreview question={detail.question} />
+            <QuestionPreview question={detail.question} audience="admin" />
 
             <Separator />
 

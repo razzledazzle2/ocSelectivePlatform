@@ -66,12 +66,6 @@ export const MERGE_FIELDS: MergeFieldSpec[] = [
   },
   { key: 'correctAnswer', label: 'Correct answer', protectedField: true, getExisting: (e) => e.correctOptionLabel ?? '' },
   { key: 'workedSolution', label: 'Worked solution', protectedField: false, getExisting: (e) => e.workedSolution ?? '' },
-  {
-    key: 'shortExplanation',
-    label: 'Short explanation',
-    protectedField: false,
-    getExisting: (e) => e.shortExplanation ?? '',
-  },
   { key: 'inputMethod', label: 'Input method', protectedField: false, getExisting: (e) => e.presentation.inputMethod ?? '' },
   { key: 'displayMode', label: 'Display mode', protectedField: false, getExisting: (e) => e.presentation.displayMode ?? '' },
   {

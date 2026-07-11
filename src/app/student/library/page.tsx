@@ -5,5 +5,5 @@ import { redirect } from 'next/navigation'
  * taxonomy-driven Subtopic Mastery. Kept as a redirect so saved links still work.
  */
 export default function StudentLibraryPage() {
-  redirect('/student/mastery')
+  redirect('/student/practice')
 }

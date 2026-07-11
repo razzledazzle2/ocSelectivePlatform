@@ -397,17 +397,18 @@ function RetryDialog({ questionId, open, onOpenChange }: RetryDialogProps) {
 
         {question ? (
           <div className="space-y-4">
+            {question.stimulus ? (
+              <StimulusPanel stimulus={question.stimulus} subjectName={question.subjectName} />
+            ) : question.passageText ? (
+              <QuestionMarkdown
+                text={question.passageText}
+                className="rounded-xl border border-border bg-card px-3 py-3 text-base leading-7 text-foreground"
+              />
+            ) : null}
             <QuestionMarkdown
               text={question.questionText}
               className="text-base leading-7 text-foreground"
             />
-            {question.stimulus ? (
-              <StimulusPanel stimulus={question.stimulus} />
-            ) : question.passageText ? (
-              <div className="rounded-xl border border-border bg-muted/50 px-3 py-3 text-sm leading-7 text-foreground/80">
-                {question.passageText}
-              </div>
-            ) : null}
             {question.questionAssets.length ? (
               <div className="space-y-3">
                 {question.questionAssets.map((asset) => (
@@ -460,7 +461,7 @@ function RetryDialog({ questionId, open, onOpenChange }: RetryDialogProps) {
                       />
                     ) : (
                       <p className="mt-1 text-sm leading-7 text-foreground/80">
-                        No worked solution was added for this question yet.
+                        No solution was added for this question yet.
                       </p>
                     )}
                   </AlertDescription>

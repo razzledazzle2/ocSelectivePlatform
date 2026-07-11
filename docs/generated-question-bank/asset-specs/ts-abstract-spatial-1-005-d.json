@@ -1,0 +1,19 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-005-d.svg",
+  "external_id": "ts-abstract-spatial-1-005-d",
+  "asset_type": "svg",
+  "alt_text": "A large empty square.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 84,
+    "cells": [
+      {
+        "glyph": {
+          "shape": "square",
+          "scale": 0.95,
+          "fill": "none"
+        }
+      }
+    ]
+  }
+}

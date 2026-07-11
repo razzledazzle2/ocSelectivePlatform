@@ -35,7 +35,6 @@ export const FULL_EXPORT_CSV_HEADERS = [
   'option_explanations_json',
   'correct_answer',
   'worked_solution',
-  'short_explanation',
   'stimulus_id',
   'stimulus_title',
   'stimulus_type',
@@ -112,7 +111,6 @@ export interface FullExportQuestion {
   options: FullExportOption[]
   correctOptionLabel: string | null
   workedSolution: string | null
-  shortExplanation: string | null
   stimulus: FullExportStimulus | null
   questionAssetRefs: string[]
   solutionAssetRefs: string[]
@@ -202,7 +200,6 @@ export function buildFullExportCsv(rows: FullExportQuestion[]): string {
         buildLabelJson(row.options, (option) => option.explanation),
         row.correctOptionLabel ?? '',
         row.workedSolution ?? '',
-        row.shortExplanation ?? '',
         stimulus ? stimulusExportRef(stimulus) : '',
         stimulus && isFirstOfGroup ? stimulus.title : '',
         stimulus && isFirstOfGroup ? stimulus.stimulusType : '',

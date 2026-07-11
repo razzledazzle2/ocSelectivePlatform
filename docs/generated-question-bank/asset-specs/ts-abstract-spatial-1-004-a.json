@@ -1,0 +1,26 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-004-a.svg",
+  "external_id": "ts-abstract-spatial-1-004-a",
+  "asset_type": "svg",
+  "alt_text": "A square with 4 dots inside.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 84,
+    "cells": [
+      {
+        "glyphs": [
+          {
+            "shape": "square",
+            "scale": 0.95,
+            "fill": "none"
+          },
+          {
+            "shape": "dot",
+            "count": 4,
+            "scale": 0.6
+          }
+        ]
+      }
+    ]
+  }
+}

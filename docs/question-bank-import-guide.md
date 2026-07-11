@@ -27,7 +27,9 @@ The question bank is built around five related ideas:
 
 ## 2. CSV schema reference
 
-The file must be UTF-8, RFC 4180 quoted (wrap a field in double quotes if it contains commas, double quotes or newlines; double any embedded quotes), with the exact 45-column header from the template.
+The file must be UTF-8, RFC 4180 quoted (wrap a field in double quotes if it contains commas, double quotes or newlines; double any embedded quotes), with the exact header from the template. Download it fresh from **Admin → Import** — an exported bank file uses the same header, so export → edit → re-import round-trips.
+
+**Content formatting.** `question_text`, `stimulus_text`, every `option_*`, and `worked_solution` render **safe Markdown + LaTeX** (see §6). Raw HTML is never rendered — it is shown as literal text. All other columns are structured data (IDs, codes, enums, JSON) and are not formatted.
 
 ### Column reference
 
@@ -50,8 +52,8 @@ The file must be UTF-8, RFC 4180 quoted (wrap a field in double quotes if it con
 | 19 | `option_asset_refs_json` | No | JSON map | Per-option image refs, e.g. `{"A":"asset://pending/net-a.png","B":"..."}` — used for visual options instead of (or as well as) option text. |
 | 20 | `option_explanations_json` | Recommended | JSON map | Why each option is right/wrong, keyed by label: `{"A":"...","B":"..."}`. Powers mistake review. |
 | 21 | `correct_answer` | single_choice | `A`–`E` | The correct option label. Forbidden for `extended_response`. |
-| 22 | `worked_solution` | Recommended | Markdown | Full step-by-step solution shown after an attempt. |
-| 23 | `short_explanation` | No | text | One-line takeaway for quick review. |
+| 22 | `worked_solution` | Recommended | Markdown + LaTeX | The single authoritative solution shown after an attempt. Supports the full formatting subset in §6. Displayed to students under one heading, **Solution**. |
+| — | ~~`short_explanation`~~ | **Removed** | — | Deprecated and removed from the format. If an old file still carries this column its text is folded into `worked_solution` (when that is empty) and a deprecation warning is shown; it is never stored separately. |
 | 24 | `stimulus_id` | For stimulus questions | slug | External reference grouping rows to one shared stimulus (see §3), e.g. `stim-read-narrative-01`. |
 | 25 | `stimulus_title` | First row of a group | text | Define once per `stimulus_id`; leave empty on rows that reuse it. |
 | 26 | `stimulus_type` | First row of a group | enum | See the valid values in §3. |
@@ -135,6 +137,15 @@ Valid `stimulus_type` values:
 | `writing_context` | Background material for a writing prompt |
 | `image_set` | One or more images questions refer to |
 
+**How a stimulus is presented to students** is inferred automatically — you do not set a presentation flag, and the internal `stimulus_type` is **never** shown to students as a badge or label:
+
+- **Reading** subject → full passage treatment: long-form typography, the passage title, a clear reading container.
+- **Any other subject** (Thinking Skills, Mathematical Reasoning, a writing context) → compact **supporting** presentation: plain, high-contrast, no colour tint, no type label. A title only shows for genuine data blocks (`table`, `chart`, `logic_grid`, `rule_box`, `image_set`); for prose arguments the title is hidden so it doesn't just echo the scenario.
+- Very short supporting text (a sentence or two) renders inline as part of the question rather than in its own box.
+- In every case the stimulus renders **before** the question prompt it supports.
+
+For a short scenario that belongs to a single question, prefer writing it directly into `question_text` rather than creating a stimulus row.
+
 ---
 
 ## 4. Assets
@@ -205,9 +216,29 @@ In the CSV the JSON must be **compact single-line**, wrapped in quotes with ever
 
 ---
 
-## 6. Markdown tables in question and stimulus text
+## 6. Markdown and LaTeX in content fields
 
-`question_text` and `stimulus_text` support a subset of GitHub-flavoured Markdown that the app renders natively: **pipe tables**, `**bold**` and `*italic*`. Prefer a Markdown table over an image for timetables, price lists, tally charts and similar data — tables stay crisp at any size, are accessible, and need no asset pipeline.
+`question_text`, `stimulus_text`, every `option_*` and `worked_solution` render a safe subset of GitHub-flavoured Markdown **plus** LaTeX maths, natively (no raw HTML — any HTML is shown as literal text, so imported content can never inject scripts or styling).
+
+Supported Markdown:
+
+| Syntax | Result |
+|--------|--------|
+| `**bold**`, `*italic*` | bold / italic |
+| `- item` / `* item` | unordered list |
+| `1. item` | ordered list |
+| `> quote` | blockquote |
+| `# Heading` … `###### Heading` | headings |
+| `\| a \| b \|` + `\|---\|---\|` | pipe table |
+
+Supported maths (LaTeX, rendered with KaTeX):
+
+| Syntax | Use | Example |
+|--------|-----|---------|
+| `\( … \)` or `$ … $` | inline maths within a sentence | `A tank is \(\frac{3}{5}\) full.` |
+| `\[ … \]` or `$$ … $$` | display maths on its own line | `\[ \frac{9}{10} - \frac{3}{5} = \frac{3}{10} \]` |
+
+Maths covers fractions, mixed numbers, powers, roots, percentages, ratios, algebra, equations, inequalities, degrees, operators and units — e.g. `\(\frac{3}{4}\)`, `\(12\text{ cm}\)`, `\(24\text{ cm}^2\)`, `\(x + 7 = 19\)`, `\(35\%\)`. Use `\text{…}` for words/units so they are not italicised as variables. Plain `$5` currency is left as text (not treated as maths). Prefer a Markdown table over an image for timetables, price lists, tally charts and similar data — tables stay crisp at any size, are accessible, and need no asset pipeline; use real SVG assets (not Markdown or LaTeX) for actual diagrams.
 
 Example inside a quoted CSV cell (quotes shown doubled as they would appear in the file):
 
@@ -230,7 +261,7 @@ Note the embedded newlines: they are legal inside a quoted field (RFC 4180) and 
 
 The CSV format is designed so an LLM can draft large batches that humans then review. Ground rules:
 
-1. Give the model the **exact 45-column header** and the field conventions (§2), plus the taxonomy values you want targeted.
+1. Give the model the **exact header from the template** and the field conventions (§2), plus the taxonomy values you want targeted.
 2. Enforce **originality**: the model must write new passages, numbers and scenarios — never reproduce or closely paraphrase official OC/Selective papers or other copyrighted material. Set `source_name` to something like `ai-generated-batch-<date>` and record the constraint in `license_notes`.
 3. Always generate with `status` = `draft`. Humans review each item, mark it `reviewed`, then publish. Never bulk-publish machine output.
 4. Ask for RFC 4180 quoting and compact single-line JSON in JSON columns, and spot-check the file in a CSV-aware editor before importing.
@@ -241,7 +272,7 @@ Reusable prompt template:
 You are writing original practice questions for a NSW OC/Selective preparation platform.
 
 Output: raw CSV only (no commentary, no code fences), starting with this exact header:
-<paste the 45-column header from docs/question-import-template-v2.csv>
+<paste the exact header from docs/question-import-template-v2.csv>
 
 Produce <N> rows for:
 - subject: <subject>; strand: <strand>; topic: <topic>
@@ -334,7 +365,7 @@ Author-assigned `difficulty` (1–5) is an estimate; **empirical difficulty cali
 
 ## Pre-import checklist
 
-- [ ] Header matches the template exactly (45 columns, same order).
+- [ ] Header matches the template exactly (same columns, same order).
 - [ ] Every row satisfies the required-by-format matrix (§2).
 - [ ] Each `stimulus_id` group defines title/type/text on exactly one row (§3).
 - [ ] All JSON columns parse as compact single-line JSON (§2, §5).

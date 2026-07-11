@@ -1,0 +1,15 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-013-d.svg",
+  "external_id": "ts-abstract-spatial-1-013-d",
+  "asset_type": "svg",
+  "alt_text": "An L-shaped block turned three-quarters clockwise.",
+  "spec": {
+    "type": "rotation",
+    "figure": "l_tetromino",
+    "width": 150,
+    "height": 150,
+    "transform": {
+      "rotate": 270
+    }
+  }
+}

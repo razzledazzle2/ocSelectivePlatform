@@ -1,0 +1,19 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-002-d.svg",
+  "external_id": "ts-abstract-spatial-1-002-d",
+  "asset_type": "svg",
+  "alt_text": "A filled (black) triangle.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 84,
+    "cells": [
+      {
+        "glyph": {
+          "shape": "triangle",
+          "scale": 0.6,
+          "fill": "#1f2933"
+        }
+      }
+    ]
+  }
+}

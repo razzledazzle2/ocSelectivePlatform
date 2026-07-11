@@ -48,7 +48,6 @@ export function createEmptyQuestionFormValues(
     stimulusId: '',
     options: Array.from({ length: preferredCount }, () => ''),
     correctOptionLabel: 'A',
-    shortExplanation: '',
     workedSolution: '',
     tags: '',
     skillTags: '',
@@ -92,8 +91,9 @@ export function questionDetailToFormValues(question: QuestionDetail): QuestionFo
     stimulusId: question.stimulus_id ?? '',
     options: sortedOptions.map((option) => option.option_text),
     correctOptionLabel: question.correct_option_label ?? 'A',
-    shortExplanation: question.short_explanation ?? '',
-    workedSolution: question.worked_solution ?? '',
+    // short_explanation is deprecated; fall back into the authoritative worked
+    // solution so any legacy-only content is preserved when the row is edited.
+    workedSolution: question.worked_solution ?? question.short_explanation ?? '',
     tags: (question.tags ?? []).join(', '),
     skillTags: (question.skill_tags ?? []).join(', '),
     conceptTags: (question.concept_tags ?? []).join(', '),

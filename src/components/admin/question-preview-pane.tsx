@@ -223,7 +223,13 @@ export function QuestionPreviewPane({
         </Alert>
       ) : detail ? (
         <>
-          <QuestionPreview question={detail} showStatus={false} showInstruction showMeta={false} />
+          <QuestionPreview
+            question={detail}
+            showStatus={false}
+            showInstruction
+            showMeta={false}
+            audience="admin"
+          />
           <QuestionAssetStatus assets={detail.assets} questionId={detail.id} onChanged={onAssetsChanged} />
           {detail.tags.length > 0 ? (
             <div className="flex flex-wrap items-center gap-1.5">

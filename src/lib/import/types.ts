@@ -49,7 +49,6 @@ export interface ImportSettings {
   blankCellBehavior: BlankCellBehavior
   createMissingTopics: boolean
   createMissingQuestionTypes: boolean
-  requireShortExplanation: boolean
 }
 
 export const DEFAULT_IMPORT_SETTINGS: ImportSettings = {
@@ -58,7 +57,6 @@ export const DEFAULT_IMPORT_SETTINGS: ImportSettings = {
   blankCellBehavior: 'keep',
   createMissingTopics: true,
   createMissingQuestionTypes: true,
-  requireShortExplanation: false,
 }
 
 /**

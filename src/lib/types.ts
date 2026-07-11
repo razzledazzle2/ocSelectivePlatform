@@ -313,6 +313,8 @@ export interface QuestionRecord {
   difficulty: number
   question_text: string
   passage_text: string | null
+  /** @deprecated Retired from the active content model. Read-only fallback that
+   * feeds the authoritative worked_solution; never authored, exported or shown. */
   short_explanation: string | null
   worked_solution: string | null
   correct_option_label: QuestionOptionLabel | null
@@ -512,7 +514,6 @@ export interface QuestionFormValues {
   /** Option texts in label order (index 0 = A, 1 = B, ...). Length 4–5. */
   options: string[]
   correctOptionLabel: QuestionOptionLabel
-  shortExplanation: string
   workedSolution: string
   /** Comma-separated in the form; split into text[] on write. */
   tags: string
@@ -550,7 +551,6 @@ export interface QuestionWriteInput {
   stimulusId: string | null
   options: QuestionOptionRecord[]
   correctOptionLabel: QuestionOptionLabel | null
-  shortExplanation: string | null
   workedSolution: string | null
   tags: string[]
   skillTags: string[]

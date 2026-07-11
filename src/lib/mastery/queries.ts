@@ -14,6 +14,7 @@
  */
 import { createClient } from '@/lib/supabase/server'
 import { getDomain, getSkill, getSubject, getSubtopic } from '@/lib/taxonomy'
+import type { ExamType } from '@/lib/types'
 import {
   MASTERY_SUBJECT_CODES,
   RECOMMENDATION,
@@ -240,8 +241,11 @@ export interface SubtopicAvailability {
  * Questions a student may actually be served: published, from the bank, gradable
  * (single-choice with an answer key) and asset-ready. This is the same readiness
  * bar the publish gate and the coverage dashboard use.
+ *
+ * Pass `examType` to scope the pool to one program (OC/Selective) so availability
+ * and recommendations reflect the student's active program.
  */
-export async function getPracticeReadyQuestions(): Promise<PracticeReadyQuestion[]> {
+export async function getPracticeReadyQuestions(examType?: ExamType): Promise<PracticeReadyQuestion[]> {
   const supabase = await createClient()
   const rows: PracticeReadyQuestion[] = []
 
@@ -250,7 +254,7 @@ export async function getPracticeReadyQuestions(): Promise<PracticeReadyQuestion
   const blockedPromise = getAssetBlockedQuestionIds().catch(() => new Set<string>())
 
   for (let from = 0; ; from += BATCH_SIZE) {
-    const { data, error } = await supabase
+    let builder = supabase
       .from('questions')
       .select('id, subtopic_code, skill_code, pattern_key, difficulty, exam_type')
       .eq('status', 'published')
@@ -259,6 +263,12 @@ export async function getPracticeReadyQuestions(): Promise<PracticeReadyQuestion
       .is('deleted_at', null)
       .not('correct_option_label', 'is', null)
       .not('subtopic_code', 'is', null)
+
+    if (examType) {
+      builder = builder.eq('exam_type', examType)
+    }
+
+    const { data, error } = await builder
       .order('id', { ascending: true })
       .range(from, from + BATCH_SIZE - 1)
 
@@ -347,11 +357,18 @@ export interface StudentMasteryOverview {
   hasAnyAttempts: boolean
 }
 
-/** Subject overview: the whole tree plus what to practise next. */
-export async function getStudentMasteryOverview(studentId: string): Promise<StudentMasteryOverview> {
+/**
+ * Subject overview: the whole tree plus what to practise next. `examType` scopes
+ * question availability + recommendations to the active program (mastery scores
+ * are computed from the whole attempt history, program-agnostic, unchanged).
+ */
+export async function getStudentMasteryOverview(
+  studentId: string,
+  examType?: ExamType
+): Promise<StudentMasteryOverview> {
   const [attemptRows, readyQuestions] = await Promise.all([
     fetchAttemptRows(studentId),
-    getPracticeReadyQuestions(),
+    getPracticeReadyQuestions(examType),
   ])
 
   const { bySubtopic, legacyAttempts } = groupBySubtopic(attemptRows)
@@ -393,7 +410,8 @@ export interface DomainMasteryView {
 /** Domain drill-down. Null when the code is unknown or outside mastery's subjects. */
 export async function getDomainMastery(
   studentId: string,
-  domainCode: string
+  domainCode: string,
+  examType?: ExamType
 ): Promise<DomainMasteryView | null> {
   const domainNode = getDomain(domainCode)
   if (!domainNode || !isMasterySubject(domainNode.subjectCode)) {
@@ -402,7 +420,7 @@ export async function getDomainMastery(
 
   const [attemptRows, readyQuestions] = await Promise.all([
     fetchAttemptRows(studentId),
-    getPracticeReadyQuestions(),
+    getPracticeReadyQuestions(examType),
   ])
   const { bySubtopic } = groupBySubtopic(attemptRows)
   const subjectNode = getSubject(domainNode.subjectCode)!
@@ -426,7 +444,8 @@ function isMasterySubject(subjectCode: string): boolean {
 /** Subtopic detail: summary, trend, difficulty + skill breakdowns, recent attempts. */
 export async function getSubtopicMasteryDetail(
   studentId: string,
-  subtopicCode: string
+  subtopicCode: string,
+  examType?: ExamType
 ): Promise<(SubtopicMasteryDetail & { subject: { code: string; label: string }; domain: { code: string; label: string } }) | null> {
   const subtopicNode = getSubtopic(subtopicCode)
   if (!subtopicNode || !isMasterySubject(subtopicNode.subjectCode)) {
@@ -439,7 +458,7 @@ export async function getSubtopicMasteryDetail(
     // Scoped to this subtopic server-side; the filter below still guards the
     // pre-migration fallback path, which returns the whole history.
     fetchAttemptRows(studentId, subtopicCode),
-    getPracticeReadyQuestions(),
+    getPracticeReadyQuestions(examType),
   ])
 
   const attempts = attemptRows.filter((row) => row.subtopicCode === subtopicCode)

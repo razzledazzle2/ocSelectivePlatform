@@ -38,8 +38,15 @@ export function renderMatrixPattern(spec) {
       const x = MARGIN + c * (cellSize + GAP)
       const y = top + r * (cellSize + GAP)
       body.push(cellBox(x, y, cellSize, { question: Boolean(cell.question) }))
-      if (!cell.question && cell.glyph) {
-        body.push(drawGlyph(x + cellSize / 2, y + cellSize / 2, cellSize, cell.glyph))
+      if (!cell.question) {
+        // A cell holds one glyph (`glyph`) or several stacked/offset ones
+        // (`glyphs`), e.g. an outer shape with a smaller shape nested inside.
+        const glyphs = cell.glyphs ?? (cell.glyph ? [cell.glyph] : [])
+        for (const glyph of glyphs) {
+          const gx = x + cellSize / 2 + (glyph.dx ?? 0) * cellSize
+          const gy = y + cellSize / 2 + (glyph.dy ?? 0) * cellSize
+          body.push(drawGlyph(gx, gy, cellSize, glyph))
+        }
       }
     }
   }

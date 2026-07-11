@@ -1,0 +1,19 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-001-a.svg",
+  "external_id": "ts-abstract-spatial-1-001-a",
+  "asset_type": "svg",
+  "alt_text": "A circle.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 84,
+    "cells": [
+      {
+        "glyph": {
+          "shape": "circle",
+          "scale": 0.6,
+          "fill": "none"
+        }
+      }
+    ]
+  }
+}

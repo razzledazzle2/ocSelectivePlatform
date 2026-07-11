@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import {
   BrainIcon,
   CheckCircle2Icon,
@@ -78,6 +78,16 @@ interface PracticeSessionProps {
   initialTopicId?: string
   /** When set, the set is built from this subtopic and the subject/topic filters are hidden. */
   subtopicFocus?: SubtopicFocus
+  /** Preselect the program (from the persistent program switcher). */
+  initialExamType?: ExamType
+  /** Preselect a session length (used by the integrated runner). */
+  initialCount?: string
+  /**
+   * Integrated-runner mode: skip the setup hub, start immediately from the
+   * preset config, and return to `backHref` instead of showing the hub.
+   */
+  autoStart?: boolean
+  backHref?: string
 }
 
 interface AnsweredQuestion {
@@ -123,16 +133,20 @@ export function PracticeSession({
   initialSubjectId,
   initialTopicId,
   subtopicFocus,
+  initialExamType,
+  initialCount,
+  autoStart = false,
+  backHref = '/student/practice',
 }: PracticeSessionProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [phase, setPhase] = useState<Phase>('setup')
 
-  const [examType, setExamType] = useState<ExamType>('OC')
+  const [examType, setExamType] = useState<ExamType>(initialExamType ?? 'OC')
   const [subjectId, setSubjectId] = useState(initialSubjectId ?? '')
   const [topicId, setTopicId] = useState(initialTopicId ?? ANY_TOPIC)
   const [difficulty, setDifficulty] = useState(ANY_DIFFICULTY)
-  const [questionCount, setQuestionCount] = useState<(typeof SESSION_LENGTHS)[number]>('10')
+  const [questionCount, setQuestionCount] = useState<string>(initialCount ?? '10')
   const [setMode, setSetMode] = useState<PracticeSetMode>('new')
   const [gateSkipped, setGateSkipped] = useState(false)
   const [emptyResult, setEmptyResult] = useState(false)
@@ -289,6 +303,11 @@ export function PracticeSession({
   }
 
   function resetToSetup() {
+    // Integrated runner has no setup hub to return to — go back where we came from.
+    if (autoStart) {
+      router.push(backHref)
+      return
+    }
     setPhase('setup')
     setQuestions([])
     setAnswers([])
@@ -298,8 +317,52 @@ export function PracticeSession({
     setSessionId('')
   }
 
-  // -- Setup: the Practice Hub ----------------------------------------------
+  // Integrated runner: build the set immediately, once.
+  const autoStarted = useRef(false)
+  useEffect(() => {
+    if (autoStart && !autoStarted.current) {
+      autoStarted.current = true
+      startPractice()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // -- Setup ----------------------------------------------------------------
   if (phase === 'setup') {
+    // Integrated runner shows a building/empty state instead of the full hub.
+    if (autoStart) {
+      if (emptyResult) {
+        return (
+          <Card className="mx-auto max-w-lg rounded-2xl shadow-sm ring-border">
+            <CardHeader>
+              <CardTitle>No questions ready</CardTitle>
+              <CardDescription>
+                {emptyMessage ?? 'There are no published questions here for your program yet.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href={backHref} className={cn(buttonVariants({ variant: 'outline' }))}>
+                Back to Learn &amp; Practice
+              </Link>
+            </CardContent>
+          </Card>
+        )
+      }
+      return (
+        <Card className="mx-auto max-w-lg rounded-2xl shadow-sm ring-border">
+          <CardHeader>
+            <CardTitle>{subtopicFocus ? `Building your ${subtopicFocus.label} set…` : 'Building your set…'}</CardTitle>
+            <CardDescription>Picking a varied set and holding back anything you have just seen.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Skeleton className="h-6 w-3/4" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
+      )
+    }
+
     const recommendedAreas = hub.revisionTopAreas.slice(0, 3).join(', ')
     const gateBatch = Math.min(hub.revisionDueCount, GATE_BATCH_SIZE)
     const gateActive = hub.revisionDueCount > 0 && !gateSkipped && setMode !== 'mistakes'
@@ -732,7 +795,7 @@ export function PracticeSession({
                   </div>
                   <Separator className="my-3" />
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Worked solution
+                    Solution
                   </p>
                   {answer.feedback.workedSolution ? (
                     <QuestionMarkdown
@@ -741,7 +804,7 @@ export function PracticeSession({
                     />
                   ) : (
                     <p className="mt-1 text-sm leading-7 text-foreground/80">
-                      No worked solution was added for this question yet.
+                      No solution was added for this question yet.
                     </p>
                   )}
                   <div className="mt-2 flex justify-end">
@@ -789,17 +852,21 @@ export function PracticeSession({
       </CardHeader>
       <CardContent className="space-y-6 pt-6">
         <div className="space-y-4">
+          {activeQuestion.stimulus ? (
+            <StimulusPanel
+              stimulus={activeQuestion.stimulus}
+              subjectName={activeQuestion.subjectName}
+            />
+          ) : activeQuestion.passageText ? (
+            <QuestionMarkdown
+              text={activeQuestion.passageText}
+              className="rounded-xl border border-border bg-card px-4 py-4 text-base leading-7 text-foreground"
+            />
+          ) : null}
           <QuestionMarkdown
             text={activeQuestion.questionText}
             className="text-lg leading-8 text-foreground"
           />
-          {activeQuestion.stimulus ? (
-            <StimulusPanel stimulus={activeQuestion.stimulus} />
-          ) : activeQuestion.passageText ? (
-            <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4 text-sm leading-7 text-foreground/80">
-              {activeQuestion.passageText}
-            </div>
-          ) : null}
           {activeQuestion.questionAssets.length ? (
             <div className="space-y-3">
               {activeQuestion.questionAssets.map((asset) => (
@@ -850,18 +917,12 @@ export function PracticeSession({
             <AlertDescription>
               <div className="mt-1 space-y-3 text-sm leading-7 text-foreground">
                 <div>
-                  <p className="font-semibold text-foreground">Short explanation</p>
-                  <p className="text-foreground/80">
-                    {feedback.shortExplanation ?? 'No short explanation was added for this question yet.'}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground">Worked solution</p>
+                  <p className="font-semibold text-foreground">Solution</p>
                   {feedback.workedSolution ? (
                     <QuestionMarkdown text={feedback.workedSolution} className="text-foreground/80" />
                   ) : (
                     <p className="text-foreground/80">
-                      No worked solution was added for this question yet.
+                      No solution was added for this question yet.
                     </p>
                   )}
                 </div>

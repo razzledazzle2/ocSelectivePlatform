@@ -544,19 +544,13 @@ export function MockEditor({ detail, stats, coverage, subjects, topics, tags }: 
                               )
                             })}
                           </ul>
-                          {question.shortExplanation ? (
-                            <p className="text-sm text-muted-foreground">
-                              <span className="font-medium text-foreground">Why:</span>{' '}
-                              {question.shortExplanation}
-                            </p>
-                          ) : null}
-                          {question.workedSolution ? (
+                          {question.workedSolution || question.shortExplanation ? (
                             <details className="rounded-lg bg-muted/40 px-3 py-2 text-sm">
                               <summary className="cursor-pointer text-xs font-medium text-foreground">
-                                Worked solution
+                                Solution
                               </summary>
                               <p className="mt-1.5 whitespace-pre-wrap text-muted-foreground">
-                                {question.workedSolution}
+                                {question.workedSolution || question.shortExplanation}
                               </p>
                             </details>
                           ) : null}

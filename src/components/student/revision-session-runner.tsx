@@ -154,17 +154,21 @@ export function RevisionSessionRunner({ items, totalDue }: RevisionSessionRunner
       </CardHeader>
       <CardContent className="space-y-6 pt-6">
         <div className="space-y-4">
+          {current.question.stimulus ? (
+            <StimulusPanel
+              stimulus={current.question.stimulus}
+              subjectName={current.question.subjectName}
+            />
+          ) : current.question.passageText ? (
+            <QuestionMarkdown
+              text={current.question.passageText}
+              className="rounded-xl border border-border bg-card px-4 py-4 text-base leading-7 text-foreground"
+            />
+          ) : null}
           <QuestionMarkdown
             text={current.question.questionText}
             className="text-lg leading-8 text-foreground"
           />
-          {current.question.stimulus ? (
-            <StimulusPanel stimulus={current.question.stimulus} />
-          ) : current.question.passageText ? (
-            <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4 text-sm leading-7 text-foreground/80">
-              {current.question.passageText}
-            </div>
-          ) : null}
           {current.question.questionAssets.length ? (
             <div className="space-y-3">
               {current.question.questionAssets.map((asset) => (
@@ -220,16 +224,13 @@ export function RevisionSessionRunner({ items, totalDue }: RevisionSessionRunner
               </AlertTitle>
               <AlertDescription>
                 <div className="mt-1 space-y-3 text-sm leading-7 text-foreground">
-                  {feedback.shortExplanation ? (
-                    <p className="text-foreground/80">{feedback.shortExplanation}</p>
-                  ) : null}
                   <div>
-                    <p className="font-semibold text-foreground">Worked solution</p>
+                    <p className="font-semibold text-foreground">Solution</p>
                     {feedback.workedSolution ? (
                       <QuestionMarkdown text={feedback.workedSolution} className="text-foreground/80" />
                     ) : (
                       <p className="text-foreground/80">
-                        No worked solution was added for this question yet.
+                        No solution was added for this question yet.
                       </p>
                     )}
                   </div>

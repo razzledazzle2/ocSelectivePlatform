@@ -8,101 +8,139 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  parseMarkdown,
+  tokenizeInline,
+  type InlineSegment,
+  type MarkdownBlock,
+} from '@/lib/content/markdown-ast'
+import { renderMathToHtml } from '@/lib/content/render-math'
 import { cn } from '@/lib/utils'
 
 /**
- * Minimal, dependency-free renderer for question/stimulus text. Supports:
- * - paragraphs (blank-line separated) with single-newline line breaks
- * - GitHub-style pipe tables (`| a | b |`)
- * - **bold** and *italic* inline formatting
- * Everything is rendered as React nodes (never raw HTML strings), so any other
- * markup in the text stays literal. Server-component friendly.
+ * Shared, dependency-light renderer for question / stimulus / option / solution
+ * content. Parsing lives in `@/lib/content/markdown-ast` (pure, unit-tested);
+ * this component only maps the AST to React nodes. Text is NEVER injected as raw
+ * HTML — the sole `dangerouslySetInnerHTML` is KaTeX output rendered in safe
+ * (`trust: false`) mode, so imported content cannot inject scripts or styling.
+ *
+ * Supports paragraphs, headings, ordered/unordered lists, blockquotes, GitHub
+ * pipe tables, `**bold**`/`*italic*`, inline maths `\( … \)` / `$ … $` and
+ * display maths `\[ … \]` / `$$ … $$`.
  */
 
-const INLINE_PATTERN = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g
+function InlineMath({ tex }: { tex: string }) {
+  return <span dangerouslySetInnerHTML={{ __html: renderMathToHtml(tex, false) }} />
+}
 
-/** Renders **bold** / *italic* spans in a single line of text as React nodes. */
-export function renderInlineMarkdown(text: string): ReactNode {
-  const parts = text.split(INLINE_PATTERN)
+function DisplayMath({ tex }: { tex: string }) {
+  return (
+    <div className="my-2 overflow-x-auto" dangerouslySetInnerHTML={{ __html: renderMathToHtml(tex, true) }} />
+  )
+}
 
-  return parts.map((part, index) => {
-    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
-      return <strong key={index}>{part.slice(2, -2)}</strong>
+function renderSegments(segments: InlineSegment[], keyPrefix: string): ReactNode[] {
+  return segments.map((segment, index) => {
+    const key = `${keyPrefix}-${index}`
+    switch (segment.kind) {
+      case 'bold':
+        return <strong key={key}>{segment.value}</strong>
+      case 'italic':
+        return <em key={key}>{segment.value}</em>
+      case 'math':
+        return <InlineMath key={key} tex={segment.tex} />
+      default:
+        return <span key={key}>{segment.value}</span>
     }
-    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
-      return <em key={index}>{part.slice(1, -1)}</em>
-    }
-    return part
   })
 }
 
-function isTableLine(line: string): boolean {
-  const trimmed = line.trim()
-  return trimmed.startsWith('|') && trimmed.length > 1
+/**
+ * Inline-only renderer (bold / italic / inline maths) for contexts that must
+ * stay inside a single flow element — e.g. answer options nested in a `<button>`.
+ */
+export function renderInlineMarkdown(text: string): ReactNode {
+  return renderSegments(tokenizeInline(text), 'inline')
 }
 
-function isSeparatorRow(cells: string[]): boolean {
-  return cells.length > 0 && cells.every((cell) => /^:?-{2,}:?$/.test(cell.trim()))
-}
-
-function splitTableRow(line: string): string[] {
-  let trimmed = line.trim()
-  if (trimmed.startsWith('|')) {
-    trimmed = trimmed.slice(1)
-  }
-  if (trimmed.endsWith('|')) {
-    trimmed = trimmed.slice(0, -1)
-  }
-  return trimmed.split('|').map((cell) => cell.trim())
-}
-
-function MarkdownTable({ lines }: { lines: string[] }) {
-  const rows = lines.map(splitTableRow)
-  const hasHeader = rows.length > 1 && isSeparatorRow(rows[1])
-  const headerCells = hasHeader ? rows[0] : null
-  const bodyRows = hasHeader ? rows.slice(2) : rows
-
-  return (
-    <div className="overflow-hidden rounded-xl border border-border">
-      <Table>
-        {headerCells ? (
-          <TableHeader>
-            <TableRow className="bg-muted/50 hover:bg-muted/50">
-              {headerCells.map((cell, index) => (
-                <TableHead key={index} className="whitespace-normal px-3">
-                  {renderInlineMarkdown(cell)}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-        ) : null}
-        <TableBody>
-          {bodyRows.map((cells, rowIndex) => (
-            <TableRow key={rowIndex}>
-              {cells.map((cell, cellIndex) => (
-                <TableCell key={cellIndex} className="whitespace-normal px-3 py-2 align-top">
-                  {renderInlineMarkdown(cell)}
-                </TableCell>
-              ))}
-            </TableRow>
+function BlockView({ block, blockKey }: { block: MarkdownBlock; blockKey: string }) {
+  switch (block.kind) {
+    case 'heading': {
+      const Tag = (`h${Math.min(block.level + 2, 6)}` as unknown) as keyof React.JSX.IntrinsicElements
+      return (
+        <Tag className="font-heading text-base font-semibold text-foreground">
+          {renderSegments(block.content, blockKey)}
+        </Tag>
+      )
+    }
+    case 'list': {
+      const ListTag = block.ordered ? 'ol' : 'ul'
+      return (
+        <ListTag className={cn('space-y-1 pl-5', block.ordered ? 'list-decimal' : 'list-disc')}>
+          {block.items.map((item, index) => (
+            <li key={`${blockKey}-${index}`}>{renderSegments(item, `${blockKey}-${index}`)}</li>
           ))}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
-function Paragraph({ lines }: { lines: string[] }) {
-  return (
-    <p className="whitespace-normal">
-      {lines.map((line, index) => (
-        <span key={index}>
-          {index > 0 ? <br /> : null}
-          {renderInlineMarkdown(line)}
-        </span>
-      ))}
-    </p>
-  )
+        </ListTag>
+      )
+    }
+    case 'blockquote':
+      return (
+        <blockquote className="border-l-2 border-border pl-4 text-foreground/80">
+          {block.lines.map((line, index) => (
+            <span key={`${blockKey}-${index}`} className="block">
+              {renderSegments(line, `${blockKey}-${index}`)}
+            </span>
+          ))}
+        </blockquote>
+      )
+    case 'table':
+      return (
+        <div className="overflow-x-auto">
+          <div className="overflow-hidden rounded-xl border border-border">
+            <Table>
+              {block.header ? (
+                <TableHeader>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    {block.header.map((cell, index) => (
+                      <TableHead key={index} scope="col" className="whitespace-normal px-3">
+                        {renderSegments(cell, `${blockKey}-h-${index}`)}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+              ) : null}
+              <TableBody>
+                {block.rows.map((cells, rowIndex) => (
+                  <TableRow key={rowIndex}>
+                    {cells.map((cell, cellIndex) => (
+                      <TableCell
+                        key={cellIndex}
+                        className="whitespace-normal px-3 py-2 align-top"
+                      >
+                        {renderSegments(cell, `${blockKey}-${rowIndex}-${cellIndex}`)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )
+    case 'mathBlock':
+      return <DisplayMath tex={block.tex} />
+    default:
+      return (
+        <p className="whitespace-normal">
+          {block.lines.map((line, index) => (
+            <span key={`${blockKey}-${index}`}>
+              {index > 0 ? <br /> : null}
+              {renderSegments(line, `${blockKey}-${index}`)}
+            </span>
+          ))}
+        </p>
+      )
+  }
 }
 
 interface QuestionMarkdownProps {
@@ -115,48 +153,16 @@ export function QuestionMarkdown({ text, className }: QuestionMarkdownProps) {
     return null
   }
 
-  const blocks = text.replace(/\r\n/g, '\n').split(/\n{2,}/)
-  const rendered: ReactNode[] = []
-  let key = 0
-
-  for (const block of blocks) {
-    const lines = block.split('\n').filter((line) => line.trim().length > 0)
-    if (!lines.length) {
-      continue
-    }
-
-    // Split the block into runs of table lines vs plain text lines so a table
-    // directly under a sentence (no blank line) still renders as a table.
-    let buffer: string[] = []
-    let bufferIsTable = isTableLine(lines[0])
-
-    const flush = () => {
-      if (!buffer.length) return
-      rendered.push(
-        bufferIsTable ? (
-          <MarkdownTable key={key} lines={buffer} />
-        ) : (
-          <Paragraph key={key} lines={buffer} />
-        )
-      )
-      key += 1
-      buffer = []
-    }
-
-    for (const line of lines) {
-      const lineIsTable = isTableLine(line)
-      if (lineIsTable !== bufferIsTable) {
-        flush()
-        bufferIsTable = lineIsTable
-      }
-      buffer.push(line)
-    }
-    flush()
-  }
-
-  if (!rendered.length) {
+  const blocks = parseMarkdown(text)
+  if (!blocks.length) {
     return null
   }
 
-  return <div className={cn('space-y-3', className)}>{rendered}</div>
+  return (
+    <div className={cn('space-y-3', className)}>
+      {blocks.map((block, index) => (
+        <BlockView key={index} block={block} blockKey={`b${index}`} />
+      ))}
+    </div>
+  )
 }

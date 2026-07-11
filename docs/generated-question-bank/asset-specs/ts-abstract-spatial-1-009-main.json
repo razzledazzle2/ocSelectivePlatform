@@ -1,0 +1,79 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-009-main.svg",
+  "external_id": "ts-abstract-spatial-1-009-main",
+  "asset_type": "svg",
+  "alt_text": "A 3 by 3 grid. Each row is one shape: circles, then squares, then triangles. Each column grows in size from small to medium to large. The bottom-right cell is covered.",
+  "spec": {
+    "type": "matrix_pattern",
+    "rows": 3,
+    "cols": 3,
+    "cell_size": 78,
+    "grid": [
+      [
+        {
+          "glyph": {
+            "shape": "circle",
+            "scale": 0.5,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "circle",
+            "scale": 0.75,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "circle",
+            "scale": 1,
+            "fill": "none"
+          }
+        }
+      ],
+      [
+        {
+          "glyph": {
+            "shape": "square",
+            "scale": 0.5,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "square",
+            "scale": 0.75,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "square",
+            "scale": 1,
+            "fill": "none"
+          }
+        }
+      ],
+      [
+        {
+          "glyph": {
+            "shape": "triangle",
+            "scale": 0.5,
+            "fill": "none"
+          }
+        },
+        {
+          "glyph": {
+            "shape": "triangle",
+            "scale": 0.75,
+            "fill": "none"
+          }
+        },
+        {
+          "question": true
+        }
+      ]
+    ]
+  }
+}
