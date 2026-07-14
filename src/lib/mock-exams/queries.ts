@@ -15,11 +15,17 @@ import type {
   MockSectionStatus,
   SectionedMockRunnerData,
 } from '@/lib/mock-exams/types'
+import {
+  getStudentOptionsMap,
+  getStudentQuestionAssetsMap,
+  getStudentStimuliMap,
+} from '@/lib/practice/hydration'
 import type {
   ExamType,
   QuestionOptionLabel,
-  QuestionOptionRecord,
   QuestionRecord,
+  StudentAssetRef,
+  StudentStimulus,
 } from '@/lib/types'
 
 function getRelationValue<T>(value: T | T[] | null): T | null {
@@ -110,6 +116,10 @@ export async function fetchMockCandidates(
       question_type:question_types(name)
     `)
     .eq('status', 'published')
+    // Randomised mocks draw from the bank only; mock-only imported questions stay out.
+    .eq('origin', 'bank')
+    // Mock exams are MCQ-only: never select writing prompts (extended_response).
+    .eq('answer_format', 'single_choice')
     .eq('exam_type', examType)
     .limit(400)
 
@@ -136,6 +146,8 @@ export async function countAvailableMockQuestions(
     .from('questions')
     .select('id', { count: 'exact', head: true })
     .eq('status', 'published')
+    .eq('origin', 'bank')
+    .eq('answer_format', 'single_choice')
     .eq('exam_type', examType)
 
   if (subjectId) {
@@ -151,29 +163,24 @@ export async function countAvailableMockQuestions(
   return count ?? 0
 }
 
-async function getOptionsMap(questionIds: string[]): Promise<Map<string, QuestionOptionRecord[]>> {
-  if (!questionIds.length) {
-    return new Map()
-  }
+interface HydratedQuestionContent {
+  optionsMap: Awaited<ReturnType<typeof getStudentOptionsMap>>
+  stimuliMap: Map<string, StudentStimulus>
+  questionAssetsMap: Map<string, StudentAssetRef[]>
+}
 
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('question_options')
-    .select('id, question_id, label, option_text, sort_order, created_at')
-    .in('question_id', questionIds)
-    .order('sort_order', { ascending: true })
+/** Options (with visual assets), stimuli and question assets for a set of questions. */
+async function hydrateRunnerContent(
+  questionIds: string[],
+  stimulusIds: Array<string | null>
+): Promise<HydratedQuestionContent> {
+  const [optionsMap, stimuliMap, questionAssetsMap] = await Promise.all([
+    getStudentOptionsMap(questionIds),
+    getStudentStimuliMap(stimulusIds.filter((id): id is string => Boolean(id))),
+    getStudentQuestionAssetsMap(questionIds),
+  ])
 
-  if (error) {
-    throw new Error('Unable to load mock exam question options.')
-  }
-
-  const map = new Map<string, QuestionOptionRecord[]>()
-  for (const option of (data ?? []) as Array<QuestionOptionRecord & { question_id: string }>) {
-    const existing = map.get(option.question_id) ?? []
-    existing.push(option)
-    map.set(option.question_id, existing)
-  }
-  return map
+  return { optionsMap, stimuliMap, questionAssetsMap }
 }
 
 export interface SelectedMockQuestion {
@@ -215,6 +222,45 @@ function computeDeadlineMs(startedAt: string, timeLimitSeconds: number): number 
   return new Date(startedAt).getTime() + timeLimitSeconds * 1000
 }
 
+export interface MockSessionRoutingMeta {
+  mockType: MockExamType
+  status: MockExamStatus
+}
+
+/**
+ * The minimal session metadata the runner page needs to decide WHICH loader to
+ * run: is it finished (→ results), and is it a sectioned `randomised_full` mock
+ * (→ sectioned loader) or a flat one (→ flat loader)? Fetching this first means
+ * exactly one full question-hydration path runs, instead of hydrating a
+ * randomised_full session twice. Returns null when the session is missing or not
+ * owned by the student (RLS also enforces ownership).
+ */
+export async function getMockSessionRoutingMeta(
+  sessionId: string,
+  studentId: string
+): Promise<MockSessionRoutingMeta | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('mock_exam_sessions')
+    .select('mock_type, status')
+    .eq('id', sessionId)
+    .eq('student_id', studentId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error('Unable to load this mock exam.')
+  }
+
+  if (!data) {
+    return null
+  }
+
+  return {
+    mockType: data.mock_type as MockExamType,
+    status: data.status as MockExamStatus,
+  }
+}
+
 /**
  * Loads a mock exam session for its owner, in the client-runner shape (no correct answers).
  * Returns null when the session does not exist or is not owned by the student (RLS also enforces this).
@@ -224,14 +270,39 @@ export async function getMockExamRunnerData(
   studentId: string
 ): Promise<MockExamRunnerData | null> {
   const supabase = await createClient()
-  const { data: session, error } = await supabase
-    .from('mock_exam_sessions')
-    .select(
-      'id, student_id, mock_type, exam_type, status, time_limit_seconds, started_at, subject:subjects(name)'
-    )
-    .eq('id', sessionId)
-    .eq('student_id', studentId)
-    .maybeSingle()
+  const [{ data: session, error }, { data: sessionQuestions, error: questionsError }] = await Promise.all([
+    supabase
+      .from('mock_exam_sessions')
+      .select(
+        'id, student_id, mock_type, exam_type, status, time_limit_seconds, started_at, subject:subjects(name)'
+      )
+      .eq('id', sessionId)
+      .eq('student_id', studentId)
+      .maybeSingle(),
+    supabase
+      .from('mock_exam_session_questions')
+      .select(`
+        question_order,
+        selected_option_label,
+        is_flagged,
+        question:questions(
+          id,
+          subject_id,
+          topic_id,
+          question_type_id,
+          exam_type,
+          difficulty,
+          stimulus_id,
+          question_text,
+          passage_text,
+          subject:subjects(name),
+          topic:topics(name),
+          question_type:question_types(name)
+        )
+      `)
+      .eq('session_id', sessionId)
+      .order('question_order', { ascending: true }),
+  ])
 
   if (error) {
     throw new Error('Unable to load this mock exam.')
@@ -240,29 +311,6 @@ export async function getMockExamRunnerData(
   if (!session) {
     return null
   }
-
-  const { data: sessionQuestions, error: questionsError } = await supabase
-    .from('mock_exam_session_questions')
-    .select(`
-      question_order,
-      selected_option_label,
-      is_flagged,
-      question:questions(
-        id,
-        subject_id,
-        topic_id,
-        question_type_id,
-        exam_type,
-        difficulty,
-        question_text,
-        passage_text,
-        subject:subjects(name),
-        topic:topics(name),
-        question_type:question_types(name)
-      )
-    `)
-    .eq('session_id', sessionId)
-    .order('question_order', { ascending: true })
 
   if (questionsError) {
     throw new Error('Unable to load the questions for this mock exam.')
@@ -280,6 +328,7 @@ export async function getMockExamRunnerData(
       | 'question_type_id'
       | 'exam_type'
       | 'difficulty'
+      | 'stimulus_id'
       | 'question_text'
       | 'passage_text'
     > & {
@@ -291,7 +340,10 @@ export async function getMockExamRunnerData(
   }>
 
   const validRows = rows.filter((row) => row.question !== null)
-  const optionsMap = await getOptionsMap(validRows.map((row) => row.question!.id))
+  const { optionsMap, stimuliMap, questionAssetsMap } = await hydrateRunnerContent(
+    validRows.map((row) => row.question!.id),
+    validRows.map((row) => row.question!.stimulus_id)
+  )
 
   const questions: MockExamRunnerQuestion[] = validRows.map((row) => {
     const question = row.question!
@@ -308,6 +360,8 @@ export async function getMockExamRunnerData(
       difficulty: question.difficulty,
       questionText: question.question_text,
       passageText: question.passage_text,
+      stimulus: question.stimulus_id ? stimuliMap.get(question.stimulus_id) ?? null : null,
+      questionAssets: questionAssetsMap.get(question.id) ?? [],
       options: optionsMap.get(question.id) ?? [],
       selectedOptionLabel: row.selected_option_label,
       isFlagged: row.is_flagged,
@@ -390,7 +444,7 @@ export async function getSectionedMockRunnerData(
   const supabase = await createClient()
   const { data: session, error } = await supabase
     .from('mock_exam_sessions')
-    .select('id, mock_type, exam_type, status')
+    .select('id, mock_type, exam_type, status, mock_test_id, mock_test:mock_tests(title)')
     .eq('id', sessionId)
     .eq('student_id', studentId)
     .maybeSingle()
@@ -419,6 +473,7 @@ export async function getSectionedMockRunnerData(
           question_type_id,
           exam_type,
           difficulty,
+          stimulus_id,
           question_text,
           passage_text,
           subject:subjects(name),
@@ -447,6 +502,7 @@ export async function getSectionedMockRunnerData(
       | 'question_type_id'
       | 'exam_type'
       | 'difficulty'
+      | 'stimulus_id'
       | 'question_text'
       | 'passage_text'
     > & {
@@ -458,7 +514,10 @@ export async function getSectionedMockRunnerData(
   }>
 
   const validRows = rows.filter((row) => row.question !== null)
-  const optionsMap = await getOptionsMap(validRows.map((row) => row.question!.id))
+  const { optionsMap, stimuliMap, questionAssetsMap } = await hydrateRunnerContent(
+    validRows.map((row) => row.question!.id),
+    validRows.map((row) => row.question!.stimulus_id)
+  )
 
   const questions = validRows.map((row) => {
     const question = row.question!
@@ -476,15 +535,21 @@ export async function getSectionedMockRunnerData(
       difficulty: question.difficulty,
       questionText: question.question_text,
       passageText: question.passage_text,
+      stimulus: question.stimulus_id ? stimuliMap.get(question.stimulus_id) ?? null : null,
+      questionAssets: questionAssetsMap.get(question.id) ?? [],
       options: optionsMap.get(question.id) ?? [],
       selectedOptionLabel: row.selected_option_label,
       isFlagged: row.is_flagged,
     }
   })
 
+  const curatedTitle = getRelationValue(
+    (session as { mock_test: { title: string }[] | { title: string } | null }).mock_test
+  )?.title
+
   return {
     sessionId: session.id,
-    mockName: MOCK_EXAM_CONFIGS[session.mock_type as MockExamType]?.name ?? 'Mock exam',
+    mockName: curatedTitle ?? MOCK_EXAM_CONFIGS[session.mock_type as MockExamType]?.name ?? 'Mock exam',
     examType: session.exam_type as ExamType,
     status: session.status as MockExamStatus,
     sections,
@@ -507,11 +572,13 @@ function mapSummaryRow(row: {
   submitted_at: string | null
   created_at: string
   subject: { name: string }[] | { name: string } | null
+  mock_test: { title: string }[] | { title: string } | null
 }): MockExamSummaryRow {
+  const curatedTitle = getRelationValue(row.mock_test)?.title
   return {
     id: row.id,
     mockType: row.mock_type as MockExamType,
-    mockName: MOCK_EXAM_CONFIGS[row.mock_type as MockExamType]?.name ?? 'Mock exam',
+    mockName: curatedTitle ?? MOCK_EXAM_CONFIGS[row.mock_type as MockExamType]?.name ?? 'Mock exam',
     examType: row.exam_type as ExamType,
     subjectName: getRelationValue(row.subject)?.name ?? null,
     status: row.status as MockExamStatus,
@@ -528,27 +595,7 @@ function mapSummaryRow(row: {
 }
 
 const SUMMARY_COLUMNS =
-  'id, mock_type, exam_type, status, total_questions, correct_count, incorrect_count, unanswered_count, accuracy, total_time_seconds, started_at, submitted_at, created_at, subject:subjects(name)'
-
-/** Recent mock exam attempts for the landing page. */
-export async function getRecentMockExams(
-  studentId: string,
-  limit = 8
-): Promise<MockExamSummaryRow[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('mock_exam_sessions')
-    .select(SUMMARY_COLUMNS)
-    .eq('student_id', studentId)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-
-  if (error) {
-    throw new Error('Unable to load your recent mock exams.')
-  }
-
-  return ((data ?? []) as unknown as Parameters<typeof mapSummaryRow>[0][]).map(mapSummaryRow)
-}
+  'id, mock_type, exam_type, status, total_questions, correct_count, incorrect_count, unanswered_count, accuracy, total_time_seconds, started_at, submitted_at, created_at, subject:subjects(name), mock_test:mock_tests(title)'
 
 /** Fetches a single mock exam summary row for its owner (or staff). */
 export async function getMockExamSummary(

@@ -1,4 +1,10 @@
-import type { ExamType, QuestionOptionLabel, QuestionOptionRecord } from '@/lib/types'
+import type {
+  ExamType,
+  QuestionOptionLabel,
+  QuestionOptionRecord,
+  StudentAssetRef,
+  StudentStimulus,
+} from '@/lib/types'
 import type { MockExamStatus, MockExamType, MockSectionKey } from '@/lib/mock-exams/config'
 
 export const MOCK_SECTION_STATUSES = ['pending', 'in_progress', 'submitted', 'skipped'] as const
@@ -45,6 +51,10 @@ export interface MockExamRunnerQuestion {
   difficulty: number
   questionText: string
   passageText: string | null
+  /** Linked shared stimulus (preferred over passageText when present). */
+  stimulus: StudentStimulus | null
+  /** Pre-answer question-level assets (role 'question'). */
+  questionAssets: StudentAssetRef[]
   options: QuestionOptionRecord[]
   selectedOptionLabel: QuestionOptionLabel | null
   isFlagged: boolean

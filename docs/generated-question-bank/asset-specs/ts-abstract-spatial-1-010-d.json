@@ -1,0 +1,15 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-010-d.svg",
+  "external_id": "ts-abstract-spatial-1-010-d",
+  "asset_type": "svg",
+  "alt_text": "A triangle with a dot inside.",
+  "spec": {
+    "type": "shape_analogy",
+    "figure": {
+      "shape": "triangle",
+      "nested": {
+        "shape": "dot"
+      }
+    }
+  }
+}

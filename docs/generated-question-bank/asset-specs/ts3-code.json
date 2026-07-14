@@ -1,0 +1,29 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-code.svg",
+  "external_id": "ts3-013",
+  "asset_type": "svg",
+  "alt_text": "Key: circle=plus, square=star, triangle=dot. Message row of shapes: triangle, circle, square, triangle.",
+  "spec": {
+    "type": "symbol_key",
+    "key": [
+      {
+        "shape": "circle",
+        "symbol": "plus"
+      },
+      {
+        "shape": "square",
+        "symbol": "star"
+      },
+      {
+        "shape": "triangle",
+        "symbol": "dot"
+      }
+    ],
+    "message": [
+      "triangle",
+      "circle",
+      "square",
+      "triangle"
+    ]
+  }
+}

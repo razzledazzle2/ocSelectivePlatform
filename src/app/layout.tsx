@@ -1,6 +1,8 @@
 import './globals.css'
+import 'katex/dist/katex.min.css'
 import type { ReactNode } from 'react'
 
+import { NavigationProgress } from '@/components/layout/navigation-progress'
 import { Toaster } from '@/components/ui/sonner'
 
 export const metadata = {
@@ -16,6 +18,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
+        <NavigationProgress />
         {children}
         <Toaster />
       </body>

@@ -1,0 +1,11 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-seq-dots-b.svg",
+  "external_id": "ts3-009-B",
+  "asset_type": "svg",
+  "alt_text": "A single outlined square containing 6 small black dots.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 78,
+    "cells": [{ "glyphs": [{ "shape": "square" }, { "shape": "dot", "count": 6 }] }]
+  }
+}

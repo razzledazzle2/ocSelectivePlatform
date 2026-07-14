@@ -1,0 +1,29 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-006-main.svg",
+  "external_id": "ts-abstract-spatial-1-006-main",
+  "asset_type": "svg",
+  "alt_text": "A key: circle maps to a star, triangle maps to a plus, square maps to a dot. Below it a message row shows four shapes in order: square, triangle, triangle, circle.",
+  "spec": {
+    "type": "symbol_key",
+    "key": [
+      {
+        "shape": "circle",
+        "symbol": "star"
+      },
+      {
+        "shape": "triangle",
+        "symbol": "plus"
+      },
+      {
+        "shape": "square",
+        "symbol": "dot"
+      }
+    ],
+    "message": [
+      "square",
+      "triangle",
+      "triangle",
+      "circle"
+    ]
+  }
+}

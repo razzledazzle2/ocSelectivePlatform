@@ -1,0 +1,14 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-flag.svg",
+  "external_id": "ts3-014",
+  "asset_type": "svg",
+  "alt_text": "An upright flagpole with a right-pointing V-notched pennant at the top, to be rotated 90 degrees clockwise.",
+  "spec": {
+    "type": "rotation",
+    "figure": "flag",
+    "width": 170,
+    "height": 190,
+    "stimulus": true,
+    "rotation_hint": "rotate 90° clockwise"
+  }
+}

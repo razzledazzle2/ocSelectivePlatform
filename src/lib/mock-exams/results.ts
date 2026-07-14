@@ -125,16 +125,15 @@ export async function getMockExamResults(
   sessionId: string,
   studentId: string
 ): Promise<MockExamResults | null> {
-  const summary = await getMockExamSummary(sessionId, studentId)
-
-  if (!summary) {
-    return null
-  }
-
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('mock_exam_session_questions')
-    .select(`
+
+  // Both reads are scoped by `sessionId` alone (RLS restricts rows to the owning
+  // student), so the summary is only a null-guard — no need to serialise on it.
+  const [summary, { data, error }] = await Promise.all([
+    getMockExamSummary(sessionId, studentId),
+    supabase
+      .from('mock_exam_session_questions')
+      .select(`
       question_order,
       selected_option_label,
       is_flagged,
@@ -152,8 +151,13 @@ export async function getMockExamResults(
         question_type:question_types(name)
       )
     `)
-    .eq('session_id', sessionId)
-    .order('question_order', { ascending: true })
+      .eq('session_id', sessionId)
+      .order('question_order', { ascending: true }),
+  ])
+
+  if (!summary) {
+    return null
+  }
 
   if (error) {
     throw new Error('Unable to load your mock exam results.')
@@ -175,7 +179,11 @@ export async function getMockExamResults(
       | null
   }>
 
-  const validRows = rows.filter((row) => row.question !== null)
+  // A review row needs an answer key; rows without one (e.g. a question later
+  // converted to a writing prompt) are skipped instead of breaking the page.
+  const validRows = rows.filter(
+    (row) => row.question !== null && row.question.correct_option_label !== null
+  )
 
   const supabaseOptions = await supabase
     .from('question_options')
@@ -196,7 +204,7 @@ export async function getMockExamResults(
     const question = row.question!
     const selected = row.selected_option_label
     const isAnswered = selected !== null
-    const correctLabel = question.correct_option_label
+    const correctLabel = question.correct_option_label as QuestionOptionLabel
     return {
       questionId: question.id,
       questionOrder: row.question_order,
@@ -214,7 +222,8 @@ export async function getMockExamResults(
       isAnswered,
       isFlagged: row.is_flagged,
       shortExplanation: question.short_explanation,
-      workedSolution: question.worked_solution,
+      // worked_solution is nullable in v2 — fall back so review never breaks.
+      workedSolution: question.worked_solution ?? question.short_explanation ?? '',
     }
   })
 

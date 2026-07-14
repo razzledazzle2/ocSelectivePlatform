@@ -1,0 +1,29 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-017-a.svg",
+  "external_id": "ts-abstract-spatial-1-017-a",
+  "asset_type": "svg",
+  "alt_text": "A 2×2 square and a 1×2 upright piece.",
+  "spec": {
+    "type": "spatial_assembly",
+    "width": 220,
+    "height": 120,
+    "pieces": [
+      {
+        "rect": [
+          25,
+          34,
+          52,
+          52
+        ]
+      },
+      {
+        "rect": [
+          130,
+          34,
+          26,
+          52
+        ]
+      }
+    ]
+  }
+}

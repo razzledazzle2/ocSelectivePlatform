@@ -1,0 +1,19 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-fold-c.svg",
+  "external_id": "ts3-016-C",
+  "asset_type": "svg",
+  "alt_text": "Unfolded square with two holes stacked vertically on the left.",
+  "spec": {
+    "type": "paper_folding",
+    "holes": [
+      {
+        "x": 0.24,
+        "y": 0.2
+      },
+      {
+        "x": 0.24,
+        "y": 0.56
+      }
+    ]
+  }
+}

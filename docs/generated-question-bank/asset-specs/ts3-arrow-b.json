@@ -1,0 +1,27 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-arrow-b.svg",
+  "external_id": "ts3-011-B",
+  "asset_type": "svg",
+  "alt_text": "Right arrow with a white circle.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 78,
+    "cells": [
+      {
+        "glyphs": [
+          {
+            "shape": "arrow",
+            "rotation": 0,
+            "dx": -0.16
+          },
+          {
+            "shape": "circle",
+            "scale": 0.5,
+            "dx": 0.26,
+            "fill": "none"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-fold-b.svg",
+  "external_id": "ts3-016-B",
+  "asset_type": "svg",
+  "alt_text": "Unfolded square with two holes near the top, mirrored across the vertical centre (correct).",
+  "spec": {
+    "type": "paper_folding",
+    "holes": [
+      {
+        "x": 0.24,
+        "y": 0.2
+      },
+      {
+        "x": 0.76,
+        "y": 0.2
+      }
+    ]
+  }
+}

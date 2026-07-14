@@ -8,6 +8,8 @@ import {
   RocketIcon,
   RotateCcwIcon,
   SearchIcon,
+  Trash2Icon,
+  Undo2Icon,
   XIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -17,9 +19,13 @@ import {
   createSimilarQuestionAction,
   duplicateQuestionAction,
   getQuestionPreviewAction,
+  hardDeleteQuestionAction,
   publishQuestionAction,
+  restoreQuestionAction,
+  softDeleteQuestionAction,
   unpublishQuestionAction,
 } from '@/app/admin/questions/actions'
+import { GenerateMissingAssetsButton } from '@/components/admin/generate-missing-assets-button'
 import { QuestionListRow } from '@/components/admin/question-list-row'
 import { QuestionPreviewPane } from '@/components/admin/question-preview-pane'
 import {
@@ -48,7 +54,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { exportQuestionsCsv } from '@/lib/questions/export-csv'
+import { exportQuestionsCsvAction } from '@/app/admin/questions/export-actions'
 import type { QuestionStatusCounts } from '@/lib/questions/queries'
 import {
   ADMIN_QUESTION_SORT_LABELS,
@@ -64,6 +70,17 @@ import {
   type SubjectRecord,
   type TopicRecord,
 } from '@/lib/types'
+import {
+  QUESTION_FAMILIES,
+  STIMULUS_FORMATS,
+  getAllDomains,
+  getAllSkills,
+  getAllSubtopics,
+  getDomainsForSubject,
+  getSubtopicsForDomain,
+  getSuggestedSkillsForSubtopic,
+  resolveLegacySubject,
+} from '@/lib/taxonomy'
 
 const ALL = 'all'
 const difficultyValues = ['1', '2', '3', '4', '5'] as const
@@ -97,6 +114,28 @@ export function QuestionBankWorkspace({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [isNavigating, startNavigation] = useTransition()
+  const [isExporting, startExport] = useTransition()
+
+  // Round-trip CSV export (v2 import header): whatever is exported can be fed
+  // straight back into Import. `questionIds` scopes to the selected rows; omit
+  // it to export every question matching the current filters.
+  const runExport = (questionIds?: string[]) => {
+    startExport(async () => {
+      const result = await exportQuestionsCsvAction(filters, questionIds)
+      if (!result.success || !result.data) {
+        toast.error(result.message ?? 'Unable to export questions.')
+        return
+      }
+      const { csv, filename } = result.data
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = filename
+      anchor.click()
+      URL.revokeObjectURL(url)
+      toast.success(result.message ?? 'Export ready.')
+    })
+  }
 
   const questions = data.items
 
@@ -109,7 +148,16 @@ export function QuestionBankWorkspace({
   const tag = filters.tag ?? ALL
   const difficulty = filters.difficulty ?? ALL
   const status = filters.status ?? ALL
+  const assetState = filters.assetState ?? ALL
+  const domainCode = filters.domainCode ?? ALL
+  const subtopicCode = filters.subtopicCode ?? ALL
+  const skillCode = filters.skillCode ?? ALL
+  const questionFamily = filters.questionFamily ?? ALL
+  const stimulusFormat = filters.stimulusFormat ?? ALL
   const sort = filters.sort && filters.sort in ADMIN_QUESTION_SORT_LABELS ? filters.sort : 'updated_desc'
+
+  const [patternKeyInput, setPatternKeyInput] = useState(filters.patternKey ?? '')
+  useEffect(() => setPatternKeyInput(filters.patternKey ?? ''), [filters.patternKey])
 
   const filteredTopics = useMemo(
     () => (subjectId === ALL ? topics : topics.filter((topic) => topic.subject_id === subjectId)),
@@ -123,11 +171,60 @@ export function QuestionBankWorkspace({
     [questionTypes, subjectId]
   )
 
+  // -- Canonical taxonomy filters (subject → domain → subtopic → skill) -------
+  const subjectCode = useMemo(
+    () => (subjectId === ALL ? null : resolveLegacySubject(subjects.find((s) => s.id === subjectId)?.slug ?? null)),
+    [subjects, subjectId]
+  )
+  const domainOptions = useMemo(
+    () => (subjectCode ? getDomainsForSubject(subjectCode) : getAllDomains()),
+    [subjectCode]
+  )
+  const subtopicOptions = useMemo(
+    () => (domainCode === ALL ? getAllSubtopics() : getSubtopicsForDomain(domainCode)),
+    [domainCode]
+  )
+  const skillOptions = useMemo(
+    () => (subtopicCode === ALL ? getAllSkills() : getSuggestedSkillsForSubtopic(subtopicCode)),
+    [subtopicCode]
+  )
+
+  const domainItems = useMemo(
+    () => ({ [ALL]: 'All domains', ...Object.fromEntries(domainOptions.map((d) => [d.code, d.label])) }),
+    [domainOptions]
+  )
+  const subtopicItems = useMemo(
+    () => ({ [ALL]: 'All subtopics', ...Object.fromEntries(subtopicOptions.map((s) => [s.code, s.label])) }),
+    [subtopicOptions]
+  )
+  const skillItems = useMemo(
+    () => ({ [ALL]: 'All skills', ...Object.fromEntries(skillOptions.map((s) => [s.code, s.label])) }),
+    [skillOptions]
+  )
+  const questionFamilyItems = {
+    [ALL]: 'All families',
+    ...Object.fromEntries(QUESTION_FAMILIES.map((item) => [item.code, item.label])),
+  }
+  const stimulusFormatItems = {
+    [ALL]: 'All stimulus types',
+    ...Object.fromEntries(STIMULUS_FORMATS.map((item) => [item.code, item.label])),
+  }
+
   // base-ui Select needs value->label maps so triggers show names, not raw ids/values.
   const examItems = { [ALL]: 'All exam types', ...Object.fromEntries(EXAM_TYPES.map((v) => [v, v])) }
   const statusItems = {
     [ALL]: 'All statuses',
     ...Object.fromEntries(QUESTION_STATUSES.map((v) => [v, v[0].toUpperCase() + v.slice(1)])),
+    // Synthetic "trash" view — soft-deleted questions (tracked by deleted_at,
+    // not a real status). Selecting it shows ONLY trashed questions.
+    deleted: 'Deleted (Trash)',
+  }
+  const assetItems = {
+    [ALL]: 'All assets',
+    has: 'Has asset',
+    pending: 'Pending asset',
+    missing: 'Missing asset',
+    approved: 'Asset approved',
   }
   const difficultyItems = {
     [ALL]: 'All difficulties',
@@ -168,9 +265,16 @@ export function QuestionBankWorkspace({
       subjectId,
       topicId,
       questionTypeId,
+      domainCode,
+      subtopicCode,
+      skillCode,
+      questionFamily,
+      stimulusFormat,
+      patternKey: patternKeyInput.trim(),
       tag,
       difficulty,
       status,
+      assetState,
       sort,
       pageSize: filters.pageSize ?? '',
       ...next,
@@ -202,7 +306,22 @@ export function QuestionBankWorkspace({
 
   const hasActiveFilters =
     Boolean(filters.query) ||
-    [examType, subjectId, topicId, questionTypeId, tag, difficulty, status].some((value) => value !== ALL)
+    Boolean(filters.patternKey) ||
+    [
+      examType,
+      subjectId,
+      topicId,
+      questionTypeId,
+      domainCode,
+      subtopicCode,
+      skillCode,
+      questionFamily,
+      stimulusFormat,
+      tag,
+      difficulty,
+      status,
+      assetState,
+    ].some((value) => value !== ALL)
 
   // -- Selection (preview) + bulk checkboxes ----------------------------------
   const [previewId, setPreviewId] = useState<string | null>(null)
@@ -329,6 +448,54 @@ export function QuestionBankWorkspace({
     setArchiveIds(null)
   }
 
+  // -- Soft delete (trash) confirmation + restore --------------------------------
+  const [deleteIds, setDeleteIds] = useState<string[] | null>(null)
+
+  /** Only archived, not-already-trashed questions can be moved to trash. */
+  function requestDelete(candidates: AdminQuestionListItem[]) {
+    const ids = candidates.filter((q) => q.status === 'archived' && !q.deletedAt).map((q) => q.id)
+    if (ids.length === 0) {
+      toast.error('Only archived questions can be moved to trash. Archive it first.')
+      return
+    }
+    setDeleteIds(ids)
+  }
+
+  function confirmDelete() {
+    if (deleteIds && deleteIds.length > 0) {
+      runStatusAction(deleteIds, softDeleteQuestionAction, 'Question moved to trash')
+    }
+    setDeleteIds(null)
+  }
+
+  function restore(candidates: AdminQuestionListItem[]) {
+    const ids = candidates.filter((q) => q.deletedAt).map((q) => q.id)
+    if (ids.length === 0) {
+      return
+    }
+    runStatusAction(ids, restoreQuestionAction, 'Question restored')
+  }
+
+  // -- Permanent delete confirmation ---------------------------------------------
+  const [hardDeleteIds, setHardDeleteIds] = useState<string[] | null>(null)
+
+  /** Only archived questions (trashed or not) can be permanently deleted. */
+  function requestHardDelete(candidates: AdminQuestionListItem[]) {
+    const ids = candidates.filter((q) => q.status === 'archived').map((q) => q.id)
+    if (ids.length === 0) {
+      toast.error('Only archived questions can be permanently deleted. Archive it first.')
+      return
+    }
+    setHardDeleteIds(ids)
+  }
+
+  function confirmHardDelete() {
+    if (hardDeleteIds && hardDeleteIds.length > 0) {
+      runStatusAction(hardDeleteIds, hardDeleteQuestionAction, 'Question permanently deleted')
+    }
+    setHardDeleteIds(null)
+  }
+
   function publishToggle(question: AdminQuestionListItem) {
     if (question.status === 'published') {
       runStatusAction([question.id], unpublishQuestionAction, 'Question moved back to draft')
@@ -351,6 +518,10 @@ export function QuestionBankWorkspace({
         previewItem && runRedirectAction(() => createSimilarQuestionAction(previewItem.id))
       }
       onArchive={() => previewItem && setArchiveIds([previewItem.id])}
+      onDelete={() => previewItem && requestDelete([previewItem])}
+      onRestore={() => previewItem && restore([previewItem])}
+      onDeleteForever={() => previewItem && requestHardDelete([previewItem])}
+      onAssetsChanged={() => previewItem && loadDetail(previewItem.id, { force: true })}
     />
   )
 
@@ -404,7 +575,16 @@ export function QuestionBankWorkspace({
 
             <Select
               value={subjectId}
-              onValueChange={(value) => pushFilters({ subjectId: value, topicId: ALL, questionTypeId: ALL })}
+              onValueChange={(value) =>
+                pushFilters({
+                  subjectId: value,
+                  topicId: ALL,
+                  questionTypeId: ALL,
+                  domainCode: ALL,
+                  subtopicCode: ALL,
+                  skillCode: ALL,
+                })
+              }
               items={subjectItems}
             >
               <SelectTrigger className="w-full" aria-label="Subject">
@@ -449,6 +629,105 @@ export function QuestionBankWorkspace({
               </SelectContent>
             </Select>
 
+            <Select
+              value={domainCode}
+              onValueChange={(value) => pushFilters({ domainCode: value, subtopicCode: ALL, skillCode: ALL })}
+              items={domainItems}
+            >
+              <SelectTrigger className="w-full" aria-label="Domain">
+                <SelectValue placeholder="All domains" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(domainItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={subtopicCode}
+              onValueChange={(value) => pushFilters({ subtopicCode: value, skillCode: ALL })}
+              items={subtopicItems}
+            >
+              <SelectTrigger className="w-full" aria-label="Subtopic">
+                <SelectValue placeholder="All subtopics" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(subtopicItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={skillCode} onValueChange={(value) => pushFilters({ skillCode: value })} items={skillItems}>
+              <SelectTrigger className="w-full" aria-label="Skill">
+                <SelectValue placeholder="All skills" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(skillItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={questionFamily}
+              onValueChange={(value) => pushFilters({ questionFamily: value })}
+              items={questionFamilyItems}
+            >
+              <SelectTrigger className="w-full" aria-label="Question family">
+                <SelectValue placeholder="All families" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(questionFamilyItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={stimulusFormat}
+              onValueChange={(value) => pushFilters({ stimulusFormat: value })}
+              items={stimulusFormatItems}
+            >
+              <SelectTrigger className="w-full" aria-label="Stimulus type">
+                <SelectValue placeholder="All stimulus types" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(stimulusFormatItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Input
+              value={patternKeyInput}
+              onChange={(event) => setPatternKeyInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  pushFilters({ patternKey: patternKeyInput.trim() })
+                }
+              }}
+              onBlur={() => {
+                if ((filters.patternKey ?? '') !== patternKeyInput.trim()) {
+                  pushFilters({ patternKey: patternKeyInput.trim() })
+                }
+              }}
+              placeholder="Pattern key…"
+              aria-label="Pattern key"
+            />
+
             <Select value={tag} onValueChange={(value) => pushFilters({ tag: value })} items={tagItems}>
               <SelectTrigger className="w-full" aria-label="Tag">
                 <SelectValue placeholder="All tags" />
@@ -485,6 +764,19 @@ export function QuestionBankWorkspace({
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(statusItems).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={assetState} onValueChange={(value) => pushFilters({ assetState: value })} items={assetItems}>
+              <SelectTrigger className="w-full" aria-label="Asset status">
+                <SelectValue placeholder="All assets" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(assetItems).map(([value, label]) => (
                   <SelectItem key={value} value={value}>
                     {label}
                   </SelectItem>
@@ -553,7 +845,45 @@ export function QuestionBankWorkspace({
                 <ArchiveIcon className="size-3.5" />
                 Archive
               </Button>
-              <Button size="sm" variant="outline" onClick={() => exportQuestionsCsv(checkedQuestions)}>
+              {checkedQuestions.some((q) => q.deletedAt) ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => restore(checkedQuestions)}
+                >
+                  <Undo2Icon className="size-3.5" />
+                  Restore
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => requestDelete(checkedQuestions)}
+                >
+                  <Trash2Icon className="size-3.5" />
+                  Move to trash
+                </Button>
+              )}
+              {checkedQuestions.some((q) => q.status === 'archived') ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive hover:text-destructive"
+                  disabled={isPending}
+                  onClick={() => requestHardDelete(checkedQuestions)}
+                >
+                  <Trash2Icon className="size-3.5" />
+                  Delete forever
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isExporting}
+                onClick={() => runExport(checkedQuestions.map((q) => q.id))}
+              >
                 <DownloadIcon className="size-3.5" />
                 Export selected
               </Button>
@@ -583,18 +913,27 @@ export function QuestionBankWorkspace({
                   {' '}
                   · {statusCounts.published} published · {statusCounts.draft} draft ·{' '}
                   {statusCounts.archived} archived
+                  {statusCounts.deleted > 0 ? ` · ${statusCounts.deleted} in trash` : ''}
                 </span>
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-muted-foreground"
-              onClick={() => exportQuestionsCsv(questions)}
-            >
-              <DownloadIcon className="size-3.5" />
-              Export page
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <GenerateMissingAssetsButton
+                variant="ghost"
+                className="text-muted-foreground"
+                onGenerated={() => previewId && loadDetail(previewId, { force: true })}
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-muted-foreground"
+                disabled={isExporting}
+                onClick={() => runExport()}
+              >
+                <DownloadIcon className="size-3.5" />
+                Export CSV
+              </Button>
+            </div>
           </div>
 
           {questions.length === 0 ? (
@@ -632,6 +971,9 @@ export function QuestionBankWorkspace({
                     runRedirectAction(() => createSimilarQuestionAction(question.id))
                   }
                   onArchive={() => setArchiveIds([question.id])}
+                  onDelete={() => requestDelete([question])}
+                  onRestore={() => restore([question])}
+                  onDeleteForever={() => requestHardDelete([question])}
                 />
               ))}
             </div>
@@ -683,6 +1025,49 @@ export function QuestionBankWorkspace({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmArchive}>Archive</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* -- Move to trash confirmation --------------------------------------- */}
+      <AlertDialog open={deleteIds !== null} onOpenChange={(open) => !open && setDeleteIds(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Move {deleteIds && deleteIds.length > 1 ? `${deleteIds.length} questions` : 'this question'} to
+              trash?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will move the question to trash. It will no longer appear in student practice or normal
+              admin lists. You can restore it later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Move to trash</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* -- Permanent delete confirmation ------------------------------------ */}
+      <AlertDialog open={hardDeleteIds !== null} onOpenChange={(open) => !open && setHardDeleteIds(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Permanently delete{' '}
+              {hardDeleteIds && hardDeleteIds.length > 1 ? `${hardDeleteIds.length} questions` : 'this question'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This cannot be undone. The question and its options are removed from the bank for good.
+              Questions that have any student attempts or mock-exam history are kept safe and cannot be
+              deleted this way.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmHardDelete}>
+              Delete forever
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

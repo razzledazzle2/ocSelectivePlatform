@@ -1,0 +1,19 @@
+{
+  "asset_ref": "asset://question-assets/generated/mr2-cube-steps.svg",
+  "external_id": "mr2-015",
+  "asset_type": "svg",
+  "alt_text": "A staircase-shaped solid made of identical small cubes, 4 cubes wide. It has three layers: the bottom layer is 4 cubes wide by 3 cubes deep (12 cubes), the middle layer is 4 by 2 (8 cubes) aligned with the back, and the top layer is 4 by 1 (4 cubes) at the back, forming three steps. Diagram not to scale.",
+  "spec": {
+    "type": "isometric_cube_stack",
+    "width": 480,
+    "height": 380,
+    "width_cubes": 4,
+    "layers": [
+      { "deep": 3, "tall": 1 },
+      { "deep": 2, "tall": 1 },
+      { "deep": 1, "tall": 1 }
+    ],
+    "align": "back",
+    "caption": "[diagram not to scale]"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-cubes-d.svg",
+  "external_id": "ts3-017-D",
+  "asset_type": "svg",
+  "alt_text": "A two-by-two square base of cubes.",
+  "spec": {
+    "type": "isometric_3d_views",
+    "solid": {
+      "cells": [
+        {
+          "col": 0,
+          "row": 0,
+          "level": 0
+        },
+        {
+          "col": 1,
+          "row": 0,
+          "level": 0
+        },
+        {
+          "col": 0,
+          "row": 1,
+          "level": 0
+        },
+        {
+          "col": 1,
+          "row": 1,
+          "level": 0
+        }
+      ]
+    }
+  }
+}

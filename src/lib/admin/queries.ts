@@ -141,16 +141,23 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
       .from('profiles')
       .select('id', { count: 'exact', head: true })
       .in('role', ['tutor', 'admin', 'super_admin']),
-    supabase.from('questions').select('id', { count: 'exact', head: true }),
+    // Trashed (soft-deleted) questions are excluded from every bank count.
+    supabase.from('questions').select('id', { count: 'exact', head: true }).is('deleted_at', null),
     supabase
       .from('questions')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'published'),
-    supabase.from('questions').select('id', { count: 'exact', head: true }).eq('status', 'draft'),
+      .eq('status', 'published')
+      .is('deleted_at', null),
     supabase
       .from('questions')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'archived'),
+      .eq('status', 'draft')
+      .is('deleted_at', null),
+    supabase
+      .from('questions')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'archived')
+      .is('deleted_at', null),
     supabase
       .from('question_attempts')
       .select('id', { count: 'exact', head: true })

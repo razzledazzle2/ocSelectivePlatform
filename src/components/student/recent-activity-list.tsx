@@ -16,6 +16,8 @@ import type { RecentPracticeSession } from '@/lib/types'
 
 interface RecentActivityListProps {
   sessions: RecentPracticeSession[]
+  /** When set, shows a "View all activity" link (e.g. to the Progress page). */
+  viewAllHref?: string
 }
 
 const dateFormatter = new Intl.DateTimeFormat('en-AU', {
@@ -25,12 +27,22 @@ const dateFormatter = new Intl.DateTimeFormat('en-AU', {
   minute: '2-digit',
 })
 
-export function RecentActivityList({ sessions }: RecentActivityListProps) {
+export function RecentActivityList({ sessions, viewAllHref }: RecentActivityListProps) {
   return (
     <Card className="rounded-2xl shadow-sm ring-border">
-      <CardHeader>
-        <CardTitle>Recent activity</CardTitle>
-        <CardDescription>Your latest practice sessions.</CardDescription>
+      <CardHeader className="flex items-start justify-between gap-3">
+        <div>
+          <CardTitle>Recent activity</CardTitle>
+          <CardDescription>Your latest practice sessions.</CardDescription>
+        </div>
+        {viewAllHref && sessions.length > 0 ? (
+          <Link
+            href={viewAllHref}
+            className="shrink-0 whitespace-nowrap text-xs font-medium text-brand hover:underline"
+          >
+            View all activity
+          </Link>
+        ) : null}
       </CardHeader>
       <CardContent className={sessions.length === 0 ? 'space-y-3' : 'p-0'}>
         {sessions.length === 0 ? (

@@ -17,6 +17,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { QuestionAsset } from '@/components/questions/question-asset'
+import { QuestionMarkdown } from '@/components/questions/question-markdown'
+import { QuestionOptionContent } from '@/components/questions/question-option-content'
+import { StimulusPanel } from '@/components/questions/stimulus-panel'
 import { OptionDistribution } from '@/components/student/option-distribution'
 import { StudentQuestionReportButton } from '@/components/student/student-question-report-button'
 import type { RevisionQueueItem } from '@/lib/revision/queries'
@@ -150,10 +154,26 @@ export function RevisionSessionRunner({ items, totalDue }: RevisionSessionRunner
       </CardHeader>
       <CardContent className="space-y-6 pt-6">
         <div className="space-y-4">
-          <p className="text-lg leading-8 text-foreground">{current.question.questionText}</p>
-          {current.question.passageText ? (
-            <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4 text-sm leading-7 text-foreground/80">
-              {current.question.passageText}
+          {current.question.stimulus ? (
+            <StimulusPanel
+              stimulus={current.question.stimulus}
+              subjectName={current.question.subjectName}
+            />
+          ) : current.question.passageText ? (
+            <QuestionMarkdown
+              text={current.question.passageText}
+              className="rounded-xl border border-border bg-card px-4 py-4 text-base leading-7 text-foreground"
+            />
+          ) : null}
+          <QuestionMarkdown
+            text={current.question.questionText}
+            className="text-lg leading-8 text-foreground"
+          />
+          {current.question.questionAssets.length ? (
+            <div className="space-y-3">
+              {current.question.questionAssets.map((asset) => (
+                <QuestionAsset key={asset.id} asset={asset} />
+              ))}
             </div>
           ) : null}
         </div>
@@ -184,7 +204,7 @@ export function RevisionSessionRunner({ items, totalDue }: RevisionSessionRunner
                 <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                   {option.label}
                 </span>
-                <span className="whitespace-normal leading-7">{option.option_text}</span>
+                <QuestionOptionContent option={option} />
               </button>
             )
           })}
@@ -204,12 +224,15 @@ export function RevisionSessionRunner({ items, totalDue }: RevisionSessionRunner
               </AlertTitle>
               <AlertDescription>
                 <div className="mt-1 space-y-3 text-sm leading-7 text-foreground">
-                  {feedback.shortExplanation ? (
-                    <p className="text-foreground/80">{feedback.shortExplanation}</p>
-                  ) : null}
                   <div>
-                    <p className="font-semibold text-foreground">Worked solution</p>
-                    <p className="text-foreground/80">{feedback.workedSolution}</p>
+                    <p className="font-semibold text-foreground">Solution</p>
+                    {feedback.workedSolution ? (
+                      <QuestionMarkdown text={feedback.workedSolution} className="text-foreground/80" />
+                    ) : (
+                      <p className="text-foreground/80">
+                        No solution was added for this question yet.
+                      </p>
+                    )}
                   </div>
                 </div>
               </AlertDescription>
@@ -225,7 +248,7 @@ export function RevisionSessionRunner({ items, totalDue }: RevisionSessionRunner
 
         <div className="flex flex-wrap gap-3">
           {!feedback ? (
-            <Button disabled={isPending || !selected} onClick={submitAnswer}>
+            <Button disabled={isPending || !selected} loading={isPending} onClick={submitAnswer}>
               {isPending ? 'Saving…' : 'Submit answer'}
             </Button>
           ) : (

@@ -10,9 +10,11 @@ import {
   RocketIcon,
   RotateCcwIcon,
   SparklesIcon,
+  Trash2Icon,
+  Undo2Icon,
 } from 'lucide-react'
 
-import { QuestionStatusBadge } from '@/components/admin/question-status-badge'
+import { QuestionDeletedBadge, QuestionStatusBadge } from '@/components/admin/question-status-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -88,6 +90,9 @@ interface QuestionListRowProps {
   onDuplicate: () => void
   onCreateSimilar: () => void
   onArchive: () => void
+  onDelete: () => void
+  onRestore: () => void
+  onDeleteForever: () => void
 }
 
 /** One scannable row in the question bank list; clicking it drives the preview pane. */
@@ -102,7 +107,12 @@ export function QuestionListRow({
   onDuplicate,
   onCreateSimilar,
   onArchive,
+  onDelete,
+  onRestore,
+  onDeleteForever,
 }: QuestionListRowProps) {
+  const isDeleted = Boolean(question.deletedAt)
+  const canHardDelete = question.status === 'archived'
   return (
     <div
       role="button"
@@ -119,7 +129,8 @@ export function QuestionListRow({
         'group flex w-full cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors',
         isActive
           ? 'border-brand/50 bg-brand-soft/50 shadow-sm ring-1 ring-brand/30'
-          : 'border-transparent hover:bg-muted/50'
+          : 'border-transparent hover:bg-muted/50',
+        isDeleted && !isActive && 'opacity-60'
       )}
     >
       <input
@@ -134,6 +145,7 @@ export function QuestionListRow({
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
           <QuestionStatusBadge status={question.status} />
+          {isDeleted ? <QuestionDeletedBadge /> : null}
           <span className="text-xs text-muted-foreground">
             Updated {rowDateFormatter.format(new Date(question.updatedAt))}
           </span>
@@ -159,6 +171,11 @@ export function QuestionListRow({
           <Badge variant="secondary" className="h-4 px-1.5 text-[0.65rem]">
             D{question.difficulty}
           </Badge>
+          {question.assetState === 'pending' ? (
+            <Badge variant="outline" className="h-4 border-amber-300 px-1.5 text-[0.65rem] text-amber-700">
+              Pending asset
+            </Badge>
+          ) : null}
           <span>{question.optionsCount} opts</span>
           <span aria-hidden>·</span>
           <span>
@@ -198,34 +215,63 @@ export function QuestionListRow({
               Preview as student
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {question.status === 'published' ? (
-              <DropdownMenuItem onClick={onPublishToggle}>
-                <RotateCcwIcon className="size-4" />
-                Unpublish
-              </DropdownMenuItem>
+            {isDeleted ? (
+              <>
+                <DropdownMenuItem onClick={onRestore}>
+                  <Undo2Icon className="size-4" />
+                  Restore
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={onDeleteForever}>
+                  <Trash2Icon className="size-4" />
+                  Delete forever
+                </DropdownMenuItem>
+              </>
             ) : (
-              <DropdownMenuItem onClick={onPublishToggle} disabled={question.status === 'archived'}>
-                <RocketIcon className="size-4" />
-                Publish
-              </DropdownMenuItem>
+              <>
+                {question.status === 'published' ? (
+                  <DropdownMenuItem onClick={onPublishToggle}>
+                    <RotateCcwIcon className="size-4" />
+                    Unpublish
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={onPublishToggle} disabled={question.status === 'archived'}>
+                    <RocketIcon className="size-4" />
+                    Publish
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={onDuplicate}>
+                  <CopyIcon className="size-4" />
+                  Duplicate
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onCreateSimilar}>
+                  <SparklesIcon className="size-4" />
+                  Create similar
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={onArchive}
+                  disabled={question.status === 'archived'}
+                >
+                  <ArchiveIcon className="size-4" />
+                  Archive
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={onDelete}
+                  disabled={question.status !== 'archived'}
+                >
+                  <Trash2Icon className="size-4" />
+                  Move to trash
+                </DropdownMenuItem>
+                {canHardDelete ? (
+                  <DropdownMenuItem variant="destructive" onClick={onDeleteForever}>
+                    <Trash2Icon className="size-4" />
+                    Delete forever
+                  </DropdownMenuItem>
+                ) : null}
+              </>
             )}
-            <DropdownMenuItem onClick={onDuplicate}>
-              <CopyIcon className="size-4" />
-              Duplicate
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onCreateSimilar}>
-              <SparklesIcon className="size-4" />
-              Create similar
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={onArchive}
-              disabled={question.status === 'archived'}
-            >
-              <ArchiveIcon className="size-4" />
-              Archive
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

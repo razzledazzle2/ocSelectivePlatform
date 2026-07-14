@@ -6,12 +6,14 @@ import {
   getSubjects,
   getTopicsBySubject,
 } from '@/lib/questions/queries'
+import { getStimuliForPicker } from '@/lib/stimuli/queries'
 
 export default async function NewAdminQuestionPage() {
-  const [subjects, topics, questionTypes] = await Promise.all([
+  const [subjects, topics, questionTypes, stimuli] = await Promise.all([
     getSubjects(),
     getTopicsBySubject(),
     getQuestionTypes(),
+    getStimuliForPicker(),
   ])
   const initialValues = createEmptyQuestionFormValues(subjects, topics, questionTypes)
 
@@ -28,6 +30,7 @@ export default async function NewAdminQuestionPage() {
         subjects={subjects}
         topics={topics}
         questionTypes={questionTypes}
+        stimuli={stimuli}
         initialValues={initialValues}
       />
     </div>

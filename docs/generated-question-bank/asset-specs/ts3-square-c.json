@@ -1,0 +1,49 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-square-c.svg",
+  "external_id": "ts3-018-C",
+  "asset_type": "svg",
+  "alt_text": "An L-shaped piece and a square that would overlap.",
+  "spec": {
+    "type": "spatial_assembly",
+    "width": 210,
+    "height": 110,
+    "pieces": [
+      {
+        "points": [
+          [
+            10,
+            10
+          ],
+          [
+            10,
+            70
+          ],
+          [
+            70,
+            70
+          ],
+          [
+            70,
+            46
+          ],
+          [
+            36,
+            46
+          ],
+          [
+            36,
+            10
+          ]
+        ]
+      },
+      {
+        "rect": [
+          120,
+          26,
+          42,
+          42
+        ]
+      }
+    ]
+  }
+}

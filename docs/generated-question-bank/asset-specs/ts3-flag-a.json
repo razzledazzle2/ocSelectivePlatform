@@ -1,0 +1,15 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-flag-a.svg",
+  "external_id": "ts3-014-A",
+  "asset_type": "svg",
+  "alt_text": "Flag rotated 90 degrees clockwise: pole horizontal pointing right (correct).",
+  "spec": {
+    "type": "rotation",
+    "figure": "flag",
+    "width": 170,
+    "height": 170,
+    "transform": {
+      "rotate": 90
+    }
+  }
+}

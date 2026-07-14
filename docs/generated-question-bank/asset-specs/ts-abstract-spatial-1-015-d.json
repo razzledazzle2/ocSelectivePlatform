@@ -1,0 +1,15 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-015-d.svg",
+  "external_id": "ts-abstract-spatial-1-015-d",
+  "asset_type": "svg",
+  "alt_text": "The letter P flipped left-to-right (bowl on the left).",
+  "spec": {
+    "type": "reflection",
+    "figure": "block_letter_P",
+    "width": 150,
+    "height": 160,
+    "transform": {
+      "reflect": "vertical"
+    }
+  }
+}

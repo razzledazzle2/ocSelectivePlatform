@@ -1,0 +1,15 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-fold-a.svg",
+  "external_id": "ts3-016-A",
+  "asset_type": "svg",
+  "alt_text": "Unfolded square with a single hole near the top-left.",
+  "spec": {
+    "type": "paper_folding",
+    "holes": [
+      {
+        "x": 0.24,
+        "y": 0.2
+      }
+    ]
+  }
+}

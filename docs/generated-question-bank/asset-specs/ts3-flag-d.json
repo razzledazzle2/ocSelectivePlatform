@@ -1,0 +1,15 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-flag-d.svg",
+  "external_id": "ts3-014-D",
+  "asset_type": "svg",
+  "alt_text": "Flag rotated 180 degrees: points downward.",
+  "spec": {
+    "type": "rotation",
+    "figure": "flag",
+    "width": 170,
+    "height": 170,
+    "transform": {
+      "rotate": 180
+    }
+  }
+}

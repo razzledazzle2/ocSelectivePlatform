@@ -1,0 +1,27 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-012-d.svg",
+  "external_id": "ts-abstract-spatial-1-012-d",
+  "asset_type": "svg",
+  "alt_text": "A square with a dot in the top-left corner.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 84,
+    "cells": [
+      {
+        "glyphs": [
+          {
+            "shape": "square",
+            "scale": 0.95,
+            "fill": "none"
+          },
+          {
+            "shape": "dot",
+            "scale": 0.5,
+            "dx": -0.22,
+            "dy": -0.22
+          }
+        ]
+      }
+    ]
+  }
+}

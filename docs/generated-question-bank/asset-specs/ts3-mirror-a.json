@@ -1,0 +1,13 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-mirror-a.svg",
+  "external_id": "ts3-015-A",
+  "asset_type": "svg",
+  "alt_text": "The letter F unchanged.",
+  "spec": {
+    "type": "reflection",
+    "figure": "block_letter_F",
+    "width": 160,
+    "height": 170,
+    "transform": null
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-018-a.svg",
+  "external_id": "ts-abstract-spatial-1-018-a",
+  "asset_type": "svg",
+  "alt_text": "A straight strip of three squares.",
+  "spec": {
+    "type": "spatial_assembly",
+    "width": 220,
+    "height": 120,
+    "pieces": [
+      {
+        "rect": [
+          65,
+          45,
+          90,
+          30
+        ]
+      }
+    ]
+  }
+}

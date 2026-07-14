@@ -1,16 +1,44 @@
 import {
   buildActivityCalendar,
+  buildRecentDayStrip,
   computeCurrentStreak,
   computeLongestStreak,
   countActiveDaysThisMonth,
-  countQuestionsThisWeek,
+  countQuestionsThisWeekFromDays,
   summariseActivity,
-  type AttemptActivityInput,
+  summariseActivityFromDays,
+  type ActivitySummary,
+  type DailyActivityRow,
 } from '@/lib/dashboard/activity'
-import { buildRecommendations, computeWeakStrong, formatAreaLabel } from '@/lib/dashboard/analysis'
-import { getRecentPracticeSessions, getStudentMistakeQuestions } from '@/lib/practice/queries'
+import {
+  buildRecommendations,
+  computeWeakStrongFromAreas,
+  formatAreaLabel,
+  groupAttemptsToAreas,
+  summariseRevisionDue,
+  type AreaStat,
+  type RevisionDueArea,
+} from '@/lib/dashboard/analysis'
+import { getRecentPracticeSessions } from '@/lib/practice/queries'
 import { createClient } from '@/lib/supabase/server'
-import type { RevisionDueSummary, StudentDashboardData } from '@/lib/types'
+import type {
+  RevisionDueSummary,
+  StudentDashboardData,
+  UnfinishedActivity,
+  WeakStrongInsights,
+} from '@/lib/types'
+
+/**
+ * Dashboard reads. Counting, grouping and aggregation happen in Postgres
+ * (the `get_student_*` functions in migration `student_dashboard_aggregates`)
+ * so a summary figure never streams a student's whole raw attempt history.
+ *
+ * Each aggregate prefers its Postgres function and falls back to bounded
+ * app-side aggregation while that migration is still pending — mirroring
+ * `getAdminQuestionStats`. The fallback fetches only the columns it needs (no
+ * relation joins on the activity path) and never applies an arbitrary row cap,
+ * so results stay correct, just heavier, until the functions are live.
+ */
 
 function relationName(value: { name: string }[] | { name: string } | null): string | null {
   if (Array.isArray(value)) {
@@ -19,90 +47,299 @@ function relationName(value: { name: string }[] | { name: string } | null): stri
   return value?.name ?? null
 }
 
-interface AttemptRow {
-  is_correct: boolean
-  attempted_at: string
-  session_id: string | null
-  subject: { name: string }[] | { name: string } | null
-  topic: { name: string }[] | { name: string } | null
-  question_type: { name: string }[] | { name: string } | null
+/* -------------------------------------------------------------------------- */
+/* Activity / accuracy aggregate                                               */
+/* -------------------------------------------------------------------------- */
+
+interface ActivityAggregate {
+  summary: ActivitySummary
+  dayTotals: DailyActivityRow[]
+  totalAttempts: number
+  correctAttempts: number
 }
 
-export async function getStudentDashboardData(studentId: string): Promise<StudentDashboardData> {
+interface DailyActivityRpcRow {
+  activity_day: string
+  practice_count: number | string
+  revision_count: number | string
+  total_count: number | string
+  correct_count: number | string
+}
+
+/** Per-day activity + lifetime totals, grouped in Postgres. */
+export async function getActivityAggregate(studentId: string): Promise<ActivityAggregate> {
   const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_student_daily_activity', {
+    p_student_id: studentId,
+  })
 
-  const [{ data: attemptsData, error: attemptsError }, recentSessions, mistakes] = await Promise.all([
-    supabase
-      .from('question_attempts')
-      .select(`
-        is_correct,
-        attempted_at,
-        session_id,
-        subject:subjects(name),
-        topic:topics(name),
-        question_type:question_types(name)
-      `)
-      .eq('student_id', studentId)
-      .order('attempted_at', { ascending: false }),
-    getRecentPracticeSessions(studentId),
-    getStudentMistakeQuestions(studentId),
-  ])
+  if (error) {
+    return getActivityAggregateFallback(studentId)
+  }
 
-  if (attemptsError) {
+  const rows = (data ?? []) as DailyActivityRpcRow[]
+  const dayTotals: DailyActivityRow[] = rows.map((row) => ({
+    dayKey: row.activity_day,
+    practice: Number(row.practice_count),
+    revision: Number(row.revision_count),
+    total: Number(row.total_count),
+    correct: Number(row.correct_count),
+  }))
+
+  return {
+    summary: summariseActivityFromDays(dayTotals),
+    dayTotals,
+    totalAttempts: dayTotals.reduce((sum, row) => sum + row.total, 0),
+    correctAttempts: rows.reduce((sum, row) => sum + Number(row.correct_count), 0),
+  }
+}
+
+/** App-side fallback: newest-first is irrelevant here, so fetch unordered, no joins. */
+async function getActivityAggregateFallback(studentId: string): Promise<ActivityAggregate> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('question_attempts')
+    .select('attempted_at, session_id, is_correct')
+    .eq('student_id', studentId)
+
+  if (error) {
     throw new Error('Unable to load dashboard data.')
   }
 
-  const attempts = (attemptsData ?? []) as unknown as AttemptRow[]
-  const now = new Date()
-
-  // -- Activity, streaks, calendar ----------------------------------------
-  const activityInput: AttemptActivityInput[] = attempts.map((attempt) => ({
-    attemptedAt: attempt.attempted_at,
-    isRevision: attempt.session_id === null,
-  }))
-  const summary = summariseActivity(activityInput)
-  const currentStreak = computeCurrentStreak(summary.activeDays, now)
-  const longestStreak = computeLongestStreak(summary.activeDays)
-  const activeDaysThisMonth = countActiveDaysThisMonth(summary.activeDays, now)
-  const questionsThisWeek = countQuestionsThisWeek(activityInput, now)
-  const calendar = buildActivityCalendar(summary, now)
-
-  // -- Accuracy -----------------------------------------------------------
-  const totalAttempts = attempts.length
-  const correctAttempts = attempts.filter((attempt) => attempt.is_correct).length
-  const overallAccuracy =
-    totalAttempts > 0 ? Number(((correctAttempts / totalAttempts) * 100).toFixed(1)) : null
-
-  // -- Weak / strong areas ------------------------------------------------
-  const insights = computeWeakStrong(
-    attempts.map((attempt) => ({
-      subjectName: relationName(attempt.subject),
-      topicName: relationName(attempt.topic),
-      questionTypeName: relationName(attempt.question_type),
-      isCorrect: attempt.is_correct,
+  const rows = (data ?? []) as Array<{
+    attempted_at: string
+    session_id: string | null
+    is_correct: boolean
+  }>
+  const summary = summariseActivity(
+    rows.map((row) => ({
+      attemptedAt: row.attempted_at,
+      isRevision: row.session_id === null,
+      isCorrect: row.is_correct,
     }))
   )
+  const dayTotals: DailyActivityRow[] = [...summary.dayActivity.entries()].map(([dayKey, day]) => ({
+    dayKey,
+    practice: day.practice,
+    revision: day.revision,
+    total: day.total,
+    correct: day.correct,
+  }))
 
-  // -- Revision due today -------------------------------------------------
-  const nowMs = now.getTime()
-  const dueMistakes = mistakes.filter(
-    (mistake) =>
-      mistake.status !== 'mastered' &&
-      mistake.nextReviewAt !== null &&
-      new Date(mistake.nextReviewAt).getTime() <= nowMs
+  return {
+    summary,
+    dayTotals,
+    totalAttempts: rows.length,
+    correctAttempts: rows.filter((row) => row.is_correct).length,
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Weak / strong area stats                                                    */
+/* -------------------------------------------------------------------------- */
+
+interface AreaStatRpcRow {
+  subject_name: string
+  topic_name: string | null
+  question_type_name: string | null
+  attempts: number | string
+  correct: number | string
+}
+
+/** Per subject/topic/type attempt counts, grouped in Postgres. */
+export async function getAreaStats(studentId: string): Promise<AreaStat[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_student_area_stats', {
+    p_student_id: studentId,
+  })
+
+  if (error) {
+    return getAreaStatsFallback(studentId)
+  }
+
+  return ((data ?? []) as AreaStatRpcRow[]).map((row) => ({
+    subjectName: row.subject_name,
+    topicName: row.topic_name,
+    questionTypeName: row.question_type_name,
+    attempts: Number(row.attempts),
+    correct: Number(row.correct),
+  }))
+}
+
+async function getAreaStatsFallback(studentId: string): Promise<AreaStat[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('question_attempts')
+    .select(`
+      is_correct,
+      subject:subjects(name),
+      topic:topics(name),
+      question_type:question_types(name)
+    `)
+    .eq('student_id', studentId)
+
+  if (error) {
+    throw new Error('Unable to load dashboard data.')
+  }
+
+  const rows = (data ?? []) as unknown as Array<{
+    is_correct: boolean
+    subject: { name: string }[] | { name: string } | null
+    topic: { name: string }[] | { name: string } | null
+    question_type: { name: string }[] | { name: string } | null
+  }>
+
+  return groupAttemptsToAreas(
+    rows.map((row) => ({
+      subjectName: relationName(row.subject),
+      topicName: relationName(row.topic),
+      questionTypeName: relationName(row.question_type),
+      isCorrect: row.is_correct,
+    }))
   )
-  const dueAreaCounts = new Map<string, number>()
-  for (const mistake of dueMistakes) {
-    const label = [mistake.subjectName, mistake.topicName].filter(Boolean).join(' — ') || 'General revision'
-    dueAreaCounts.set(label, (dueAreaCounts.get(label) ?? 0) + 1)
+}
+
+/* -------------------------------------------------------------------------- */
+/* Revision due summary (lightweight — no question text/options)               */
+/* -------------------------------------------------------------------------- */
+
+interface RevisionDueRpcRow {
+  subject_name: string | null
+  topic_name: string | null
+  due_count: number | string
+}
+
+/**
+ * Builds the dashboard revision-due summary from due counts grouped by area.
+ * Replaces the old use of the rich `getStudentMistakeQuestions` (which joined
+ * question text/type and capped at 200 rows — silently undercounting the due
+ * total for heavy users).
+ */
+async function getRevisionDueSummary(studentId: string): Promise<RevisionDueSummary> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_student_revision_due_areas', {
+    p_student_id: studentId,
+  })
+
+  const areas: RevisionDueArea[] = error
+    ? await getRevisionDueAreasFallback(studentId)
+    : ((data ?? []) as RevisionDueRpcRow[]).map((row) => ({
+        subjectName: row.subject_name,
+        topicName: row.topic_name,
+        count: Number(row.due_count),
+      }))
+
+  return summariseRevisionDue(areas)
+}
+
+async function getRevisionDueAreasFallback(studentId: string): Promise<RevisionDueArea[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('student_mistake_questions')
+    .select(`
+      status,
+      next_review_at,
+      subject:subjects(name),
+      topic:topics(name)
+    `)
+    .eq('student_id', studentId)
+    .neq('status', 'mastered')
+    .not('next_review_at', 'is', null)
+    .lte('next_review_at', new Date().toISOString())
+
+  if (error) {
+    throw new Error('Unable to load dashboard data.')
   }
-  const revisionDue: RevisionDueSummary = {
-    dueCount: dueMistakes.length,
-    topAreas: [...dueAreaCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([name, count]) => ({ name, count })),
+
+  const rows = (data ?? []) as unknown as Array<{
+    subject: { name: string }[] | { name: string } | null
+    topic: { name: string }[] | { name: string } | null
+  }>
+
+  // Group by (subject, topic) so the fallback returns the same shape as the RPC.
+  const byArea = new Map<string, RevisionDueArea>()
+  for (const row of rows) {
+    const subjectName = relationName(row.subject)
+    const topicName = relationName(row.topic)
+    const key = `${subjectName ?? ''}|${topicName ?? ''}`
+    const existing = byArea.get(key) ?? { subjectName, topicName, count: 0 }
+    existing.count += 1
+    byArea.set(key, existing)
   }
+  return [...byArea.values()]
+}
+
+/* -------------------------------------------------------------------------- */
+/* Unfinished activity ("Resume" dashboard action)                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The most recent in-progress mock exam, for the dashboard's "Resume"
+ * recommendation. Practice sessions have no resume mechanic today (the runner
+ * always starts a fresh subtopic set, see `practice/session/page.tsx`), so an
+ * incomplete `practice_sessions` row is not a real, clickable "resume" —
+ * surfacing only mock exams here keeps the action honest.
+ */
+export async function getUnfinishedActivity(studentId: string): Promise<UnfinishedActivity | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('mock_exam_sessions')
+    .select('id, started_at, mock_test:mock_tests(title)')
+    .eq('student_id', studentId)
+    .eq('status', 'in_progress')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error || !data) {
+    return null
+  }
+
+  const row = data as unknown as {
+    id: string
+    started_at: string
+    mock_test: { title: string }[] | { title: string } | null
+  }
+  const mockTest = Array.isArray(row.mock_test) ? row.mock_test[0] : row.mock_test
+
+  return {
+    kind: 'mock_exam',
+    id: row.id,
+    label: mockTest?.title ?? 'Mock exam',
+    href: `/student/mock-exams/${row.id}`,
+    startedAt: row.started_at,
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Composed reads                                                              */
+/* -------------------------------------------------------------------------- */
+
+export async function getStudentDashboardData(studentId: string): Promise<StudentDashboardData> {
+  const now = new Date()
+
+  const [activity, areaStats, revisionDue, recentSessions, unfinishedActivity] = await Promise.all([
+    getActivityAggregate(studentId),
+    getAreaStats(studentId),
+    getRevisionDueSummary(studentId),
+    getRecentPracticeSessions(studentId, 5),
+    getUnfinishedActivity(studentId),
+  ])
+
+  // -- Activity, streaks, calendar ----------------------------------------
+  const currentStreak = computeCurrentStreak(activity.summary.activeDays, now)
+  const longestStreak = computeLongestStreak(activity.summary.activeDays)
+  const activeDaysThisMonth = countActiveDaysThisMonth(activity.summary.activeDays, now)
+  const questionsThisWeek = countQuestionsThisWeekFromDays(activity.dayTotals, now)
+  const calendar = buildActivityCalendar(activity.summary, now)
+
+  // -- Accuracy -----------------------------------------------------------
+  const totalAttempts = activity.totalAttempts
+  const overallAccuracy =
+    totalAttempts > 0 ? Number(((activity.correctAttempts / totalAttempts) * 100).toFixed(1)) : null
+
+  // -- Weak / strong areas ------------------------------------------------
+  const insights = computeWeakStrongFromAreas(areaStats, totalAttempts)
 
   // -- Recommendations ----------------------------------------------------
   const hasActivity = totalAttempts > 0
@@ -128,11 +365,52 @@ export async function getStudentDashboardData(studentId: string): Promise<Studen
       questionsThisWeek,
     },
     calendar,
+    recentDayStrip: buildRecentDayStrip(activity.summary, now),
     insights,
     revisionDue,
     recentSessions,
     recommendations,
+    unfinishedActivity,
   }
+}
+
+export interface PracticeHubStats {
+  hasActivity: boolean
+  revisionDue: RevisionDueSummary
+  insights: WeakStrongInsights
+}
+
+/**
+ * The strict subset of dashboard data the Practice Hub needs. Avoids computing
+ * the calendar, streaks and recent-session list the practice page never renders.
+ */
+export async function getPracticeHubData(studentId: string): Promise<PracticeHubStats> {
+  const [totalAttempts, areaStats, revisionDue] = await Promise.all([
+    countStudentAttempts(studentId),
+    getAreaStats(studentId),
+    getRevisionDueSummary(studentId),
+  ])
+
+  return {
+    hasActivity: totalAttempts > 0,
+    revisionDue,
+    insights: computeWeakStrongFromAreas(areaStats, totalAttempts),
+  }
+}
+
+/** Lifetime attempt count via a head-only COUNT (no rows returned). */
+async function countStudentAttempts(studentId: string): Promise<number> {
+  const supabase = await createClient()
+  const { count, error } = await supabase
+    .from('question_attempts')
+    .select('id', { count: 'exact', head: true })
+    .eq('student_id', studentId)
+
+  if (error) {
+    throw new Error('Unable to load practice data.')
+  }
+
+  return count ?? 0
 }
 
 // Re-exported for any callers that want the raw label formatting.

@@ -1,0 +1,26 @@
+{
+  "asset_ref": "asset://question-assets/generated/mr3-daytemp.svg",
+  "external_id": "mr3-daytemp",
+  "asset_type": "chart",
+  "alt_text": "Line graph of temperature during one day, read every two hours: 6 am 11°C, 8 am 13°C, 10 am 18°C, 12 noon 22°C, 2 pm 24°C, 4 pm 20°C, 6 pm 16°C. The vertical axis shows temperature from 0 to 30 degrees Celsius with gridlines every 5.",
+  "spec": {
+    "type": "line_chart",
+    "width": 560,
+    "height": 400,
+    "title": "Temperature during one school day",
+    "x_label": "Time",
+    "y_label": "Temperature (°C)",
+    "y_min": 0,
+    "y_max": 30,
+    "y_step": 5,
+    "points": [
+      { "label": "6 am", "value": 11 },
+      { "label": "8 am", "value": 13 },
+      { "label": "10 am", "value": 18 },
+      { "label": "12 noon", "value": 22 },
+      { "label": "2 pm", "value": 24 },
+      { "label": "4 pm", "value": 20 },
+      { "label": "6 pm", "value": 16 }
+    ]
+  }
+}

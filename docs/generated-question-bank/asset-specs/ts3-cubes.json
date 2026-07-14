@@ -1,0 +1,46 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-cubes.svg",
+  "external_id": "ts3-017",
+  "asset_type": "svg",
+  "alt_text": "Reference views: a top view shaped like an L of unit squares (a row of three with one square above the left end) and a front view of three equal squares in a row.",
+  "spec": {
+    "type": "isometric_3d_views",
+    "stimulus": true,
+    "top_view": {
+      "squares": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    "front_view": {
+      "squares": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ]
+      ]
+    }
+  }
+}

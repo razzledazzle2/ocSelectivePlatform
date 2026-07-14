@@ -38,6 +38,12 @@ export async function retryMistake(input: RetryMistakeInput): Promise<RevisionRe
     throw new Error('Unable to load the question for this retry.')
   }
 
+  // Revision retries are MCQ-only; without an answer key the retry cannot be
+  // graded, so fail gracefully instead of recording a bogus attempt.
+  if (!question.correct_option_label) {
+    throw new Error('This question is no longer available for retry.')
+  }
+
   const isCorrect = question.correct_option_label === input.selectedOptionLabel
   const now = new Date()
   const timestamp = now.toISOString()
@@ -77,7 +83,8 @@ export async function retryMistake(input: RetryMistakeInput): Promise<RevisionRe
     isCorrect,
     correctOptionLabel: question.correct_option_label as QuestionOptionLabel,
     shortExplanation: question.short_explanation as string | null,
-    workedSolution: question.worked_solution as string,
+    // worked_solution is nullable in v2 — fall back so feedback never breaks.
+    workedSolution: (question.worked_solution ?? question.short_explanation ?? '') as string,
     optionStats: await getQuestionOptionStats(input.questionId),
   }
 
@@ -119,9 +126,14 @@ export async function retryMistake(input: RetryMistakeInput): Promise<RevisionRe
 }
 
 /**
- * Manually mark a tracked mistake as understood (mastered), clearing its review schedule.
+ * Manually remove a tracked mistake from the review queue — an explicit,
+ * low-emphasis escape hatch for a student who is confident they no longer need
+ * to see it, distinct from the normal path to mastery (four correct retries in
+ * a row, see scheduleAfterCorrectRetry). The UI gates this behind a
+ * confirmation dialog that says so, since it stops scheduled review with no
+ * re-test.
  */
-export async function markMistakeUnderstood(studentId: string, questionId: string): Promise<void> {
+export async function removeMistakeFromReviewQueue(studentId: string, questionId: string): Promise<void> {
   const supabase = await createClient()
   const now = new Date().toISOString()
 

@@ -1,0 +1,15 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-014-a.svg",
+  "external_id": "ts-abstract-spatial-1-014-a",
+  "asset_type": "svg",
+  "alt_text": "The L-shape turned a quarter-turn anticlockwise.",
+  "spec": {
+    "type": "rotation",
+    "figure": "l_tetromino",
+    "width": 150,
+    "height": 150,
+    "transform": {
+      "rotate": 270
+    }
+  }
+}

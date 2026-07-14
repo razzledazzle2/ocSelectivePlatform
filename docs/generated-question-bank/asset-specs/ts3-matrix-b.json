@@ -1,0 +1,11 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-matrix-b.svg",
+  "external_id": "ts3-010-B",
+  "asset_type": "svg",
+  "alt_text": "A single large square, black outline, no fill.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 84,
+    "cells": [{ "glyph": { "shape": "square", "scale": 1.1 } }]
+  }
+}

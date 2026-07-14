@@ -1,4 +1,10 @@
-import type { AreaInsight, DashboardRecommendation, WeakStrongInsights } from '@/lib/types'
+import type {
+  AreaInsight,
+  DashboardRecommendation,
+  RevisionDueSummary,
+  UnfinishedActivity,
+  WeakStrongInsights,
+} from '@/lib/types'
 
 /**
  * Minimum data required before we surface weak/strong insights, so early users are not shown
@@ -14,7 +20,12 @@ export interface AttemptForAnalysis {
   isCorrect: boolean
 }
 
-interface AreaAccumulator {
+/**
+ * A per-area accumulator, as returned pre-grouped by the `get_student_area_stats`
+ * Postgres function. `attempts`/`correct` are counts; `subjectName` is always set
+ * (areas with no subject are dropped upstream, matching the app rule).
+ */
+export interface AreaStat {
   subjectName: string
   topicName: string | null
   questionTypeName: string | null
@@ -29,32 +40,17 @@ function areaKey(attempt: AttemptForAnalysis): string | null {
   return [attempt.subjectName, attempt.topicName ?? '', attempt.questionTypeName ?? ''].join('|')
 }
 
-export function computeWeakStrong(attempts: AttemptForAnalysis[]): WeakStrongInsights {
-  const totalAttempts = attempts.length
-  const areas = new Map<string, AreaAccumulator>()
-
-  for (const attempt of attempts) {
-    const key = areaKey(attempt)
-    if (!key || !attempt.subjectName) {
-      continue
-    }
-    const existing =
-      areas.get(key) ??
-      {
-        subjectName: attempt.subjectName,
-        topicName: attempt.topicName,
-        questionTypeName: attempt.questionTypeName,
-        attempts: 0,
-        correct: 0,
-      }
-    existing.attempts += 1
-    if (attempt.isCorrect) {
-      existing.correct += 1
-    }
-    areas.set(key, existing)
-  }
-
-  const qualifying: AreaInsight[] = [...areas.values()]
+/**
+ * The shared weak/strong ranking. `totalAttempts` is the LIFETIME attempt total
+ * (including attempts with no subject, which never form an area) and gates
+ * whether we have enough data at all. Areas below MIN_ATTEMPTS_PER_AREA are
+ * ignored so a single lucky/unlucky area cannot dominate.
+ */
+export function computeWeakStrongFromAreas(
+  areas: AreaStat[],
+  totalAttempts: number
+): WeakStrongInsights {
+  const qualifying: AreaInsight[] = areas
     .filter((area) => area.attempts >= MIN_ATTEMPTS_PER_AREA)
     .map((area) => ({
       subjectName: area.subjectName,
@@ -79,6 +75,108 @@ export function computeWeakStrong(attempts: AttemptForAnalysis[]): WeakStrongIns
     // Only surface a distinct "strongest" when it differs from the weakest area.
     strongest: strongest === weakest ? null : strongest,
   }
+}
+
+/**
+ * Groups raw attempts into per-area accumulators, keyed by subject/topic/type
+ * name. Attempts with no subject are dropped (they can never form an area). This
+ * is the app-side equivalent of the `get_student_area_stats` Postgres grouping.
+ */
+export function groupAttemptsToAreas(attempts: AttemptForAnalysis[]): AreaStat[] {
+  const areas = new Map<string, AreaStat>()
+
+  for (const attempt of attempts) {
+    const key = areaKey(attempt)
+    if (!key || !attempt.subjectName) {
+      continue
+    }
+    const existing =
+      areas.get(key) ??
+      {
+        subjectName: attempt.subjectName,
+        topicName: attempt.topicName,
+        questionTypeName: attempt.questionTypeName,
+        attempts: 0,
+        correct: 0,
+      }
+    existing.attempts += 1
+    if (attempt.isCorrect) {
+      existing.correct += 1
+    }
+    areas.set(key, existing)
+  }
+
+  return [...areas.values()]
+}
+
+/** Groups raw attempts into areas then ranks them (app-side fallback path). */
+export function computeWeakStrong(attempts: AttemptForAnalysis[]): WeakStrongInsights {
+  return computeWeakStrongFromAreas(groupAttemptsToAreas(attempts), attempts.length)
+}
+
+/** One subject/topic bucket of due revision items, as grouped by area upstream. */
+export interface RevisionDueArea {
+  subjectName: string | null
+  topicName: string | null
+  count: number
+}
+
+/**
+ * Rolls per-area due counts into the dashboard summary: the total due count and
+ * the three busiest labelled areas. Mirrors the previous in-query roll-up, but
+ * ties are broken alphabetically so the ordering is deterministic.
+ */
+export function summariseRevisionDue(areas: RevisionDueArea[]): RevisionDueSummary {
+  const labelCounts = new Map<string, number>()
+  let dueCount = 0
+  for (const area of areas) {
+    dueCount += area.count
+    const label =
+      [area.subjectName, area.topicName].filter(Boolean).join(' — ') || 'General revision'
+    labelCounts.set(label, (labelCounts.get(label) ?? 0) + area.count)
+  }
+
+  return {
+    dueCount,
+    topAreas: [...labelCounts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 3)
+      .map(([name, count]) => ({ name, count })),
+  }
+}
+
+/**
+ * Progress page's "Strongest areas" / "Needs attention" sections — the same
+ * qualifying gate as computeWeakStrongFromAreas, but returns up to 3 areas per
+ * side instead of a single weakest/strongest pair.
+ */
+export function rankAreaInsights(
+  areas: AreaStat[],
+  totalAttempts: number
+): { strongest: AreaInsight[]; needsAttention: AreaInsight[] } {
+  const qualifying: AreaInsight[] = areas
+    .filter((area) => area.attempts >= MIN_ATTEMPTS_PER_AREA)
+    .map((area) => ({
+      subjectName: area.subjectName,
+      topicName: area.topicName,
+      questionTypeName: area.questionTypeName,
+      attempts: area.attempts,
+      correct: area.correct,
+      accuracy: Math.round((area.correct / area.attempts) * 100),
+    }))
+
+  if (totalAttempts < MIN_TOTAL_ATTEMPTS || qualifying.length === 0) {
+    return { strongest: [], needsAttention: [] }
+  }
+
+  const sorted = [...qualifying].sort((a, b) => b.accuracy - a.accuracy)
+  const strongest = sorted.slice(0, 3)
+  const needsAttention = [...sorted]
+    .reverse()
+    .slice(0, 3)
+    .filter((area) => !strongest.includes(area))
+
+  return { strongest, needsAttention }
 }
 
 export function formatAreaLabel(area: AreaInsight): string {
@@ -159,4 +257,63 @@ export function buildRecommendations(input: RecommendationInput): DashboardRecom
   }
 
   return recommendations.slice(0, 3)
+}
+
+export interface TodaysPlanAction {
+  id: string
+  title: string
+  description: string
+  href: string
+  ctaLabel: string
+}
+
+interface TodaysPlanInput {
+  recommendations: DashboardRecommendation[]
+  revisionDueCount: number
+  unfinishedActivity: UnfinishedActivity | null
+}
+
+/**
+ * The Dashboard's "Today's plan" — up to 3 concrete next actions, distinct from
+ * the more general `recommendations` list. `buildRecommendations` already puts
+ * a revision-due item first when due > 0, so the practice slot here picks the
+ * first NON-revision recommendation to avoid showing the same action twice.
+ */
+export function buildTodaysPlan(input: TodaysPlanInput): TodaysPlanAction[] {
+  const actions: TodaysPlanAction[] = []
+
+  const practiceRec = input.recommendations.find((rec) => rec.id !== 'revise-due')
+  if (practiceRec) {
+    actions.push({
+      id: 'continue-practice',
+      title: practiceRec.title,
+      description: practiceRec.description,
+      href: practiceRec.href,
+      ctaLabel: practiceRec.ctaLabel,
+    })
+  }
+
+  if (input.revisionDueCount > 0) {
+    actions.push({
+      id: 'complete-revision',
+      title: 'Complete revision due',
+      description: `${input.revisionDueCount} question${
+        input.revisionDueCount === 1 ? '' : 's'
+      } are ready for spaced review — short, regular reviews beat cramming.`,
+      href: '/student/revision',
+      ctaLabel: 'Start revision',
+    })
+  }
+
+  if (input.unfinishedActivity) {
+    actions.push({
+      id: 'resume-activity',
+      title: 'Resume unfinished activity',
+      description: `Pick back up where you left off: ${input.unfinishedActivity.label}.`,
+      href: input.unfinishedActivity.href,
+      ctaLabel: 'Resume',
+    })
+  }
+
+  return actions.slice(0, 3)
 }

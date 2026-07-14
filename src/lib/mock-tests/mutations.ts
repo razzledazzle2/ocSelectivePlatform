@@ -1,6 +1,7 @@
 import { SECTIONED_MOCK_SECTIONS } from '@/lib/mock-exams/config'
+import { countUnreadyQuestionAssets } from '@/lib/questions/mutations'
 import { createClient } from '@/lib/supabase/server'
-import type { MockTestMetaInput, MockTestStatus } from '@/lib/mock-tests/types'
+import type { MockTestMetaInput, MockTestStatus, MockType } from '@/lib/mock-tests/types'
 
 /**
  * Creates a mock test with the full exam section template:
@@ -17,6 +18,9 @@ export async function createMockTest(input: MockTestMetaInput, userId: string): 
       description: input.description,
       exam_type: input.examType,
       year_level: input.yearLevel,
+      mock_type: input.mockType,
+      instructions: input.instructions,
+      difficulty_label: input.difficultyLabel,
       created_by: userId,
       updated_by: userId,
     })
@@ -60,6 +64,9 @@ export async function updateMockTestMeta(id: string, input: MockTestMetaInput, u
       description: input.description,
       exam_type: input.examType,
       year_level: input.yearLevel,
+      mock_type: input.mockType,
+      instructions: input.instructions,
+      difficulty_label: input.difficultyLabel,
       updated_by: userId,
     })
     .eq('id', id)
@@ -69,17 +76,143 @@ export async function updateMockTestMeta(id: string, input: MockTestMetaInput, u
   }
 }
 
-export async function setMockTestStatus(id: string, status: MockTestStatus, userId: string): Promise<void> {
+/** Sets the student-list ordering position (lower shows first). */
+export async function updateMockDisplayOrder(id: string, displayOrder: number, userId: string): Promise<void> {
   const supabase = await createClient()
   const { error } = await supabase
     .from('mock_tests')
-    .update({
-      status,
-      updated_by: userId,
-      published_at: status === 'published' ? new Date().toISOString() : null,
-      archived_at: status === 'archived' ? new Date().toISOString() : null,
-    })
+    .update({ display_order: displayOrder, updated_by: userId })
     .eq('id', id)
+
+  if (error) {
+    throw new Error('Unable to update the mock order.')
+  }
+}
+
+/**
+ * Blocks publishing a mock that students could not actually sit: no questions,
+ * or questions they cannot read (deleted, archived, or not yet published — the
+ * question RLS hides all of those from students). Throws with a single, clear
+ * message listing every blocker. Warnings (coverage imbalance etc.) never block.
+ */
+export async function assertMockReadyForPublish(mockTestId: string): Promise<void> {
+  const supabase = await createClient()
+
+  const { data: header, error: headerError } = await supabase
+    .from('mock_tests')
+    .select('title')
+    .eq('id', mockTestId)
+    .maybeSingle()
+
+  if (headerError) {
+    throw new Error('Unable to check the mock before publishing.')
+  }
+
+  const { data: rows, error } = await supabase
+    .from('mock_test_questions')
+    .select('question:questions(status, deleted_at)')
+    .eq('mock_test_id', mockTestId)
+
+  if (error) {
+    throw new Error('Unable to check the mock questions before publishing.')
+  }
+
+  const questions = (rows ?? []).map((row) => {
+    const relation = (row as { question: { status: string; deleted_at: string | null }[] | { status: string; deleted_at: string | null } | null }).question
+    return Array.isArray(relation) ? relation[0] ?? null : relation
+  })
+
+  const problems: string[] = []
+
+  if (!header?.title?.trim()) {
+    problems.push('it needs a title')
+  }
+  if (questions.length === 0) {
+    problems.push('it has no questions')
+  }
+
+  const deleted = questions.filter((question) => question?.deleted_at).length
+  if (deleted > 0) {
+    problems.push(`${deleted} question${deleted === 1 ? ' has' : 's have'} been deleted from the bank`)
+  }
+
+  const archived = questions.filter((question) => question?.status === 'archived').length
+  if (archived > 0) {
+    problems.push(`${archived} question${archived === 1 ? ' is' : 's are'} archived`)
+  }
+
+  const unpublished = questions.filter(
+    (question) => question && question.status !== 'published' && question.status !== 'archived' && !question.deleted_at
+  ).length
+  if (unpublished > 0) {
+    problems.push(`${unpublished} question${unpublished === 1 ? ' is' : 's are'} not published yet`)
+  }
+
+  if (problems.length > 0) {
+    throw new Error(`This mock cannot be published because ${problems.join('; ')}.`)
+  }
+}
+
+/**
+ * Publishes the mock-only questions (origin='mock_import') that were authored for
+ * this mock and whose required assets are ready. This lets a CSV-imported mock be
+ * published in one step: its bespoke questions come along, while any question with
+ * a pending/rejected asset is left as a draft so the publish gate still blocks it.
+ * Bank questions (origin='bank') are never touched — they publish on their own.
+ */
+async function publishMockOwnedQuestions(mockTestId: string, userId: string): Promise<void> {
+  const supabase = await createClient()
+  const { data: rows } = await supabase
+    .from('mock_test_questions')
+    .select('question:questions(id, status, origin, deleted_at)')
+    .eq('mock_test_id', mockTestId)
+
+  const owned = ((rows ?? []) as Array<{
+    question: { id: string; status: string; origin: string; deleted_at: string | null }[] | { id: string; status: string; origin: string; deleted_at: string | null } | null
+  }>)
+    .map((row) => (Array.isArray(row.question) ? row.question[0] ?? null : row.question))
+    .filter(
+      (question): question is { id: string; status: string; origin: string; deleted_at: string | null } =>
+        Boolean(question) && question!.origin === 'mock_import' && question!.status !== 'published' && !question!.deleted_at
+    )
+
+  const now = new Date().toISOString()
+  for (const question of owned) {
+    // Never publish over a missing diagram — leave it a draft; the gate reports it.
+    if ((await countUnreadyQuestionAssets(question.id)) > 0) {
+      continue
+    }
+    await supabase
+      .from('questions')
+      .update({ status: 'published', published_at: now, updated_by: userId })
+      .eq('id', question.id)
+  }
+}
+
+export async function setMockTestStatus(id: string, status: MockTestStatus, userId: string): Promise<void> {
+  if (status === 'published') {
+    // Bring the mock's own questions along before the readiness check.
+    await publishMockOwnedQuestions(id, userId)
+    await assertMockReadyForPublish(id)
+  }
+
+  const supabase = await createClient()
+  const updates: Record<string, unknown> = {
+    status,
+    updated_by: userId,
+  }
+  // Only stamp published_at the first time; keep it stable across unpublish/republish
+  // so historical "published since" reads true. archived_at set/cleared on archive.
+  if (status === 'published') {
+    updates.published_at = new Date().toISOString()
+  }
+  if (status === 'archived') {
+    updates.archived_at = new Date().toISOString()
+  } else {
+    updates.archived_at = null
+  }
+
+  const { error } = await supabase.from('mock_tests').update(updates).eq('id', id)
 
   if (error) {
     throw new Error('Unable to change the mock test status.')
@@ -223,7 +356,7 @@ export async function duplicateMockTest(id: string, userId: string): Promise<str
   const supabase = await createClient()
   const { data: source, error: sourceError } = await supabase
     .from('mock_tests')
-    .select('title, description, exam_type, year_level')
+    .select('title, description, exam_type, year_level, mock_type, instructions, difficulty_label')
     .eq('id', id)
     .maybeSingle()
 
@@ -238,6 +371,9 @@ export async function duplicateMockTest(id: string, userId: string): Promise<str
       description: source.description,
       exam_type: source.exam_type,
       year_level: source.year_level,
+      mock_type: source.mock_type,
+      instructions: source.instructions,
+      difficulty_label: source.difficulty_label,
       created_by: userId,
       updated_by: userId,
     })
@@ -320,4 +456,177 @@ export async function duplicateMockTest(id: string, userId: string): Promise<str
   }
 
   return copy.id
+}
+
+// -- Student: sitting a curated mock ------------------------------------------
+
+/** Whether an empty writing section is included when a student sits this mock. */
+function includesWritingSection(mockType: MockType): boolean {
+  return mockType === 'full_mock' || mockType === 'diagnostic'
+}
+
+/**
+ * Starts a student's attempt at a published curated mock. Mirrors the mock's
+ * sections and hand-picked questions (in admin order) into the existing mock
+ * exam session tables — so the whole sectioned runner, grading, review and
+ * revision routing are reused unchanged. The session is tagged with
+ * mock_test_id and run as a 'randomised_full' (sectioned) session.
+ *
+ * Sections with no questions are skipped, except the Writing section, which is
+ * included for full/diagnostic mocks as a free-response task. Returns null when
+ * the mock is not published or has nothing for the student to do.
+ */
+export async function createCuratedMockSession(input: {
+  studentId: string
+  mockTestId: string
+}): Promise<{ sessionId: string } | null> {
+  const supabase = await createClient()
+
+  const { data: mock, error: mockError } = await supabase
+    .from('mock_tests')
+    .select('id, exam_type, mock_type, status')
+    .eq('id', input.mockTestId)
+    .maybeSingle()
+
+  if (mockError) {
+    throw new Error('Unable to start this mock test.')
+  }
+  if (!mock || mock.status !== 'published') {
+    return null
+  }
+
+  const [{ data: sectionRows, error: sectionsError }, { data: questionRows, error: questionsError }] =
+    await Promise.all([
+      supabase
+        .from('mock_test_sections')
+        .select('id, section_order, section_key, name, subject_id, time_limit_seconds, break_after_seconds')
+        .eq('mock_test_id', input.mockTestId)
+        .order('section_order', { ascending: true }),
+      supabase
+        .from('mock_test_questions')
+        .select('section_id, question_id, question_order')
+        .eq('mock_test_id', input.mockTestId)
+        .order('question_order', { ascending: true }),
+    ])
+
+  if (sectionsError || questionsError) {
+    throw new Error('Unable to load this mock test.')
+  }
+
+  const questionsBySection = new Map<string, Array<{ question_id: string; question_order: number }>>()
+  for (const row of (questionRows ?? []) as Array<{ section_id: string; question_id: string; question_order: number }>) {
+    const list = questionsBySection.get(row.section_id) ?? []
+    list.push({ question_id: row.question_id, question_order: row.question_order })
+    questionsBySection.set(row.section_id, list)
+  }
+
+  const withWriting = includesWritingSection(mock.mock_type as MockType)
+
+  // Keep only sections a student should actually sit, densely renumbered.
+  const includedSections = (
+    (sectionRows ?? []) as Array<{
+      id: string
+      section_order: number
+      section_key: string
+      name: string
+      subject_id: string | null
+      time_limit_seconds: number
+      break_after_seconds: number
+    }>
+  ).filter((section) => {
+    const count = questionsBySection.get(section.id)?.length ?? 0
+    if (count > 0) {
+      return true
+    }
+    return section.section_key === 'writing' && withWriting
+  })
+
+  const totalQuestions = includedSections.reduce(
+    (sum, section) => sum + (questionsBySection.get(section.id)?.length ?? 0),
+    0
+  )
+
+  // Nothing for the student to do (no MCQs and no writing task).
+  if (includedSections.length === 0 || (totalQuestions === 0 && !includedSections.some((s) => s.section_key === 'writing'))) {
+    return null
+  }
+
+  const totalTimeLimit = includedSections.reduce((sum, section) => sum + section.time_limit_seconds, 0)
+
+  const { data: session, error: sessionError } = await supabase
+    .from('mock_exam_sessions')
+    .insert({
+      student_id: input.studentId,
+      mock_test_id: input.mockTestId,
+      mock_type: 'randomised_full',
+      exam_type: mock.exam_type,
+      subject_id: null,
+      status: 'in_progress',
+      time_limit_seconds: totalTimeLimit,
+      total_questions: totalQuestions,
+    })
+    .select('id')
+    .single()
+
+  if (sessionError || !session) {
+    throw new Error('Unable to start this mock test.')
+  }
+
+  const nowIso = new Date().toISOString()
+  const sessionSectionRows = includedSections.map((section, index) => ({
+    session_id: session.id,
+    section_order: index + 1,
+    section_key: section.section_key,
+    subject_id: section.subject_id,
+    status: index === 0 ? 'in_progress' : 'pending',
+    time_limit_seconds: section.time_limit_seconds,
+    // No break after the last included section.
+    break_after_seconds: index === includedSections.length - 1 ? 0 : section.break_after_seconds,
+    started_at: index === 0 ? nowIso : null,
+    total_questions: questionsBySection.get(section.id)?.length ?? 0,
+  }))
+
+  const { data: insertedSections, error: insertSectionsError } = await supabase
+    .from('mock_exam_session_sections')
+    .insert(sessionSectionRows)
+    .select('id, section_order')
+
+  if (insertSectionsError || !insertedSections) {
+    throw new Error('Unable to prepare the sections for this mock test.')
+  }
+
+  const sessionSectionIdByOrder = new Map(
+    (insertedSections as Array<{ id: string; section_order: number }>).map((section) => [
+      section.section_order,
+      section.id,
+    ])
+  )
+
+  const sessionQuestionRows: Record<string, unknown>[] = []
+  let questionOrder = 0
+  includedSections.forEach((section, index) => {
+    const sectionQuestions = questionsBySection.get(section.id) ?? []
+    for (const question of sectionQuestions) {
+      questionOrder += 1
+      sessionQuestionRows.push({
+        session_id: session.id,
+        question_id: question.question_id,
+        question_order: questionOrder,
+        section_id: sessionSectionIdByOrder.get(index + 1) ?? null,
+        is_flagged: false,
+      })
+    }
+  })
+
+  if (sessionQuestionRows.length > 0) {
+    const { error: insertQuestionsError } = await supabase
+      .from('mock_exam_session_questions')
+      .insert(sessionQuestionRows)
+
+    if (insertQuestionsError) {
+      throw new Error('Unable to prepare the questions for this mock test.')
+    }
+  }
+
+  return { sessionId: session.id }
 }

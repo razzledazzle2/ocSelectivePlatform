@@ -1,0 +1,10 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-fold.svg",
+  "external_id": "ts3-016",
+  "asset_type": "svg",
+  "alt_text": "A square sheet, then folded left-over-right into a tall rectangle with a crease, then the folded sheet with a hole punched near its top-left corner.",
+  "spec": {
+    "type": "paper_folding",
+    "stimulus": true
+  }
+}

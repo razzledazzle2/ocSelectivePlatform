@@ -1,0 +1,12 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-010-a.svg",
+  "external_id": "ts-abstract-spatial-1-010-a",
+  "asset_type": "svg",
+  "alt_text": "A single triangle.",
+  "spec": {
+    "type": "shape_analogy",
+    "figure": {
+      "shape": "triangle"
+    }
+  }
+}

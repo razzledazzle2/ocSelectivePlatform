@@ -19,6 +19,7 @@ import {
   createMockTestAction,
   duplicateMockTestAction,
   setMockTestStatusAction,
+  updateMockDisplayOrderAction,
 } from '@/app/admin/mocks/actions'
 import { QuestionStatusBadge } from '@/components/admin/question-status-badge'
 import { Badge } from '@/components/ui/badge'
@@ -56,7 +57,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import type { MockTestListItem } from '@/lib/mock-tests/types'
+import { MOCK_TYPE_LABELS, MOCK_TYPES, type MockTestListItem } from '@/lib/mock-tests/types'
 import { EXAM_TYPES, type ActionResult } from '@/lib/types'
 
 const updatedFormatter = new Intl.DateTimeFormat('en-AU', {
@@ -89,8 +90,10 @@ export function MockList({ mocks }: MockListProps) {
   const [description, setDescription] = useState('')
   const [examType, setExamType] = useState<string>(EXAM_TYPES[0])
   const [yearLevel, setYearLevel] = useState('')
+  const [mockType, setMockType] = useState<string>('full_mock')
 
   const examItems = Object.fromEntries(EXAM_TYPES.map((value) => [value, value]))
+  const mockTypeItems = Object.fromEntries(MOCK_TYPES.map((value) => [value, MOCK_TYPE_LABELS[value]]))
 
   function run(action: () => Promise<ActionResult<{ redirectTo: string } | undefined>>) {
     startTransition(async () => {
@@ -113,6 +116,7 @@ export function MockList({ mocks }: MockListProps) {
     formData.set('description', description)
     formData.set('examType', examType)
     formData.set('yearLevel', yearLevel)
+    formData.set('mockType', mockType)
     startTransition(async () => {
       const result = await createMockTestAction(formData)
       if (result.success && result.data) {
@@ -157,11 +161,11 @@ export function MockList({ mocks }: MockListProps) {
                 <TableHead>Mock test</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Exam</TableHead>
-                <TableHead className="text-right">Sections</TableHead>
                 <TableHead className="text-right">Questions</TableHead>
                 <TableHead className="text-right">Duration</TableHead>
                 <TableHead className="text-right">Attempts</TableHead>
                 <TableHead className="text-right">Avg score</TableHead>
+                <TableHead className="text-right">Order</TableHead>
                 <TableHead>Updated</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -181,6 +185,21 @@ export function MockList({ mocks }: MockListProps) {
                         {mock.description}
                       </p>
                     ) : null}
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <Badge variant="secondary" className="h-4 px-1.5 text-[0.65rem]">
+                        {MOCK_TYPE_LABELS[mock.mockType]}
+                      </Badge>
+                      {mock.difficultyLabel ? (
+                        <Badge variant="outline" className="h-4 px-1.5 text-[0.65rem]">
+                          {mock.difficultyLabel}
+                        </Badge>
+                      ) : null}
+                      {mock.subjectMix.slice(0, 4).map((share) => (
+                        <span key={share.subjectName} className="text-[0.65rem] text-muted-foreground">
+                          {share.subjectName} · {share.count}
+                        </span>
+                      ))}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <QuestionStatusBadge status={mock.status} />
@@ -191,7 +210,6 @@ export function MockList({ mocks }: MockListProps) {
                       <span className="ml-1.5 text-xs text-muted-foreground">Yr {mock.yearLevel}</span>
                     ) : null}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{mock.sectionCount}</TableCell>
                   <TableCell className="text-right tabular-nums">{mock.questionCount}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatDurationMinutes(mock.estimatedDurationSeconds)}
@@ -205,6 +223,9 @@ export function MockList({ mocks }: MockListProps) {
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <MockOrderInput mockId={mock.id} value={mock.displayOrder} disabled={isPending} />
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {updatedFormatter.format(new Date(mock.updatedAt))}
@@ -326,6 +347,21 @@ export function MockList({ mocks }: MockListProps) {
                   inputMode="numeric"
                 />
               </div>
+              <div className="space-y-1.5 col-span-2">
+                <Label>Mock type</Label>
+                <Select value={mockType} onValueChange={setMockType} items={mockTypeItems}>
+                  <SelectTrigger className="w-full" aria-label="Mock type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MOCK_TYPES.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {MOCK_TYPE_LABELS[value]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -340,5 +376,43 @@ export function MockList({ mocks }: MockListProps) {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+/** Inline student-list ordering: commits on blur (or Enter) when the value changes. */
+function MockOrderInput({ mockId, value, disabled }: { mockId: string; value: number; disabled: boolean }) {
+  const [order, setOrder] = useState(String(value))
+  const [isSaving, startSaving] = useTransition()
+
+  function commit() {
+    const parsed = Number(order)
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed === value) {
+      setOrder(String(value))
+      return
+    }
+    startSaving(async () => {
+      const result = await updateMockDisplayOrderAction(mockId, parsed)
+      if (!result.success) {
+        toast.error(result.message ?? 'Unable to update the order.')
+        setOrder(String(value))
+      }
+    })
+  }
+
+  return (
+    <Input
+      value={order}
+      onChange={(event) => setOrder(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur()
+        }
+      }}
+      disabled={disabled || isSaving}
+      inputMode="numeric"
+      aria-label="Display order"
+      className="ml-auto h-8 w-14 text-right tabular-nums"
+    />
   )
 }

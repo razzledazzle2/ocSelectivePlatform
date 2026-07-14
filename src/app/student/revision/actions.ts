@@ -3,14 +3,17 @@
 import { revalidatePath } from 'next/cache'
 
 import { requireProfile } from '@/lib/auth/require-profile'
-import { getPublishedPracticeQuestion } from '@/lib/questions/queries'
-import { markMistakeUnderstood, retryMistake } from '@/lib/revision/mutations'
+import { getStudentPracticeQuestion } from '@/lib/practice/queries'
+import { removeMistakeFromReviewQueue, retryMistake } from '@/lib/revision/mutations'
+import { getRevisionQueuePage } from '@/lib/revision/queries'
 import {
   QUESTION_OPTION_LABELS,
   STUDENT_PORTAL_ROLES,
   type ActionResult,
   type PracticeQuestionItem,
   type QuestionOptionLabel,
+  type RevisionQueueFilter,
+  type RevisionQueuePage,
   type RevisionRetryFeedback,
 } from '@/lib/types'
 
@@ -24,7 +27,7 @@ export async function loadRevisionQuestionAction(
   }
 
   try {
-    const question = await getPublishedPracticeQuestion(questionId)
+    const question = await getStudentPracticeQuestion(questionId)
 
     if (!question) {
       return { success: false, message: 'This question is no longer available.' }
@@ -70,7 +73,7 @@ export async function retryMistakeAction(
   }
 }
 
-export async function markUnderstoodAction(questionId: string): Promise<ActionResult> {
+export async function removeFromReviewQueueAction(questionId: string): Promise<ActionResult> {
   const profile = await requireProfile({ allowedRoles: [...STUDENT_PORTAL_ROLES] })
 
   if (!questionId) {
@@ -78,16 +81,33 @@ export async function markUnderstoodAction(questionId: string): Promise<ActionRe
   }
 
   try {
-    await markMistakeUnderstood(profile.id, questionId)
+    await removeMistakeFromReviewQueue(profile.id, questionId)
 
     revalidatePath('/student/revision')
     revalidatePath('/student/dashboard')
 
-    return { success: true, message: 'Marked as understood.' }
+    return { success: true, message: 'Removed from your review queue.' }
   } catch (error) {
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Unable to update this question right now.',
+    }
+  }
+}
+
+export async function loadMoreRevisionQueueAction(
+  filter: RevisionQueueFilter,
+  page: number
+): Promise<ActionResult<RevisionQueuePage>> {
+  const profile = await requireProfile({ allowedRoles: [...STUDENT_PORTAL_ROLES] })
+
+  try {
+    const result = await getRevisionQueuePage(profile.id, { filter, page })
+    return { success: true, data: result }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to load more of your queue right now.',
     }
   }
 }

@@ -3,7 +3,11 @@ import { notFound, redirect } from 'next/navigation'
 import { MockExamRunner } from '@/components/student/mock-exams/mock-exam-runner'
 import { SectionedMockRunner } from '@/components/student/mock-exams/sectioned-mock-runner'
 import { requireProfile } from '@/lib/auth/require-profile'
-import { getMockExamRunnerData, getSectionedMockRunnerData } from '@/lib/mock-exams/queries'
+import {
+  getMockExamRunnerData,
+  getMockSessionRoutingMeta,
+  getSectionedMockRunnerData,
+} from '@/lib/mock-exams/queries'
 import { STUDENT_PORTAL_ROLES } from '@/lib/types'
 
 interface MockExamRunnerPageProps {
@@ -14,18 +18,21 @@ export default async function MockExamRunnerPage({ params }: MockExamRunnerPageP
   const { sessionId } = await params
   const profile = await requireProfile({ allowedRoles: [...STUDENT_PORTAL_ROLES] })
 
-  const data = await getMockExamRunnerData(sessionId, profile.id)
+  // Read only the session's routing metadata first, so we hydrate questions
+  // through exactly ONE loader (a randomised_full session used to be fully
+  // hydrated by getMockExamRunnerData and then discarded and re-hydrated).
+  const meta = await getMockSessionRoutingMeta(sessionId, profile.id)
 
-  if (!data) {
+  if (!meta) {
     notFound()
   }
 
   // A finished exam should show results, not the runner.
-  if (data.status !== 'in_progress') {
+  if (meta.status !== 'in_progress') {
     redirect(`/student/mock-exams/${sessionId}/results`)
   }
 
-  if (data.mockType === 'randomised_full') {
+  if (meta.mockType === 'randomised_full') {
     const sectioned = await getSectionedMockRunnerData(sessionId, profile.id)
 
     if (!sectioned) {
@@ -46,6 +53,12 @@ export default async function MockExamRunnerPage({ params }: MockExamRunnerPageP
         <SectionedMockRunner data={sectioned} />
       </div>
     )
+  }
+
+  const data = await getMockExamRunnerData(sessionId, profile.id)
+
+  if (!data) {
+    notFound()
   }
 
   return (

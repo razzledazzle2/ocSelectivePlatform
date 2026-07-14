@@ -1,0 +1,14 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-015-main.svg",
+  "external_id": "ts-abstract-spatial-1-015-main",
+  "asset_type": "svg",
+  "alt_text": "A block capital letter P beside a vertical dashed mirror line on its right.",
+  "spec": {
+    "type": "reflection",
+    "figure": "block_letter_P",
+    "width": 180,
+    "height": 175,
+    "stimulus": true,
+    "mirror": "vertical"
+  }
+}

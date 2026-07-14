@@ -1,0 +1,13 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-015-b.svg",
+  "external_id": "ts-abstract-spatial-1-015-b",
+  "asset_type": "svg",
+  "alt_text": "The letter P unchanged.",
+  "spec": {
+    "type": "reflection",
+    "figure": "block_letter_P",
+    "width": 150,
+    "height": 160,
+    "transform": null
+  }
+}

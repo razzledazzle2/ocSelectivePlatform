@@ -1,0 +1,29 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-square-d.svg",
+  "external_id": "ts3-018-D",
+  "asset_type": "svg",
+  "alt_text": "Two equal rectangles that make a long rectangle.",
+  "spec": {
+    "type": "spatial_assembly",
+    "width": 210,
+    "height": 110,
+    "pieces": [
+      {
+        "rect": [
+          10,
+          26,
+          60,
+          34
+        ]
+      },
+      {
+        "rect": [
+          92,
+          26,
+          60,
+          34
+        ]
+      }
+    ]
+  }
+}

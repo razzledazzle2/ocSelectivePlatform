@@ -1,0 +1,29 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-square-b.svg",
+  "external_id": "ts3-018-B",
+  "asset_type": "svg",
+  "alt_text": "A rectangle and a small square that leave a gap.",
+  "spec": {
+    "type": "spatial_assembly",
+    "width": 210,
+    "height": 110,
+    "pieces": [
+      {
+        "rect": [
+          10,
+          22,
+          60,
+          40
+        ]
+      },
+      {
+        "rect": [
+          115,
+          30,
+          32,
+          32
+        ]
+      }
+    ]
+  }
+}

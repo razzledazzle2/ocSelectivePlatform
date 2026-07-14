@@ -1,0 +1,14 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-014-main.svg",
+  "external_id": "ts-abstract-spatial-1-014-main",
+  "asset_type": "svg",
+  "alt_text": "An upright L-shaped block of four squares with the foot at the bottom right, to be turned a quarter-turn clockwise.",
+  "spec": {
+    "type": "rotation",
+    "figure": "l_tetromino",
+    "width": 170,
+    "height": 180,
+    "stimulus": true,
+    "rotation_hint": "rotate 90° clockwise"
+  }
+}

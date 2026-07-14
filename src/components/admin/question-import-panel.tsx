@@ -10,6 +10,7 @@ import {
   ClipboardPasteIcon,
   DownloadIcon,
   FilePlus2Icon,
+  HistoryIcon,
   SettingsIcon,
   UploadCloudIcon,
 } from 'lucide-react'
@@ -19,7 +20,7 @@ import { ImportPreviewTable } from '@/components/admin/import-preview-table'
 import { ImportValidationSummary } from '@/components/admin/import-validation-summary'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import {
@@ -31,11 +32,13 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { importQuestionsAction, previewImportAction } from '@/lib/import/actions'
+import { importQuestionsAction, importQuestionsZipAction, previewImportAction, previewImportZipAction } from '@/lib/import/actions'
 import { buildCsvTemplate, CSV_TEMPLATE_FILENAME } from '@/lib/import/csv-template'
 import {
   DEFAULT_IMPORT_SETTINGS,
+  type BlankCellBehavior,
   type ImportFormat,
+  type ImportMode,
   type ImportSettings,
   type ImportSummary,
   type ImportValidationResult,
@@ -66,6 +69,57 @@ function downloadCsvTemplate() {
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.download = CSV_TEMPLATE_FILENAME
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+function csvCell(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}
+
+/** True when the validated import has at least one row-level or asset-level error/warning. */
+function hasReportableIssues(result: ImportValidationResult): boolean {
+  return result.rows.some(
+    (row) =>
+      row.errors.length > 0 ||
+      row.warnings.length > 0 ||
+      row.assetPreviews.some((preview) => preview.state === 'missing' || preview.state === 'invalid' || preview.state === 'rejected')
+  )
+}
+
+/**
+ * Builds and downloads a CSV error/warning report from the preview result: one line per issue,
+ * identifying the CSV row, external_id, severity, column, referenced path and explanation so an
+ * author can fix the package offline without re-running the preview.
+ */
+function downloadErrorReport(result: ImportValidationResult) {
+  const header = ['row', 'external_id', 'severity', 'field', 'referenced_path', 'message']
+  const lines = [header.join(',')]
+
+  for (const row of result.rows) {
+    const externalId = row.resolved?.externalId ?? ''
+    for (const issue of row.errors) {
+      lines.push([String(row.rowNumber), externalId, 'error', issue.field, '', issue.message].map(csvCell).join(','))
+    }
+    for (const issue of row.warnings) {
+      lines.push([String(row.rowNumber), externalId, 'warning', issue.field, '', issue.message].map(csvCell).join(','))
+    }
+    for (const preview of row.assetPreviews) {
+      if (preview.state === 'missing' || preview.state === 'invalid' || preview.state === 'rejected') {
+        lines.push(
+          [String(row.rowNumber), externalId, preview.state, preview.field, preview.ref, preview.message ?? '']
+            .map(csvCell)
+            .join(',')
+        )
+      }
+    }
+  }
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = 'import-error-report.csv'
   anchor.click()
   URL.revokeObjectURL(url)
 }
@@ -147,16 +201,20 @@ function SettingSelect({
   value,
   items,
   onChange,
+  disabled,
+  hint,
 }: {
   label: string
   value: string
   items: Record<string, string>
   onChange: (value: string) => void
+  disabled?: boolean
+  hint?: string
 }) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs">{label}</Label>
-      <Select value={value} onValueChange={onChange} items={items}>
+      <Select value={value} onValueChange={onChange} items={items} disabled={disabled}>
         <SelectTrigger className="w-full">
           <SelectValue />
         </SelectTrigger>
@@ -168,6 +226,7 @@ function SettingSelect({
           ))}
         </SelectContent>
       </Select>
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   )
 }
@@ -188,7 +247,9 @@ function ImportSettingsPanel({
         <p className="text-sm font-medium text-foreground">Import settings</p>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        Defaults are forgiving — missing topics and question types are created automatically as drafts.
+        Every row needs a stable external_id — it&apos;s the key used to match updates and is
+        never regenerated. Defaults are forgiving: missing topics/question types are created
+        automatically, and blank cells on an update keep the existing value.
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <SettingSelect
@@ -196,6 +257,25 @@ function ImportSettingsPanel({
           value={settings.importStatus}
           items={{ draft: 'Draft (recommended)', published: 'Published' }}
           onChange={(value) => onChange({ ...settings, importStatus: value as ImportSettings['importStatus'] })}
+        />
+        <SettingSelect
+          label="Import mode"
+          value={settings.mode}
+          items={{
+            create: 'Create new only',
+            update: 'Update matching only',
+            create_and_update: 'Create new & update matching',
+          }}
+          hint="Matching is by external_id. Rows absent from the file are never touched or deleted."
+          onChange={(value) => onChange({ ...settings, mode: value as ImportMode })}
+        />
+        <SettingSelect
+          label="Blank cells (on updates)"
+          value={settings.blankCellBehavior}
+          items={{ keep: 'Keep existing value', clear: 'Clear existing value' }}
+          disabled={settings.mode === 'create'}
+          hint={settings.mode === 'create' ? 'Only applies in update modes.' : 'Required fields are always kept, even when clearing.'}
+          onChange={(value) => onChange({ ...settings, blankCellBehavior: value as BlankCellBehavior })}
         />
         <SettingSelect
           label="Missing topics"
@@ -209,18 +289,6 @@ function ImportSettingsPanel({
           items={{ create: 'Create automatically', error: 'Treat as error' }}
           onChange={(value) => onChange({ ...settings, createMissingQuestionTypes: value === 'create' })}
         />
-        <SettingSelect
-          label="Missing short explanation"
-          value={settings.requireShortExplanation ? 'require' : 'allow'}
-          items={{ allow: 'Allow (derive from solution)', require: 'Require' }}
-          onChange={(value) => onChange({ ...settings, requireShortExplanation: value === 'require' })}
-        />
-        <SettingSelect
-          label="Duplicates"
-          value={settings.blockDuplicates ? 'block' : 'warn'}
-          items={{ warn: 'Warn but allow', block: 'Block' }}
-          onChange={(value) => onChange({ ...settings, blockDuplicates: value === 'block' })}
-        />
       </div>
     </div>
   )
@@ -229,20 +297,30 @@ function ImportSettingsPanel({
 export function QuestionImportPanel() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const assetsZipInputRef = useRef<HTMLInputElement | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const [step, setStep] = useState<WizardStep>(1)
   const [format, setFormat] = useState<ImportFormat>('csv')
   const [source, setSource] = useState('')
   const [fileName, setFileName] = useState('')
+  const [primaryFile, setPrimaryFile] = useState<File | null>(null)
+  const [primaryIsZip, setPrimaryIsZip] = useState(false)
+  const [assetsZipFile, setAssetsZipFile] = useState<File | null>(null)
   const [settings, setSettings] = useState<ImportSettings>(DEFAULT_IMPORT_SETTINGS)
   const [result, setResult] = useState<ImportValidationResult | null>(null)
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null)
+  const [dragActive, setDragActive] = useState(false)
+
+  const usesPackage = format === 'csv' && (primaryIsZip || Boolean(assetsZipFile))
 
   function chooseMethod(nextFormat: ImportFormat) {
     setFormat(nextFormat)
     setSource('')
     setFileName('')
+    setPrimaryFile(null)
+    setPrimaryIsZip(false)
+    setAssetsZipFile(null)
     setResult(null)
     setImportSummary(null)
     setStep(2)
@@ -252,33 +330,100 @@ export function QuestionImportPanel() {
     setStep(1)
     setSource('')
     setFileName('')
+    setPrimaryFile(null)
+    setPrimaryIsZip(false)
+    setAssetsZipFile(null)
     setResult(null)
     setImportSummary(null)
     setSettings(DEFAULT_IMPORT_SETTINGS)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (assetsZipInputRef.current) assetsZipInputRef.current.value = ''
   }
 
   function updateSettings(next: ImportSettings) {
     setSettings(next)
-    // Settings change what counts as an error vs warning — force a re-preview.
+    // Settings change what counts as an error/duplicate/diff — force a re-preview.
     setResult(null)
   }
 
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
+  async function applyPrimaryFile(file: File | null) {
     setResult(null)
     if (!file) {
       setSource('')
       setFileName('')
+      setPrimaryFile(null)
+      setPrimaryIsZip(false)
       return
     }
     setFileName(file.name)
-    setSource(await file.text())
+    const isZip = file.name.toLowerCase().endsWith('.zip')
+    setPrimaryIsZip(isZip)
+    if (isZip) {
+      setPrimaryFile(file)
+      setSource('')
+    } else {
+      setPrimaryFile(null)
+      setSource(await file.text())
+    }
+  }
+
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    await applyPrimaryFile(event.target.files?.[0] ?? null)
+  }
+
+  async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    setDragActive(false)
+    const file = event.dataTransfer.files?.[0]
+    if (!file) return
+    if (!/\.(csv|zip)$/i.test(file.name)) {
+      toast.error('Drop a .csv or .zip file.')
+      return
+    }
+    if (fileInputRef.current) {
+      // Mirror the drop into the file input so the picker and drop stay in sync.
+      fileInputRef.current.files = event.dataTransfer.files
+    }
+    await applyPrimaryFile(file)
+  }
+
+  function buildPackageFormData(): FormData {
+    const formData = new FormData()
+    formData.set('settings', JSON.stringify(settings))
+    if (primaryIsZip && primaryFile) {
+      formData.set('package', primaryFile)
+    } else {
+      formData.set('csvFile', new File([source], fileName || 'upload.csv', { type: 'text/csv' }))
+      if (assetsZipFile) {
+        formData.set('assetsZip', assetsZipFile)
+      }
+    }
+    return formData
   }
 
   function runPreview() {
+    if (usesPackage) {
+      if (primaryIsZip && !primaryFile) {
+        toast.error('Choose a zip file first.')
+        return
+      }
+      if (!primaryIsZip && !source.trim()) {
+        toast.error('Choose a CSV file first.')
+        return
+      }
+      startTransition(async () => {
+        const response = await previewImportZipAction(buildPackageFormData())
+        if (response.success && response.data) {
+          setResult(response.data)
+          if (response.message) toast.warning(response.message)
+        } else {
+          setResult(null)
+          toast.error(response.message ?? 'Unable to preview the import.')
+        }
+      })
+      return
+    }
+
     if (!source.trim()) {
       toast.error(format === 'csv' ? 'Choose a CSV file first.' : 'Paste some questions first.')
       return
@@ -296,7 +441,9 @@ export function QuestionImportPanel() {
 
   function runImport() {
     startTransition(async () => {
-      const response = await importQuestionsAction(source, format, settings)
+      const response = usesPackage
+        ? await importQuestionsZipAction(buildPackageFormData())
+        : await importQuestionsAction(source, format, settings, fileName || undefined)
       if (response.success) {
         toast.success(response.message ?? 'Import complete.')
         setImportSummary(response.data ?? null)
@@ -318,10 +465,16 @@ export function QuestionImportPanel() {
               missing topics and question types are created for you, and everything lands as draft by default.
             </CardDescription>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={downloadCsvTemplate}>
-            <DownloadIcon className="size-3.5" />
-            Download CSV template
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/admin/import/history" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+              <HistoryIcon className="size-3.5" />
+              Import history
+            </Link>
+            <Button type="button" variant="outline" size="sm" onClick={downloadCsvTemplate}>
+              <DownloadIcon className="size-3.5" />
+              Download CSV template
+            </Button>
+          </div>
         </div>
         <StepIndicator step={step} />
       </CardHeader>
@@ -339,7 +492,7 @@ export function QuestionImportPanel() {
             <MethodCard
               icon={<UploadCloudIcon className="size-5" />}
               title="CSV Upload"
-              description="Bulk import from a spreadsheet. Supports option_a–option_e or an options_json column."
+              description="Bulk import from a spreadsheet, optionally with a zip of asset files."
               onClick={() => chooseMethod('csv')}
             />
             <MethodCard
@@ -355,21 +508,60 @@ export function QuestionImportPanel() {
         {step === 2 ? (
           <div className="space-y-5">
             {format === 'csv' ? (
-              <div className="space-y-2">
-                <Label htmlFor="csv-file">Upload a .csv file</Label>
-                <input
-                  id="csv-file"
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={handleFileChange}
-                  className="flex w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1 file:text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Columns: question_text, subject, topic, question_type, difficulty, exam_type, option_a–option_e
-                  (option_e may be blank), correct_answer, worked_solution, short_explanation, tags, status.
-                  An options_json column also works.
-                </p>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="csv-file">Upload a .csv or .zip file</Label>
+                  <div
+                    onDragOver={(event) => {
+                      event.preventDefault()
+                      setDragActive(true)
+                    }}
+                    onDragLeave={() => setDragActive(false)}
+                    onDrop={handleDrop}
+                    className={cn(
+                      'rounded-xl border-2 border-dashed p-4 transition-colors',
+                      dragActive ? 'border-brand bg-brand-soft/50' : 'border-border/70 bg-muted/30'
+                    )}
+                  >
+                    <div className="flex flex-col items-center gap-2 py-2 text-center">
+                      <UploadCloudIcon className="size-6 text-muted-foreground" />
+                      <p className="text-sm text-foreground">Drag & drop a .csv or .zip package here</p>
+                      <p className="text-xs text-muted-foreground">or choose a file below</p>
+                    </div>
+                    <input
+                      id="csv-file"
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv,.zip,text/csv,application/zip"
+                      onChange={handleFileChange}
+                      className="mt-2 flex w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1 file:text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    A plain .csv works alone. A .zip may contain a root questions.csv plus an
+                    assets/ directory of referenced diagrams (PNG/JPG/WEBP/SVG) and an optional manifest.json.
+                  </p>
+                </div>
+                {!primaryIsZip ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="assets-zip">Assets ZIP (optional)</Label>
+                    <input
+                      id="assets-zip"
+                      ref={assetsZipInputRef}
+                      type="file"
+                      accept=".zip,application/zip"
+                      onChange={(event) => {
+                        setAssetsZipFile(event.target.files?.[0] ?? null)
+                        setResult(null)
+                      }}
+                      className="flex w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1 file:text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Attach a zip of asset files referenced by the CSV&apos;s asset ref columns
+                      (matched by filename). Optional — the CSV can import alone.
+                    </p>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="space-y-2">
@@ -399,11 +591,12 @@ export function QuestionImportPanel() {
                 <ArrowLeftIcon className="size-4" />
                 Back
               </Button>
-              <Button type="button" variant="outline" disabled={isPending} onClick={runPreview}>
-                <UploadCloudIcon className="size-4" />
+              <Button type="button" variant="outline" disabled={isPending} loading={isPending} onClick={runPreview}>
+                {isPending ? null : <UploadCloudIcon className="size-4" />}
                 {isPending ? 'Checking…' : 'Preview & validate'}
               </Button>
               {fileName ? <Badge variant="outline">{fileName}</Badge> : null}
+              {assetsZipFile ? <Badge variant="outline">{assetsZipFile.name}</Badge> : null}
             </div>
 
             {result ? (
@@ -420,7 +613,13 @@ export function QuestionImportPanel() {
                 ) : (
                   <>
                     <ImportPreviewTable rows={result.rows} />
-                    <div className="flex justify-end">
+                    <div className="flex flex-wrap justify-end gap-3">
+                      {hasReportableIssues(result) ? (
+                        <Button type="button" variant="outline" onClick={() => downloadErrorReport(result)}>
+                          <DownloadIcon className="size-4" />
+                          Download error report
+                        </Button>
+                      ) : null}
                       <Button type="button" disabled={result.importableCount === 0} onClick={() => setStep(3)}>
                         Continue to import
                         <ArrowRightIcon className="size-4" />
@@ -441,23 +640,36 @@ export function QuestionImportPanel() {
                 <CheckCircle2Icon />
                 <AlertTitle>Import finished</AlertTitle>
                 <AlertDescription>
-                  {importSummary.importedCount} imported
+                  {importSummary.importedCount} created
+                  {importSummary.updatedCount > 0 ? `, ${importSummary.updatedCount} updated` : ''}
+                  {importSummary.unchangedCount > 0 ? `, ${importSummary.unchangedCount} unchanged` : ''}
                   {importSummary.createdTopicCount > 0 ? `, ${importSummary.createdTopicCount} new topics` : ''}
                   {importSummary.createdQuestionTypeCount > 0
                     ? `, ${importSummary.createdQuestionTypeCount} new question types`
                     : ''}
+                  {importSummary.uploadedAssetCount > 0 ? `, ${importSummary.uploadedAssetCount} new image files uploaded` : ''}
+                  {importSummary.reusedExistingAssetCount > 0
+                    ? `, ${importSummary.reusedExistingAssetCount} existing storage objects reused`
+                    : ''}
+                  {importSummary.duplicateChecksumCount > 0
+                    ? `, ${importSummary.duplicateChecksumCount} duplicate images reused`
+                    : ''}
+                  {importSummary.assetLinksCreated > 0 ? `, ${importSummary.assetLinksCreated} asset links` : ''}
+                  {importSummary.rejectedAssetCount > 0 ? `, ${importSummary.rejectedAssetCount} assets rejected` : ''}
                   {importSummary.skippedDuplicateCount > 0
                     ? `, ${importSummary.skippedDuplicateCount} duplicates skipped`
                     : ''}
-                  {importSummary.failedCount > 0 ? `, ${importSummary.failedCount} failed` : ''}. Imported
-                  questions are in the table below.
+                  {importSummary.failedCount > 0 ? `, ${importSummary.failedCount} failed` : ''}. Imported and
+                  updated questions are in the table below.
                 </AlertDescription>
               </Alert>
             ) : (
               <>
                 <ImportValidationSummary result={result} />
                 <p className="text-sm text-muted-foreground">
-                  {result.importableCount} question{result.importableCount === 1 ? '' : 's'} will import as{' '}
+                  {result.createCount} question{result.createCount === 1 ? '' : 's'} will be created
+                  {result.updateCount > 0 ? `, ${result.updateCount} updated` : ''}
+                  {result.unchangedCount > 0 ? `, ${result.unchangedCount} left unchanged` : ''}. New questions land as{' '}
                   <span className="font-medium text-foreground">{settings.importStatus}</span>
                   {settings.createMissingTopics || settings.createMissingQuestionTypes
                     ? ', creating any missing taxonomy'
@@ -481,7 +693,9 @@ export function QuestionImportPanel() {
                   <Button type="button" disabled={isPending || result.importableCount === 0} onClick={runImport}>
                     {isPending
                       ? 'Importing…'
-                      : `Import ${result.importableCount} question${result.importableCount === 1 ? '' : 's'}`}
+                      : `Import ${result.createCount + result.updateCount} question${
+                          result.createCount + result.updateCount === 1 ? '' : 's'
+                        }`}
                   </Button>
                 </>
               )}

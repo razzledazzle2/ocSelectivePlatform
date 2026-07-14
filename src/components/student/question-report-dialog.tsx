@@ -145,7 +145,7 @@ export function QuestionReportDialog({
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending}>
             Cancel
           </Button>
-          <Button type="button" onClick={handleSubmit} disabled={!reportType || isPending}>
+          <Button type="button" onClick={handleSubmit} disabled={!reportType || isPending} loading={isPending}>
             {isPending ? 'Sending...' : 'Submit report'}
           </Button>
         </DialogFooter>

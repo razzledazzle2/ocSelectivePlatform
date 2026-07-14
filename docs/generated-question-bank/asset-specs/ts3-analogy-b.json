@@ -1,0 +1,16 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-analogy-b.svg",
+  "external_id": "ts3-012-B",
+  "asset_type": "svg",
+  "alt_text": "A triangle with a smaller triangle nested inside (correct).",
+  "spec": {
+    "type": "shape_analogy",
+    "figure": {
+      "shape": "triangle",
+      "nested": {
+        "shape": "triangle",
+        "scale": 0.5
+      }
+    }
+  }
+}

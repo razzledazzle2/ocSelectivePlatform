@@ -1,0 +1,35 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-019-c.svg",
+  "external_id": "ts-abstract-spatial-1-019-c",
+  "asset_type": "svg",
+  "alt_text": "A solid rectangle of six squares, two rows of three.",
+  "spec": {
+    "type": "cube_net",
+    "squares": [
+      [
+        0,
+        0
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        2,
+        0
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        2,
+        1
+      ]
+    ]
+  }
+}

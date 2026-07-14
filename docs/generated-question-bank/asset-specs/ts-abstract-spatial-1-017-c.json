@@ -1,0 +1,49 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-017-c.svg",
+  "external_id": "ts-abstract-spatial-1-017-c",
+  "asset_type": "svg",
+  "alt_text": "A 3×1 straight strip and an L-shaped piece.",
+  "spec": {
+    "type": "spatial_assembly",
+    "width": 220,
+    "height": 120,
+    "pieces": [
+      {
+        "rect": [
+          15,
+          47,
+          78,
+          26
+        ]
+      },
+      {
+        "points": [
+          [
+            120,
+            34
+          ],
+          [
+            146,
+            34
+          ],
+          [
+            146,
+            60
+          ],
+          [
+            172,
+            60
+          ],
+          [
+            172,
+            86
+          ],
+          [
+            120,
+            86
+          ]
+        ]
+      }
+    ]
+  }
+}

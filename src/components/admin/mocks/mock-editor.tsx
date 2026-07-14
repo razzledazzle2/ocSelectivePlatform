@@ -26,6 +26,7 @@ import {
   updateMockSectionAction,
   updateMockTestMetaAction,
 } from '@/app/admin/mocks/actions'
+import { MockCoveragePanel } from '@/components/admin/mocks/mock-coverage-panel'
 import { formatDurationMinutes } from '@/components/admin/mocks/mock-list'
 import { MockQuestionPicker } from '@/components/admin/mocks/mock-question-picker'
 import { QuestionStatusBadge } from '@/components/admin/question-status-badge'
@@ -59,11 +60,15 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import type {
-  MockTestAttemptStats,
-  MockTestDetail,
-  MockTestQuestionItem,
-  MockTestSectionItem,
+import {
+  MOCK_TYPE_LABELS,
+  MOCK_TYPES,
+  type MockCoverage,
+  type MockTestAttemptStats,
+  type MockTestDetail,
+  type MockTestQuestionItem,
+  type MockTestSectionItem,
+  type MockType,
 } from '@/lib/mock-tests/types'
 import { EXAM_TYPES, type ActionResult, type SubjectRecord, type TopicRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -71,13 +76,14 @@ import { cn } from '@/lib/utils'
 interface MockEditorProps {
   detail: MockTestDetail
   stats: MockTestAttemptStats
+  coverage: MockCoverage
   subjects: SubjectRecord[]
   topics: TopicRecord[]
   tags: string[]
 }
 
-/** Full admin editor for one curated mock: builder, answer key and statistics. */
-export function MockEditor({ detail, stats, subjects, topics, tags }: MockEditorProps) {
+/** Full admin editor for one curated mock: builder, coverage, answer key and statistics. */
+export function MockEditor({ detail, stats, coverage, subjects, topics, tags }: MockEditorProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -86,12 +92,18 @@ export function MockEditor({ detail, stats, subjects, topics, tags }: MockEditor
   const [description, setDescription] = useState(detail.description ?? '')
   const [examType, setExamType] = useState<string>(detail.examType)
   const [yearLevel, setYearLevel] = useState(detail.yearLevel ? String(detail.yearLevel) : '')
+  const [mockType, setMockType] = useState<string>(detail.mockType)
+  const [difficultyLabel, setDifficultyLabel] = useState(detail.difficultyLabel ?? '')
+  const [instructions, setInstructions] = useState(detail.instructions ?? '')
 
   const metaDirty =
     title !== detail.title ||
     description !== (detail.description ?? '') ||
     examType !== detail.examType ||
-    yearLevel !== (detail.yearLevel ? String(detail.yearLevel) : '')
+    yearLevel !== (detail.yearLevel ? String(detail.yearLevel) : '') ||
+    mockType !== detail.mockType ||
+    difficultyLabel !== (detail.difficultyLabel ?? '') ||
+    instructions !== (detail.instructions ?? '')
 
   // -- Dialog state ---------------------------------------------------------------
   const [pickerSection, setPickerSection] = useState<MockTestSectionItem | null>(null)
@@ -111,6 +123,7 @@ export function MockEditor({ detail, stats, subjects, topics, tags }: MockEditor
   )
 
   const examItems = Object.fromEntries(EXAM_TYPES.map((value) => [value, value]))
+  const mockTypeItems = Object.fromEntries(MOCK_TYPES.map((value) => [value, MOCK_TYPE_LABELS[value]]))
 
   function run(action: () => Promise<ActionResult<{ redirectTo: string } | undefined>>) {
     startTransition(async () => {
@@ -139,6 +152,9 @@ export function MockEditor({ detail, stats, subjects, topics, tags }: MockEditor
     formData.set('description', description)
     formData.set('examType', examType)
     formData.set('yearLevel', yearLevel)
+    formData.set('mockType', mockType)
+    formData.set('difficultyLabel', difficultyLabel)
+    formData.set('instructions', instructions)
     run(() => updateMockTestMetaAction(detail.id, formData))
   }
 
@@ -238,6 +254,7 @@ export function MockEditor({ detail, stats, subjects, topics, tags }: MockEditor
       <Tabs defaultValue="builder">
         <TabsList>
           <TabsTrigger value="builder">Builder</TabsTrigger>
+          <TabsTrigger value="coverage">Coverage</TabsTrigger>
           <TabsTrigger value="answers">Answer key</TabsTrigger>
           <TabsTrigger value="stats">Statistics</TabsTrigger>
         </TabsList>
@@ -287,6 +304,40 @@ export function MockEditor({ detail, stats, subjects, topics, tags }: MockEditor
                     onChange={(event) => setYearLevel(event.target.value)}
                     inputMode="numeric"
                     placeholder="e.g. 6"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Mock type</Label>
+                  <Select value={mockType} onValueChange={setMockType} items={mockTypeItems}>
+                    <SelectTrigger className="w-full" aria-label="Mock type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MOCK_TYPES.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {MOCK_TYPE_LABELS[value]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-difficulty-label">Difficulty label (optional)</Label>
+                  <Input
+                    id="edit-difficulty-label"
+                    value={difficultyLabel}
+                    onChange={(event) => setDifficultyLabel(event.target.value)}
+                    placeholder="e.g. Exam standard"
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="edit-instructions">Instructions for students (optional)</Label>
+                  <Textarea
+                    id="edit-instructions"
+                    value={instructions}
+                    onChange={(event) => setInstructions(event.target.value)}
+                    rows={3}
+                    placeholder="Shown before the student begins. Leave blank to use the standard exam instructions."
                   />
                 </div>
               </div>
@@ -366,7 +417,7 @@ export function MockEditor({ detail, stats, subjects, topics, tags }: MockEditor
                               <span>
                                 Ans{' '}
                                 <span className="font-semibold text-foreground/80">
-                                  {question.correctOptionLabel}
+                                  {question.correctOptionLabel ?? '—'}
                                 </span>
                               </span>
                               {question.questionStatus !== 'published' ? (
@@ -426,9 +477,19 @@ export function MockEditor({ detail, stats, subjects, topics, tags }: MockEditor
           ))}
         </TabsContent>
 
+        {/* ================= Coverage ================= */}
+        <TabsContent value="coverage" className="pt-5">
+          {questionCount === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border px-6 py-10 text-center text-sm text-muted-foreground">
+              Add questions in the Builder tab to see coverage.
+            </p>
+          ) : (
+            <MockCoveragePanel coverage={coverage} />
+          )}
+        </TabsContent>
+
         {/* ================= Answer key ================= */}
         <TabsContent value="answers" className="space-y-6 pt-5">
-          <AnswerBreakdown questions={allQuestions} />
           {detail.sections
             .filter((section) => section.questions.length > 0)
             .map((section) => (
@@ -483,20 +544,16 @@ export function MockEditor({ detail, stats, subjects, topics, tags }: MockEditor
                               )
                             })}
                           </ul>
-                          {question.shortExplanation ? (
-                            <p className="text-sm text-muted-foreground">
-                              <span className="font-medium text-foreground">Why:</span>{' '}
-                              {question.shortExplanation}
-                            </p>
+                          {question.workedSolution || question.shortExplanation ? (
+                            <details className="rounded-lg bg-muted/40 px-3 py-2 text-sm">
+                              <summary className="cursor-pointer text-xs font-medium text-foreground">
+                                Solution
+                              </summary>
+                              <p className="mt-1.5 whitespace-pre-wrap text-muted-foreground">
+                                {question.workedSolution || question.shortExplanation}
+                              </p>
+                            </details>
                           ) : null}
-                          <details className="rounded-lg bg-muted/40 px-3 py-2 text-sm">
-                            <summary className="cursor-pointer text-xs font-medium text-foreground">
-                              Worked solution
-                            </summary>
-                            <p className="mt-1.5 whitespace-pre-wrap text-muted-foreground">
-                              {question.workedSolution}
-                            </p>
-                          </details>
                           <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                             <span>{question.topicName}</span>
                             {question.tags.map((tag) => (
@@ -706,56 +763,3 @@ export function MockEditor({ detail, stats, subjects, topics, tags }: MockEditor
   )
 }
 
-/** Category/tag composition of the mock — how balanced the paper is. */
-function AnswerBreakdown({ questions }: { questions: MockTestQuestionItem[] }) {
-  const topicCounts = new Map<string, number>()
-  const tagCounts = new Map<string, number>()
-  for (const question of questions) {
-    topicCounts.set(question.topicName, (topicCounts.get(question.topicName) ?? 0) + 1)
-    for (const tag of question.tags) {
-      tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1)
-    }
-  }
-
-  if (questions.length === 0) {
-    return null
-  }
-
-  const sortedTopics = [...topicCounts.entries()].sort((a, b) => b[1] - a[1])
-  const sortedTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1])
-
-  return (
-    <Card className="rounded-2xl shadow-sm ring-border">
-      <CardHeader className="border-b border-border/70">
-        <CardTitle>Coverage</CardTitle>
-        <CardDescription>Category and tag breakdown across the whole mock.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4 pt-4 sm:grid-cols-2">
-        <div>
-          <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Categories</p>
-          <div className="flex flex-wrap gap-1.5">
-            {sortedTopics.map(([topic, count]) => (
-              <Badge key={topic} variant="secondary">
-                {topic} · {count}
-              </Badge>
-            ))}
-          </div>
-        </div>
-        <div>
-          <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Tags</p>
-          {sortedTags.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No tags on these questions.</p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {sortedTags.map(([tag, count]) => (
-                <Badge key={tag} variant="outline">
-                  {tag} · {count}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}

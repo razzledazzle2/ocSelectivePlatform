@@ -1,0 +1,27 @@
+{
+  "asset_ref": "asset://question-assets/generated/mr2-l-plywood-area.svg",
+  "external_id": "mr2-011",
+  "asset_type": "svg",
+  "alt_text": "An L-shaped piece of plywood: a 90 cm by 60 cm rectangle with its top-right corner cut away. Labelled sides: bottom edge 90 cm, left edge 60 cm, top edge 50 cm, right edge 35 cm. The two unlabelled cut-out sides are the inner horizontal (90 - 50 = 40 cm) and the inner vertical (60 - 35 = 25 cm). Diagram not to scale.",
+  "spec": {
+    "type": "geometry_polygon",
+    "width": 460,
+    "height": 400,
+    "caption": "[diagram not to scale]",
+    "fill": "#ffffff",
+    "points": [
+      { "x": 0, "y": 0 },
+      { "x": 0, "y": 60 },
+      { "x": 50, "y": 60 },
+      { "x": 50, "y": 35 },
+      { "x": 90, "y": 35 },
+      { "x": 90, "y": 0 }
+    ],
+    "edge_labels": [
+      { "from": 5, "to": 0, "label": "90 cm" },
+      { "from": 0, "to": 1, "label": "60 cm" },
+      { "from": 1, "to": 2, "label": "50 cm" },
+      { "from": 4, "to": 5, "label": "35 cm" }
+    ]
+  }
+}

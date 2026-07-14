@@ -1,0 +1,36 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-003-main.svg",
+  "external_id": "ts-abstract-spatial-1-003-main",
+  "asset_type": "svg",
+  "alt_text": "A row of arrows: pointing right, then down, then left, then a question box.",
+  "spec": {
+    "type": "abstract_shape_sequence",
+    "cell_size": 84,
+    "cells": [
+      {
+        "glyph": {
+          "shape": "arrow",
+          "rotation": 0,
+          "scale": 0.7
+        }
+      },
+      {
+        "glyph": {
+          "shape": "arrow",
+          "rotation": 90,
+          "scale": 0.7
+        }
+      },
+      {
+        "glyph": {
+          "shape": "arrow",
+          "rotation": 180,
+          "scale": 0.7
+        }
+      },
+      {
+        "question": true
+      }
+    ]
+  }
+}

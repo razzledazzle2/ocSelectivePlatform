@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import {
   BrainIcon,
   CheckCircle2Icon,
@@ -33,6 +33,10 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { QuestionAsset } from '@/components/questions/question-asset'
+import { QuestionMarkdown } from '@/components/questions/question-markdown'
+import { QuestionOptionContent } from '@/components/questions/question-option-content'
+import { StimulusPanel } from '@/components/questions/stimulus-panel'
 import { OptionDistribution } from '@/components/student/option-distribution'
 import { StudentQuestionReportButton } from '@/components/student/student-question-report-button'
 import { cn } from '@/lib/utils'
@@ -58,13 +62,32 @@ export interface PracticeHubData {
   strongest: AreaInsight | null
 }
 
+/** A canonical subtopic the session is locked onto, from a Subtopic Mastery link. */
+export interface SubtopicFocus {
+  code: string
+  label: string
+  domainCode: string
+}
+
 interface PracticeSessionProps {
   subjects: SubjectRecord[]
   topics: TopicRecord[]
   hub: PracticeHubData
-  /** Preselected via Skill Library deep links. */
+  /** Preselected via legacy topic deep links. */
   initialSubjectId?: string
   initialTopicId?: string
+  /** When set, the set is built from this subtopic and the subject/topic filters are hidden. */
+  subtopicFocus?: SubtopicFocus
+  /** Preselect the program (from the persistent program switcher). */
+  initialExamType?: ExamType
+  /** Preselect a session length (used by the integrated runner). */
+  initialCount?: string
+  /**
+   * Integrated-runner mode: skip the setup hub, start immediately from the
+   * preset config, and return to `backHref` instead of showing the hub.
+   */
+  autoStart?: boolean
+  backHref?: string
 }
 
 interface AnsweredQuestion {
@@ -109,19 +132,25 @@ export function PracticeSession({
   hub,
   initialSubjectId,
   initialTopicId,
+  subtopicFocus,
+  initialExamType,
+  initialCount,
+  autoStart = false,
+  backHref = '/student/practice',
 }: PracticeSessionProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [phase, setPhase] = useState<Phase>('setup')
 
-  const [examType, setExamType] = useState<ExamType>('OC')
+  const [examType, setExamType] = useState<ExamType>(initialExamType ?? 'OC')
   const [subjectId, setSubjectId] = useState(initialSubjectId ?? '')
   const [topicId, setTopicId] = useState(initialTopicId ?? ANY_TOPIC)
   const [difficulty, setDifficulty] = useState(ANY_DIFFICULTY)
-  const [questionCount, setQuestionCount] = useState<(typeof SESSION_LENGTHS)[number]>('10')
+  const [questionCount, setQuestionCount] = useState<string>(initialCount ?? '10')
   const [setMode, setSetMode] = useState<PracticeSetMode>('new')
   const [gateSkipped, setGateSkipped] = useState(false)
   const [emptyResult, setEmptyResult] = useState(false)
+  const [emptyMessage, setEmptyMessage] = useState<string | null>(null)
 
   const [sessionId, setSessionId] = useState('')
   const [sessionStartedAt, setSessionStartedAt] = useState(0)
@@ -150,7 +179,7 @@ export function PracticeSession({
 
   const activeQuestion = questions[currentIndex] ?? null
   const isLastQuestion = currentIndex >= questions.length - 1
-  const canStart = Boolean(examType && subjectId)
+  const canStart = Boolean(examType && (subjectId || subtopicFocus))
 
   function handleSubjectChange(nextSubjectId: string) {
     setSubjectId(nextSubjectId)
@@ -161,15 +190,21 @@ export function PracticeSession({
   function startPractice() {
     const formData = new FormData()
     formData.set('examType', examType)
-    formData.set('subjectId', subjectId)
-    if (topicId !== ANY_TOPIC) {
-      formData.set('topicId', topicId)
-    }
-    if (difficulty !== ANY_DIFFICULTY) {
-      formData.set('difficulty', difficulty)
-    }
     formData.set('questionCount', questionCount)
-    formData.set('mode', setMode)
+
+    if (subtopicFocus) {
+      // Targeted practice: the subtopic replaces every other content filter.
+      formData.set('subtopicCode', subtopicFocus.code)
+    } else {
+      formData.set('subjectId', subjectId)
+      if (topicId !== ANY_TOPIC) {
+        formData.set('topicId', topicId)
+      }
+      if (difficulty !== ANY_DIFFICULTY) {
+        formData.set('difficulty', difficulty)
+      }
+      formData.set('mode', setMode)
+    }
 
     startTransition(async () => {
       const result = await startPracticeAction(formData)
@@ -180,8 +215,14 @@ export function PracticeSession({
       }
 
       if (result.data.questions.length === 0 || !result.data.sessionId) {
+        setEmptyMessage(result.message ?? null)
         setEmptyResult(true)
         return
+      }
+
+      // A short or repetitive set is reported honestly rather than padded.
+      if (result.message) {
+        toast.info(result.message)
       }
 
       const now = Date.now()
@@ -262,6 +303,11 @@ export function PracticeSession({
   }
 
   function resetToSetup() {
+    // Integrated runner has no setup hub to return to — go back where we came from.
+    if (autoStart) {
+      router.push(backHref)
+      return
+    }
     setPhase('setup')
     setQuestions([])
     setAnswers([])
@@ -271,8 +317,52 @@ export function PracticeSession({
     setSessionId('')
   }
 
-  // -- Setup: the Practice Hub ----------------------------------------------
+  // Integrated runner: build the set immediately, once.
+  const autoStarted = useRef(false)
+  useEffect(() => {
+    if (autoStart && !autoStarted.current) {
+      autoStarted.current = true
+      startPractice()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // -- Setup ----------------------------------------------------------------
   if (phase === 'setup') {
+    // Integrated runner shows a building/empty state instead of the full hub.
+    if (autoStart) {
+      if (emptyResult) {
+        return (
+          <Card className="mx-auto max-w-lg rounded-2xl shadow-sm ring-border">
+            <CardHeader>
+              <CardTitle>No questions ready</CardTitle>
+              <CardDescription>
+                {emptyMessage ?? 'There are no published questions here for your program yet.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href={backHref} className={cn(buttonVariants({ variant: 'outline' }))}>
+                Back to Learn &amp; Practice
+              </Link>
+            </CardContent>
+          </Card>
+        )
+      }
+      return (
+        <Card className="mx-auto max-w-lg rounded-2xl shadow-sm ring-border">
+          <CardHeader>
+            <CardTitle>{subtopicFocus ? `Building your ${subtopicFocus.label} set…` : 'Building your set…'}</CardTitle>
+            <CardDescription>Picking a varied set and holding back anything you have just seen.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Skeleton className="h-6 w-3/4" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
+      )
+    }
+
     const recommendedAreas = hub.revisionTopAreas.slice(0, 3).join(', ')
     const gateBatch = Math.min(hub.revisionDueCount, GATE_BATCH_SIZE)
     const gateActive = hub.revisionDueCount > 0 && !gateSkipped && setMode !== 'mistakes'
@@ -363,9 +453,11 @@ export function PracticeSession({
           {/* -- Quick Practice -------------------------------------------- */}
           <Card className="rounded-2xl shadow-sm ring-border">
             <CardHeader className="border-b border-border/70">
-              <CardTitle>Quick practice</CardTitle>
+              <CardTitle>{subtopicFocus ? 'Focused practice' : 'Quick practice'}</CardTitle>
               <CardDescription>
-                Choose a subject and session length — we pick the questions.
+                {subtopicFocus
+                  ? 'We build a varied set for this subtopic — different skills, different question styles.'
+                  : 'Choose a subject and session length — we pick the questions.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pt-6">
@@ -377,6 +469,23 @@ export function PracticeSession({
                 </div>
               ) : (
                 <>
+                  {subtopicFocus ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand/30 bg-brand-soft px-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Practising
+                        </p>
+                        <p className="truncate text-sm font-semibold text-foreground">{subtopicFocus.label}</p>
+                      </div>
+                      <Link
+                        href="/student/practice"
+                        className={cn(buttonVariants({ size: 'sm', variant: 'ghost' }))}
+                      >
+                        Clear focus
+                      </Link>
+                    </div>
+                  ) : null}
+
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Exam type</Label>
@@ -394,62 +503,66 @@ export function PracticeSession({
                       </Select>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label>Subject</Label>
-                      <Select value={subjectId} onValueChange={handleSubjectChange} items={subjectItems}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Choose a subject" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {subjects.map((subject) => (
-                            <SelectItem key={subject.id} value={subject.id}>
-                              {subject.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {subtopicFocus ? null : (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Subject</Label>
+                          <Select value={subjectId} onValueChange={handleSubjectChange} items={subjectItems}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Choose a subject" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {subjects.map((subject) => (
+                                <SelectItem key={subject.id} value={subject.id}>
+                                  {subject.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                    <div className="space-y-2">
-                      <Label>Topic</Label>
-                      <Select
-                        value={topicId}
-                        onValueChange={(value) => {
-                          setTopicId(value)
-                          setEmptyResult(false)
-                        }}
-                        disabled={!subjectId}
-                        items={topicItems}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={subjectId ? 'All topics' : 'Choose a subject first'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={ANY_TOPIC}>All topics (recommended)</SelectItem>
-                          {filteredTopics.map((topic) => (
-                            <SelectItem key={topic.id} value={topic.id}>
-                              {topic.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                        <div className="space-y-2">
+                          <Label>Topic</Label>
+                          <Select
+                            value={topicId}
+                            onValueChange={(value) => {
+                              setTopicId(value)
+                              setEmptyResult(false)
+                            }}
+                            disabled={!subjectId}
+                            items={topicItems}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder={subjectId ? 'All topics' : 'Choose a subject first'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={ANY_TOPIC}>All topics (recommended)</SelectItem>
+                              {filteredTopics.map((topic) => (
+                                <SelectItem key={topic.id} value={topic.id}>
+                                  {topic.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                    <div className="space-y-2">
-                      <Label>Difficulty</Label>
-                      <Select value={difficulty} onValueChange={setDifficulty} items={DIFFICULTY_ITEMS}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Any difficulty" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(DIFFICULTY_ITEMS).map(([value, label]) => (
-                            <SelectItem key={value} value={value}>
-                              {label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                        <div className="space-y-2">
+                          <Label>Difficulty</Label>
+                          <Select value={difficulty} onValueChange={setDifficulty} items={DIFFICULTY_ITEMS}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Any difficulty" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(DIFFICULTY_ITEMS).map(([value, label]) => (
+                                <SelectItem key={value} value={value}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -469,35 +582,42 @@ export function PracticeSession({
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Mode</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {MODE_OPTIONS.map((option) => (
-                        <Button
-                          key={option.value}
-                          type="button"
-                          size="sm"
-                          variant={setMode === option.value ? 'default' : 'outline'}
-                          onClick={() => {
-                            setSetMode(option.value)
-                            setEmptyResult(false)
-                          }}
-                        >
-                          {option.label}
-                        </Button>
-                      ))}
-                    </div>
+                  {subtopicFocus ? (
                     <p className="text-xs text-muted-foreground">
-                      {MODE_OPTIONS.find((option) => option.value === setMode)?.hint}
+                      Difficulty adapts to how you have been going here, and questions you have just seen are
+                      held back.
                     </p>
-                  </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>Mode</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {MODE_OPTIONS.map((option) => (
+                          <Button
+                            key={option.value}
+                            type="button"
+                            size="sm"
+                            variant={setMode === option.value ? 'default' : 'outline'}
+                            onClick={() => {
+                              setSetMode(option.value)
+                              setEmptyResult(false)
+                            }}
+                          >
+                            {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {MODE_OPTIONS.find((option) => option.value === setMode)?.hint}
+                      </p>
+                    </div>
+                  )}
 
                   {emptyResult ? (
                     <Alert>
                       <AlertTitle>No questions here yet</AlertTitle>
                       <AlertDescription>
-                        There are no published questions for these filters yet. Try another topic, difficulty or
-                        exam type.
+                        {emptyMessage ??
+                          'There are no published questions for these filters yet. Try another topic, difficulty or exam type.'}
                       </AlertDescription>
                     </Alert>
                   ) : null}
@@ -505,6 +625,7 @@ export function PracticeSession({
                   <Button
                     className="w-full"
                     disabled={!canStart || isPending || gateActive}
+                    loading={isPending}
                     onClick={startPractice}
                   >
                     {isPending ? 'Building your set…' : 'Start practice'}
@@ -664,16 +785,35 @@ export function PracticeSession({
             <CardContent className="space-y-4 pt-6">
               {incorrectAnswers.map((answer) => (
                 <div key={answer.question.id} className="rounded-2xl border border-border bg-muted/50 px-4 py-4">
-                  <p className="text-sm font-medium leading-7 text-foreground">{answer.question.questionText}</p>
+                  <QuestionMarkdown
+                    text={answer.question.questionText}
+                    className="text-sm font-medium leading-7 text-foreground"
+                  />
                   <div className="mt-2 flex flex-wrap gap-4 text-sm">
                     <span className="text-amber-700">Your answer: {answer.selectedLabel}</span>
                     <span className="text-emerald-700">Correct answer: {answer.feedback.correctOptionLabel}</span>
                   </div>
                   <Separator className="my-3" />
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Worked solution
+                    Solution
                   </p>
-                  <p className="mt-1 text-sm leading-7 text-foreground/80">{answer.feedback.workedSolution}</p>
+                  {answer.feedback.workedSolution ? (
+                    <QuestionMarkdown
+                      text={answer.feedback.workedSolution}
+                      className="mt-1 text-sm leading-7 text-foreground/80"
+                    />
+                  ) : (
+                    <p className="mt-1 text-sm leading-7 text-foreground/80">
+                      No solution was added for this question yet.
+                    </p>
+                  )}
+                  {answer.question.solutionAssets.length ? (
+                    <div className="mt-2 space-y-2">
+                      {answer.question.solutionAssets.map((asset) => (
+                        <QuestionAsset key={asset.id} asset={asset} />
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="mt-2 flex justify-end">
                     <StudentQuestionReportButton
                       questionId={answer.question.id}
@@ -719,10 +859,26 @@ export function PracticeSession({
       </CardHeader>
       <CardContent className="space-y-6 pt-6">
         <div className="space-y-4">
-          <p className="text-lg leading-8 text-foreground">{activeQuestion.questionText}</p>
-          {activeQuestion.passageText ? (
-            <div className="rounded-2xl border border-border bg-muted/50 px-4 py-4 text-sm leading-7 text-foreground/80">
-              {activeQuestion.passageText}
+          {activeQuestion.stimulus ? (
+            <StimulusPanel
+              stimulus={activeQuestion.stimulus}
+              subjectName={activeQuestion.subjectName}
+            />
+          ) : activeQuestion.passageText ? (
+            <QuestionMarkdown
+              text={activeQuestion.passageText}
+              className="rounded-xl border border-border bg-card px-4 py-4 text-base leading-7 text-foreground"
+            />
+          ) : null}
+          <QuestionMarkdown
+            text={activeQuestion.questionText}
+            className="text-lg leading-8 text-foreground"
+          />
+          {activeQuestion.questionAssets.length ? (
+            <div className="space-y-3">
+              {activeQuestion.questionAssets.map((asset) => (
+                <QuestionAsset key={asset.id} asset={asset} />
+              ))}
             </div>
           ) : null}
         </div>
@@ -753,7 +909,7 @@ export function PracticeSession({
                 <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                   {option.label}
                 </span>
-                <span className="whitespace-normal leading-7">{option.option_text}</span>
+                <QuestionOptionContent option={option} />
               </button>
             )
           })}
@@ -768,14 +924,21 @@ export function PracticeSession({
             <AlertDescription>
               <div className="mt-1 space-y-3 text-sm leading-7 text-foreground">
                 <div>
-                  <p className="font-semibold text-foreground">Short explanation</p>
-                  <p className="text-foreground/80">
-                    {feedback.shortExplanation ?? 'No short explanation was added for this question yet.'}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground">Worked solution</p>
-                  <p className="text-foreground/80">{feedback.workedSolution}</p>
+                  <p className="font-semibold text-foreground">Solution</p>
+                  {feedback.workedSolution ? (
+                    <QuestionMarkdown text={feedback.workedSolution} className="text-foreground/80" />
+                  ) : (
+                    <p className="text-foreground/80">
+                      No solution was added for this question yet.
+                    </p>
+                  )}
+                  {activeQuestion.solutionAssets.length ? (
+                    <div className="mt-2 space-y-2">
+                      {activeQuestion.solutionAssets.map((asset) => (
+                        <QuestionAsset key={asset.id} asset={asset} />
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </AlertDescription>
@@ -793,7 +956,7 @@ export function PracticeSession({
 
         <div className="flex flex-wrap gap-3">
           {!feedback ? (
-            <Button disabled={isPending || !selectedOption} onClick={submitAnswer}>
+            <Button disabled={isPending || !selectedOption} loading={isPending} onClick={submitAnswer}>
               {isPending ? 'Saving...' : 'Submit answer'}
             </Button>
           ) : (

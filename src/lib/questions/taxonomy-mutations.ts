@@ -12,7 +12,8 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 export async function ensureTopic(
   supabase: SupabaseServerClient,
   subjectId: string,
-  name: string
+  name: string,
+  strand?: string | null
 ): Promise<string> {
   const cleanName = name.trim() || 'General'
   const slug = slugify(cleanName)
@@ -24,13 +25,14 @@ export async function ensureTopic(
     .eq('slug', slug)
     .maybeSingle()
 
+  // Existing topics are reused as-is; strand only applies to newly created ones.
   if (existing?.id) {
     return existing.id
   }
 
   const { data: inserted, error } = await supabase
     .from('topics')
-    .insert({ subject_id: subjectId, name: cleanName, slug })
+    .insert({ subject_id: subjectId, name: cleanName, slug, strand: strand?.trim() || null })
     .select('id')
     .single()
 
@@ -93,6 +95,51 @@ export async function ensureQuestionType(
       return raced.id
     }
     throw new Error(`Unable to create question type "${cleanName}".`)
+  }
+
+  return inserted.id
+}
+
+/**
+ * Resolve-or-create a question variant under an essential question type.
+ * Keyed by (question_type_id, slug) per the unique constraint.
+ */
+export async function ensureQuestionVariant(
+  supabase: SupabaseServerClient,
+  questionTypeId: string,
+  name: string
+): Promise<string> {
+  const cleanName = name.trim()
+  const slug = slugify(cleanName)
+
+  const { data: existing } = await supabase
+    .from('question_variants')
+    .select('id')
+    .eq('question_type_id', questionTypeId)
+    .eq('slug', slug)
+    .maybeSingle()
+
+  if (existing?.id) {
+    return existing.id
+  }
+
+  const { data: inserted, error } = await supabase
+    .from('question_variants')
+    .insert({ question_type_id: questionTypeId, name: cleanName, slug })
+    .select('id')
+    .single()
+
+  if (error || !inserted) {
+    const { data: raced } = await supabase
+      .from('question_variants')
+      .select('id')
+      .eq('question_type_id', questionTypeId)
+      .eq('slug', slug)
+      .maybeSingle()
+    if (raced?.id) {
+      return raced.id
+    }
+    throw new Error(`Unable to create question variant "${cleanName}".`)
   }
 
   return inserted.id

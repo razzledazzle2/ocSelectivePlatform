@@ -21,6 +21,7 @@ import {
   type SubmitSectionResult,
 } from '@/lib/mock-exams/mutations'
 import { countAvailableMockQuestions } from '@/lib/mock-exams/queries'
+import { createCuratedMockSession } from '@/lib/mock-tests/mutations'
 import type { PrepareMockExamResult } from '@/lib/mock-exams/types'
 import {
   EXAM_TYPES,
@@ -156,6 +157,37 @@ export async function startMockExamAction(
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Unable to start this mock exam.',
+    }
+  }
+}
+
+/** Starts a student's attempt at a published admin-curated mock and returns the session id. */
+export async function startCuratedMockAction(
+  mockTestId: string
+): Promise<ActionResult<{ sessionId: string }>> {
+  const profile = await requireProfile({ allowedRoles: [...STUDENT_PORTAL_ROLES] })
+
+  if (!mockTestId) {
+    return { success: false, message: 'This mock test could not be found.' }
+  }
+
+  try {
+    const result = await createCuratedMockSession({ studentId: profile.id, mockTestId })
+
+    if (!result) {
+      return {
+        success: false,
+        message: 'This mock test is not available to start right now.',
+      }
+    }
+
+    revalidatePath('/student/mock-exams')
+
+    return { success: true, data: { sessionId: result.sessionId } }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unable to start this mock test.',
     }
   }
 }

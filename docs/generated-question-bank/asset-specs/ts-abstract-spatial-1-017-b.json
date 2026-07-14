@@ -1,0 +1,29 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts-abstract-spatial-1-017-b.svg",
+  "external_id": "ts-abstract-spatial-1-017-b",
+  "asset_type": "svg",
+  "alt_text": "Two 2×2 squares.",
+  "spec": {
+    "type": "spatial_assembly",
+    "width": 220,
+    "height": 120,
+    "pieces": [
+      {
+        "rect": [
+          20,
+          34,
+          52,
+          52
+        ]
+      },
+      {
+        "rect": [
+          120,
+          34,
+          52,
+          52
+        ]
+      }
+    ]
+  }
+}

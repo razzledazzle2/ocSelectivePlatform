@@ -559,10 +559,12 @@ export async function submitMockExam(
       question_type_id: string | null
       exam_type: ExamType
       difficulty: number
-      correct_option_label: QuestionOptionLabel
+      correct_option_label: QuestionOptionLabel | null
     } | null
   }>)
-    .filter((row) => row.question !== null)
+    // Rows without an answer key (e.g. a question converted to a writing
+    // prompt after selection) cannot be graded — skip them gracefully.
+    .filter((row) => row.question !== null && row.question.correct_option_label !== null)
     .map((row) => ({
       questionId: row.question_id,
       selectedLabel: row.selected_option_label,
@@ -572,7 +574,7 @@ export async function submitMockExam(
       questionTypeId: row.question!.question_type_id,
       examType: row.question!.exam_type,
       difficulty: row.question!.difficulty,
-      correctLabel: row.question!.correct_option_label,
+      correctLabel: row.question!.correct_option_label as QuestionOptionLabel,
     }))
 
   let correctCount = 0

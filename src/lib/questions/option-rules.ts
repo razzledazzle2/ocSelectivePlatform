@@ -1,4 +1,4 @@
-import { QUESTION_OPTION_LABELS, type QuestionOptionLabel } from '@/lib/types'
+import { QUESTION_OPTION_LABELS, type AnswerFormat, type QuestionOptionLabel } from '@/lib/types'
 
 /**
  * Central, subject-aware rules for how many answer options a question should
@@ -99,9 +99,20 @@ export interface OptionCountCheck {
 /**
  * Validates an option count against a subject's rule.
  * Allowed-but-not-preferred is a warning (e.g. a 4-option Maths Reasoning
- * question); a disallowed count is an error.
+ * question); a disallowed count is an error. Option-count rules only apply to
+ * single_choice questions — extended_response questions must have none.
  */
-export function checkOptionCount(subjectNameOrSlug: string | null | undefined, count: number): OptionCountCheck {
+export function checkOptionCount(
+  subjectNameOrSlug: string | null | undefined,
+  count: number,
+  answerFormat: AnswerFormat = 'single_choice'
+): OptionCountCheck {
+  if (answerFormat !== 'single_choice') {
+    return count > 0
+      ? { error: 'Extended response questions must not have answer options.' }
+      : {}
+  }
+
   const rule = getOptionRuleForSubject(subjectNameOrSlug)
 
   if (count < MIN_OPTION_COUNT || count > MAX_OPTION_COUNT) {

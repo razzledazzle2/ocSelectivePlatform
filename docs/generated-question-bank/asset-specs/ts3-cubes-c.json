@@ -1,0 +1,33 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-cubes-c.svg",
+  "external_id": "ts3-017-C",
+  "asset_type": "svg",
+  "alt_text": "A row of cubes with one stacked two high.",
+  "spec": {
+    "type": "isometric_3d_views",
+    "solid": {
+      "cells": [
+        {
+          "col": 0,
+          "row": 0,
+          "level": 0
+        },
+        {
+          "col": 1,
+          "row": 0,
+          "level": 0
+        },
+        {
+          "col": 2,
+          "row": 0,
+          "level": 0
+        },
+        {
+          "col": 0,
+          "row": 0,
+          "level": 1
+        }
+      ]
+    }
+  }
+}

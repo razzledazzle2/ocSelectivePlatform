@@ -1,0 +1,33 @@
+{
+  "asset_ref": "asset://question-assets/generated/ts3-cubes-b.svg",
+  "external_id": "ts3-017-B",
+  "asset_type": "svg",
+  "alt_text": "An L-shaped base of cubes, all one cube high (correct).",
+  "spec": {
+    "type": "isometric_3d_views",
+    "solid": {
+      "cells": [
+        {
+          "col": 0,
+          "row": 0,
+          "level": 0
+        },
+        {
+          "col": 1,
+          "row": 0,
+          "level": 0
+        },
+        {
+          "col": 2,
+          "row": 0,
+          "level": 0
+        },
+        {
+          "col": 0,
+          "row": 1,
+          "level": 0
+        }
+      ]
+    }
+  }
+}

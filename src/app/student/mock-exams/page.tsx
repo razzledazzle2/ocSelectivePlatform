@@ -1,34 +1,31 @@
 import { PageHeader } from '@/components/layout/page-header'
-import { MockExamLanding } from '@/components/student/mock-exams/mock-exam-landing'
+import { CuratedMockList } from '@/components/student/mock-exams/curated-mock-list'
 import { requireProfile } from '@/lib/auth/require-profile'
-import { getRecentMockExams } from '@/lib/mock-exams/queries'
-import { getSubjects } from '@/lib/questions/queries'
-import { STUDENT_PORTAL_ROLES, type ExamType } from '@/lib/types'
+import { getPublishedMocksForStudent } from '@/lib/mock-tests/queries'
+import { STUDENT_PORTAL_ROLES } from '@/lib/types'
+import type { StudentMockListItem } from '@/lib/mock-tests/types'
 
 export default async function StudentMockExamsPage() {
   const profile = await requireProfile({ allowedRoles: [...STUDENT_PORTAL_ROLES] })
-  const [subjects, recentExams] = await Promise.all([
-    getSubjects(),
-    getRecentMockExams(profile.id),
-  ])
 
-  const defaultExamType: ExamType = 'Selective'
-
-  const activeSubjects = subjects.filter((subject) => subject.is_active)
+  // Mock tests live in tables added by the curated-mock migrations; until they
+  // are pushed the query fails, so degrade to an empty list rather than a crash.
+  let mocks: StudentMockListItem[] = []
+  try {
+    mocks = await getPublishedMocksForStudent(profile.id)
+  } catch {
+    mocks = []
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Mock Exams"
-        title="Timed exam practice"
-        description="Simulate test pressure: a countdown, no instant feedback, and a full results breakdown at the end. Every question you miss flows into Smart Revision."
+        eyebrow="Mock Tests"
+        title="Mock Tests"
+        description="Complete full-length practice tests created by your tutors. Every question you miss flows into Smart Revision."
       />
 
-      <MockExamLanding
-        subjects={activeSubjects}
-        recentExams={recentExams}
-        defaultExamType={defaultExamType}
-      />
+      <CuratedMockList mocks={mocks} />
     </div>
   )
 }
