@@ -10,7 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ADMIN_QUESTION_PAGE_SIZES } from '@/lib/types'
+import {
+  ADMIN_QUESTION_ALL_PAGE_SIZE_LIMIT,
+  ADMIN_QUESTION_ALL_PAGE_SIZE_VALUE,
+  ADMIN_QUESTION_PAGE_SIZES,
+} from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 interface PaginationControlsProps {
@@ -18,11 +22,14 @@ interface PaginationControlsProps {
   pageCount: number
   totalCount: number
   pageSize: number
+  /** Whether the current page size came from choosing "All". */
+  isAllPageSize?: boolean
   /** Singular noun for the range summary, e.g. "question". */
   itemLabel?: string
   disabled?: boolean
   onPageChange: (page: number) => void
-  onPageSizeChange: (pageSize: number) => void
+  /** Numeric sizes pass a number; choosing "All" passes the sentinel string. */
+  onPageSizeChange: (pageSize: number | typeof ADMIN_QUESTION_ALL_PAGE_SIZE_VALUE) => void
   className?: string
 }
 
@@ -53,6 +60,7 @@ export function PaginationControls({
   pageCount,
   totalCount,
   pageSize,
+  isAllPageSize = false,
   itemLabel = 'item',
   disabled = false,
   onPageChange,
@@ -61,9 +69,14 @@ export function PaginationControls({
 }: PaginationControlsProps) {
   const rangeStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1
   const rangeEnd = Math.min(page * pageSize, totalCount)
-  const pageSizeItems = Object.fromEntries(
-    ADMIN_QUESTION_PAGE_SIZES.map((size) => [String(size), `${size} per page`])
-  )
+  const allAvailable = totalCount > 0 && totalCount <= ADMIN_QUESTION_ALL_PAGE_SIZE_LIMIT
+  const allDescriptionId = 'pagination-all-page-size-hint'
+
+  const pageSizeItems = {
+    ...Object.fromEntries(ADMIN_QUESTION_PAGE_SIZES.map((size) => [String(size), `${size} per page`])),
+    [ADMIN_QUESTION_ALL_PAGE_SIZE_VALUE]: 'All',
+  }
+  const selectValue = isAllPageSize ? ADMIN_QUESTION_ALL_PAGE_SIZE_VALUE : String(pageSize)
 
   return (
     <div className={cn('flex flex-wrap items-center justify-between gap-3', className)}>
@@ -80,20 +93,39 @@ export function PaginationControls({
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
+        <span id={allDescriptionId} className="sr-only">
+          {allAvailable
+            ? `Show all ${totalCount} matching ${itemLabel}s on one page.`
+            : `"All" is only available when ${ADMIN_QUESTION_ALL_PAGE_SIZE_LIMIT} or fewer ${itemLabel}s match the current filters (currently ${totalCount}).`}
+        </span>
         <Select
-          value={String(pageSize)}
-          onValueChange={(value) => onPageSizeChange(Number(value))}
+          value={selectValue}
+          onValueChange={(value) =>
+            onPageSizeChange(value === ADMIN_QUESTION_ALL_PAGE_SIZE_VALUE ? ADMIN_QUESTION_ALL_PAGE_SIZE_VALUE : Number(value))
+          }
           items={pageSizeItems}
         >
           <SelectTrigger className="h-8 text-xs" aria-label="Rows per page" disabled={disabled}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {Object.entries(pageSizeItems).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
+            {ADMIN_QUESTION_PAGE_SIZES.map((size) => (
+              <SelectItem key={size} value={String(size)}>
+                {size} per page
               </SelectItem>
             ))}
+            <SelectItem
+              value={ADMIN_QUESTION_ALL_PAGE_SIZE_VALUE}
+              disabled={!allAvailable}
+              aria-describedby={allDescriptionId}
+              title={
+                allAvailable
+                  ? undefined
+                  : `All is only available when ${ADMIN_QUESTION_ALL_PAGE_SIZE_LIMIT} or fewer ${itemLabel}s match the current filters.`
+              }
+            >
+              All
+            </SelectItem>
           </SelectContent>
         </Select>
 

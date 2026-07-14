@@ -373,8 +373,16 @@ export interface QuestionDetail extends QuestionRecord {
   assets: QuestionAssetLink[]
 }
 
-export const ADMIN_QUESTION_PAGE_SIZES = [10, 25, 50, 100] as const
+export const ADMIN_QUESTION_PAGE_SIZES = [10, 25, 50, 100, 250, 500] as const
 export const DEFAULT_ADMIN_QUESTION_PAGE_SIZE = 25
+/**
+ * Largest filtered total for which the "All" rows-per-page option is offered.
+ * Above this the picker hides/disables "All" rather than ever loading
+ * thousands of rows into the browser in one page.
+ */
+export const ADMIN_QUESTION_ALL_PAGE_SIZE_LIMIT = 500
+/** Sentinel `pageSize` value meaning "every row matching the current filters" (capped at the limit above). */
+export const ADMIN_QUESTION_ALL_PAGE_SIZE_VALUE = 'all'
 
 export const ADMIN_QUESTION_SORTS = [
   'updated_desc',
@@ -480,6 +488,75 @@ export interface AdminQuestionsPage {
   page: number
   pageSize: number
   pageCount: number
+}
+
+// -- Bulk question actions ----------------------------------------------------
+
+/** Set-based updates are chunked to this many ids per statement (see docs/question-asset-pipeline.md-style rationale in bulk-mutations.ts). */
+export const BULK_QUESTION_CHUNK_SIZE = 250
+
+/**
+ * What a bulk action should target, sent from the client to a server action.
+ * `explicit` carries the ids the admin actually checked (works across pages,
+ * since the client keeps them in a Set as they navigate). `allMatching` never
+ * ships an id list from the browser — the server re-resolves `filters` at
+ * action time, bounded by `cutoffTimestamp` (captured when the admin opened
+ * "Select all N matching") so questions created afterwards are never silently
+ * swept in, and by `excludedIds` for any rows the admin explicitly unchecked.
+ */
+export type BulkQuestionSelectionInput =
+  | { mode: 'explicit'; ids: string[] }
+  | {
+      mode: 'allMatching'
+      filters: AdminQuestionFilters
+      cutoffTimestamp: string
+      excludedIds: string[]
+    }
+
+/** One reason a question was excluded from a bulk action, with a stable code for UI copy + tests. */
+export interface BulkQuestionFailureCode {
+  questionId: string
+  code:
+    | 'not_found'
+    | 'not_archived'
+    | 'already_trashed'
+    | 'not_trashed'
+    | 'not_published'
+    | 'already_published'
+    | 'assets_not_ready'
+    | 'archived_blocks_publish'
+    | 'has_student_history'
+    | 'unexpected_error'
+  reason: string
+}
+
+/**
+ * Result of any bulk question mutation. Chunked set-based updates are not
+ * atomic across chunks, so this always reports real succeeded/failed counts
+ * rather than a single success boolean — see bulk-mutations.ts.
+ */
+export interface BulkQuestionMutationResult {
+  requestedCount: number
+  /** Count after resolving filters/exclusions server-side; may be less than requestedCount for allMatching selections. */
+  matchedCount: number
+  succeededCount: number
+  succeededIds: string[]
+  failed: BulkQuestionFailureCode[]
+  warnings?: Array<{ code: string; message: string }>
+}
+
+/** Server-authoritative preview for the "Select all N matching filters" banner. */
+export interface BulkSelectionPreview {
+  matchedCount: number
+  cutoffTimestamp: string
+}
+
+/** Preview for the permanent-delete confirmation dialog — never mutates anything. */
+export interface HardDeletePreview {
+  requestedCount: number
+  eligibleIds: string[]
+  blocked: BulkQuestionFailureCode[]
+  missingIds: string[]
 }
 
 /** Statuses settable from the question form (archiving has its own action). */

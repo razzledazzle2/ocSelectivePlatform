@@ -15,19 +15,26 @@ import {
 import { toast } from 'sonner'
 
 import {
-  archiveQuestionAction,
   createSimilarQuestionAction,
   duplicateQuestionAction,
   getQuestionPreviewAction,
-  hardDeleteQuestionAction,
   publishQuestionAction,
   restoreQuestionAction,
-  softDeleteQuestionAction,
   unpublishQuestionAction,
 } from '@/app/admin/questions/actions'
+import {
+  bulkArchiveQuestionsAction,
+  bulkPublishQuestionsAction,
+  bulkRestoreQuestionsAction,
+  bulkTrashQuestionsAction,
+  bulkUnpublishQuestionsAction,
+} from '@/app/admin/questions/bulk-actions'
+import { exportQuestionsCsvAction } from '@/app/admin/questions/export-actions'
+import { BulkDeleteQuestionsDialog } from '@/components/admin/bulk-delete-questions-dialog'
 import { GenerateMissingAssetsButton } from '@/components/admin/generate-missing-assets-button'
 import { QuestionListRow } from '@/components/admin/question-list-row'
 import { QuestionPreviewPane } from '@/components/admin/question-preview-pane'
+import { SelectAllMatchingBanner } from '@/components/admin/select-all-matching-banner'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,9 +61,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { exportQuestionsCsvAction } from '@/app/admin/questions/export-actions'
+import { useQuestionSelection } from '@/hooks/use-question-selection'
 import type { QuestionStatusCounts } from '@/lib/questions/queries'
 import {
+  ADMIN_QUESTION_ALL_PAGE_SIZE_LIMIT,
+  ADMIN_QUESTION_ALL_PAGE_SIZE_VALUE,
   ADMIN_QUESTION_SORT_LABELS,
   DEFAULT_ADMIN_QUESTION_PAGE_SIZE,
   EXAM_TYPES,
@@ -65,6 +74,9 @@ import {
   type AdminQuestionFilters,
   type AdminQuestionListItem,
   type AdminQuestionsPage,
+  type BulkQuestionMutationResult,
+  type BulkQuestionSelectionInput,
+  type BulkSelectionPreview,
   type QuestionDetail,
   type QuestionTypeRecord,
   type SubjectRecord,
@@ -96,6 +108,13 @@ interface QuestionBankWorkspaceProps {
   statusCounts: QuestionStatusCounts
 }
 
+function describeSelection(input: BulkQuestionSelectionInput, selectedCount: number): string {
+  if (input.mode === 'explicit') {
+    return `${selectedCount} selected question${selectedCount === 1 ? '' : 's'}`
+  }
+  return `${selectedCount} question${selectedCount === 1 ? '' : 's'} matching the current filters`
+}
+
 /**
  * Hybrid question bank: a scannable, filterable, PAGINATED list on the left
  * and a sticky student-style preview of the selected question on the right.
@@ -113,15 +132,13 @@ export function QuestionBankWorkspace({
 }: QuestionBankWorkspaceProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [isBulkPending, startBulkTransition] = useTransition()
   const [isNavigating, startNavigation] = useTransition()
   const [isExporting, startExport] = useTransition()
 
-  // Round-trip CSV export (v2 import header): whatever is exported can be fed
-  // straight back into Import. `questionIds` scopes to the selected rows; omit
-  // it to export every question matching the current filters.
-  const runExport = (questionIds?: string[]) => {
+  const runExport = (selection?: BulkQuestionSelectionInput) => {
     startExport(async () => {
-      const result = await exportQuestionsCsvAction(filters, questionIds)
+      const result = await exportQuestionsCsvAction(filters, selection)
       if (!result.success || !result.data) {
         toast.error(result.message ?? 'Unable to export questions.')
         return
@@ -323,9 +340,8 @@ export function QuestionBankWorkspace({
       assetState,
     ].some((value) => value !== ALL)
 
-  // -- Selection (preview) + bulk checkboxes ----------------------------------
+  // -- Preview (single-row focus) -----------------------------------------------
   const [previewId, setPreviewId] = useState<string | null>(null)
-  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const [sheetOpen, setSheetOpen] = useState(false)
 
   useEffect(() => {
@@ -339,32 +355,71 @@ export function QuestionBankWorkspace({
   }, [questions, previewId])
 
   const previewItem = questions.find((question) => question.id === previewId) ?? null
-  const checkedQuestions = questions.filter((question) => checkedIds.has(question.id))
-  const allChecked = questions.length > 0 && checkedQuestions.length === questions.length
 
-  function toggleAllChecked() {
-    setCheckedIds(allChecked ? new Set() : new Set(questions.map((question) => question.id)))
-  }
+  // -- Bulk selection (explicit across pages, or all-matching-filters) --------
+  const visibleIds = useMemo(() => questions.map((question) => question.id), [questions])
+  const filterKey = useMemo(
+    () =>
+      JSON.stringify([
+        query.trim(),
+        examType,
+        subjectId,
+        topicId,
+        questionTypeId,
+        domainCode,
+        subtopicCode,
+        skillCode,
+        questionFamily,
+        stimulusFormat,
+        patternKeyInput.trim(),
+        tag,
+        difficulty,
+        status,
+        assetState,
+      ]),
+    // query/patternKeyInput are the committed-on-submit values (filters.query / filters.patternKey)
+    // everywhere else in this component, so key off those rather than every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      filters.query,
+      examType,
+      subjectId,
+      topicId,
+      questionTypeId,
+      domainCode,
+      subtopicCode,
+      skillCode,
+      questionFamily,
+      stimulusFormat,
+      filters.patternKey,
+      tag,
+      difficulty,
+      status,
+      assetState,
+    ]
+  )
+  const selection = useQuestionSelection({ visibleIds, filterKey, sortKey: sort })
+  const checkedQuestions = questions.filter((question) => selection.isSelected(question.id))
+  // True only when every explicitly-selected id is accounted for by rows we actually
+  // have loaded (the common "picked some rows on this page" case) — lets the bulk bar
+  // show precise, composition-aware actions. Cross-page or all-matching selections fall
+  // back to always offering every action and letting the server report what applied.
+  const hasFullCompositionKnowledge =
+    selection.state.mode === 'explicit' && checkedQuestions.length === selection.selectedCount
 
-  function setChecked(id: string, checked: boolean) {
-    setCheckedIds((current) => {
-      const next = new Set(current)
-      if (checked) {
-        next.add(id)
-      } else {
-        next.delete(id)
-      }
-      return next
-    })
-  }
-
-  function selectQuestion(id: string) {
-    setPreviewId(id)
-    // Below lg the preview pane is hidden, so open it as a drawer instead.
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) {
-      setSheetOpen(true)
+  const headerCheckboxRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (headerCheckboxRef.current) {
+      headerCheckboxRef.current.indeterminate = selection.headerState === 'indeterminate'
     }
-  }
+  }, [selection.headerState])
+
+  const [liveMessage, setLiveMessage] = useState('')
+  useEffect(() => {
+    if (selection.selectedCount > 0) {
+      setLiveMessage(`${selection.selectedCount} question${selection.selectedCount === 1 ? '' : 's'} selected.`)
+    }
+  }, [selection.selectedCount])
 
   // -- Preview detail loading (cached per id) ----------------------------------
   const [details, setDetails] = useState<Record<string, QuestionDetail>>({})
@@ -399,25 +454,15 @@ export function QuestionBankWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewId])
 
-  // -- Mutations ---------------------------------------------------------------
+  // -- Single-row mutations (row menu / preview pane; immediate, no confirmation) --
   function runStatusAction(ids: string[], action: (id: string) => Promise<ActionResult>, label: string) {
     startTransition(async () => {
-      let succeeded = 0
-      let failed = 0
-      for (const id of ids) {
-        const result = await action(id)
-        if (result.success) {
-          succeeded += 1
-        } else {
-          failed += 1
-        }
-      }
-      if (failed === 0) {
-        toast.success(ids.length === 1 ? `${label}.` : `${label} for ${succeeded} questions.`)
+      const result = await action(ids[0])
+      if (result.success) {
+        toast.success(`${label}.`)
       } else {
-        toast.error(`${succeeded} succeeded, ${failed} failed.`)
+        toast.error(result.message ?? 'Something went wrong.')
       }
-      setCheckedIds(new Set())
       router.refresh()
       if (previewId && ids.includes(previewId)) {
         void loadDetail(previewId, { force: true })
@@ -438,63 +483,74 @@ export function QuestionBankWorkspace({
     })
   }
 
-  // -- Archive confirmation ------------------------------------------------------
-  const [archiveIds, setArchiveIds] = useState<string[] | null>(null)
+  // -- Bulk mutations: one request, one permission check, one set-based update per
+  // chunk, one revalidation, one refresh — see bulk-mutations.ts / bulk-actions.ts.
+  function runBulkAction(
+    input: BulkQuestionSelectionInput,
+    action: (selection: BulkQuestionSelectionInput) => Promise<ActionResult<BulkQuestionMutationResult>>
+  ) {
+    startBulkTransition(async () => {
+      const result = await action(input)
+      if (result.data) {
+        selection.applyResult(result.data)
+        setLiveMessage(result.message ?? '')
+        if (result.success) {
+          toast.success(result.message ?? 'Done.')
+        } else {
+          toast.error(result.message ?? 'Some questions could not be updated.')
+        }
+      } else {
+        toast.error(result.message ?? 'Something went wrong.')
+      }
+      router.refresh()
+      if (previewId && result.data?.succeededIds.includes(previewId)) {
+        void loadDetail(previewId, { force: true })
+      }
+    })
+  }
+
+  const isMutating = isPending || isBulkPending
+
+  // -- Archive confirmation (single row or bulk) ---------------------------------
+  const [archiveSelection, setArchiveSelection] = useState<BulkQuestionSelectionInput | null>(null)
+  const archiveCount = archiveSelection
+    ? archiveSelection.mode === 'explicit'
+      ? archiveSelection.ids.length
+      : selection.selectedCount
+    : 0
 
   function confirmArchive() {
-    if (archiveIds && archiveIds.length > 0) {
-      runStatusAction(archiveIds, archiveQuestionAction, 'Question archived')
+    if (archiveSelection) {
+      runBulkAction(archiveSelection, bulkArchiveQuestionsAction)
     }
-    setArchiveIds(null)
+    setArchiveSelection(null)
   }
 
-  // -- Soft delete (trash) confirmation + restore --------------------------------
-  const [deleteIds, setDeleteIds] = useState<string[] | null>(null)
+  // -- Move to trash confirmation (single row or bulk) + restore -----------------
+  const [trashSelection, setTrashSelection] = useState<BulkQuestionSelectionInput | null>(null)
+  const trashCount = trashSelection
+    ? trashSelection.mode === 'explicit'
+      ? trashSelection.ids.length
+      : selection.selectedCount
+    : 0
 
-  /** Only archived, not-already-trashed questions can be moved to trash. */
-  function requestDelete(candidates: AdminQuestionListItem[]) {
-    const ids = candidates.filter((q) => q.status === 'archived' && !q.deletedAt).map((q) => q.id)
-    if (ids.length === 0) {
-      toast.error('Only archived questions can be moved to trash. Archive it first.')
-      return
+  function confirmTrash() {
+    if (trashSelection) {
+      runBulkAction(trashSelection, bulkTrashQuestionsAction)
     }
-    setDeleteIds(ids)
+    setTrashSelection(null)
   }
 
-  function confirmDelete() {
-    if (deleteIds && deleteIds.length > 0) {
-      runStatusAction(deleteIds, softDeleteQuestionAction, 'Question moved to trash')
-    }
-    setDeleteIds(null)
+  function restoreSingle(question: AdminQuestionListItem) {
+    runStatusAction([question.id], restoreQuestionAction, 'Question restored')
   }
 
-  function restore(candidates: AdminQuestionListItem[]) {
-    const ids = candidates.filter((q) => q.deletedAt).map((q) => q.id)
-    if (ids.length === 0) {
-      return
-    }
-    runStatusAction(ids, restoreQuestionAction, 'Question restored')
+  function restoreBulk() {
+    runBulkAction(selection.toSelectionInput(), bulkRestoreQuestionsAction)
   }
 
-  // -- Permanent delete confirmation ---------------------------------------------
-  const [hardDeleteIds, setHardDeleteIds] = useState<string[] | null>(null)
-
-  /** Only archived questions (trashed or not) can be permanently deleted. */
-  function requestHardDelete(candidates: AdminQuestionListItem[]) {
-    const ids = candidates.filter((q) => q.status === 'archived').map((q) => q.id)
-    if (ids.length === 0) {
-      toast.error('Only archived questions can be permanently deleted. Archive it first.')
-      return
-    }
-    setHardDeleteIds(ids)
-  }
-
-  function confirmHardDelete() {
-    if (hardDeleteIds && hardDeleteIds.length > 0) {
-      runStatusAction(hardDeleteIds, hardDeleteQuestionAction, 'Question permanently deleted')
-    }
-    setHardDeleteIds(null)
-  }
+  // -- Permanent delete: server-authoritative preview dialog (single row or bulk) --
+  const [hardDeleteSelection, setHardDeleteSelection] = useState<BulkQuestionSelectionInput | null>(null)
 
   function publishToggle(question: AdminQuestionListItem) {
     if (question.status === 'published') {
@@ -504,6 +560,33 @@ export function QuestionBankWorkspace({
     }
   }
 
+  // Escape clears selection — but only when no dialog/menu is open, and never
+  // while focus is inside a text input (so it doesn't fight normal typing).
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || selection.selectedCount === 0) {
+        return
+      }
+      if (archiveSelection || trashSelection || hardDeleteSelection) {
+        return
+      }
+      const target = event.target as HTMLElement | null
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
+        return
+      }
+      if (
+        target?.closest(
+          '[data-slot="dropdown-menu-content"], [data-slot="alert-dialog-content"], [data-slot="dialog-content"]'
+        )
+      ) {
+        return
+      }
+      selection.clear()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [archiveSelection, trashSelection, hardDeleteSelection, selection])
+
   // -- Render --------------------------------------------------------------------
   const previewPane = (
     <QuestionPreviewPane
@@ -511,22 +594,26 @@ export function QuestionBankWorkspace({
       detail={previewItem ? details[previewItem.id] ?? null : null}
       isLoading={previewLoading}
       error={previewError}
-      isBusy={isPending}
+      isBusy={isMutating}
       onPublishToggle={() => previewItem && publishToggle(previewItem)}
       onDuplicate={() => previewItem && runRedirectAction(() => duplicateQuestionAction(previewItem.id))}
       onCreateSimilar={() =>
         previewItem && runRedirectAction(() => createSimilarQuestionAction(previewItem.id))
       }
-      onArchive={() => previewItem && setArchiveIds([previewItem.id])}
-      onDelete={() => previewItem && requestDelete([previewItem])}
-      onRestore={() => previewItem && restore([previewItem])}
-      onDeleteForever={() => previewItem && requestHardDelete([previewItem])}
+      onArchive={() => previewItem && setArchiveSelection({ mode: 'explicit', ids: [previewItem.id] })}
+      onDelete={() => previewItem && setTrashSelection({ mode: 'explicit', ids: [previewItem.id] })}
+      onRestore={() => previewItem && restoreSingle(previewItem)}
+      onDeleteForever={() => previewItem && setHardDeleteSelection({ mode: 'explicit', ids: [previewItem.id] })}
       onAssetsChanged={() => previewItem && loadDetail(previewItem.id, { force: true })}
     />
   )
 
   return (
     <div className="items-start gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,28rem)]">
+      <div aria-live="polite" className="sr-only">
+        {liveMessage}
+      </div>
+
       {/* -- Left: toolbar + list ------------------------------------------- */}
       <div className="min-w-0 space-y-4">
         {/* Search + filters */}
@@ -799,98 +886,99 @@ export function QuestionBankWorkspace({
           </div>
         </div>
 
-        {/* Bulk action bar */}
-        {checkedQuestions.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-brand/30 bg-brand-soft px-4 py-2.5">
-            <p className="text-sm font-medium text-foreground">
-              {checkedQuestions.length} selected
-            </p>
-            <div className="ml-auto flex flex-wrap items-center gap-1.5">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={isPending}
-                onClick={() =>
-                  runStatusAction(
-                    checkedQuestions.filter((q) => q.status !== 'published').map((q) => q.id),
-                    publishQuestionAction,
-                    'Published'
-                  )
-                }
-              >
-                <RocketIcon className="size-3.5" />
-                Publish
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={isPending}
-                onClick={() =>
-                  runStatusAction(
-                    checkedQuestions.filter((q) => q.status === 'published').map((q) => q.id),
-                    unpublishQuestionAction,
-                    'Unpublished'
-                  )
-                }
-              >
-                <RotateCcwIcon className="size-3.5" />
-                Unpublish
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={isPending}
-                onClick={() => setArchiveIds(checkedQuestions.map((q) => q.id))}
-              >
-                <ArchiveIcon className="size-3.5" />
-                Archive
-              </Button>
-              {checkedQuestions.some((q) => q.deletedAt) ? (
+        {/* Sticky bulk action bar */}
+        {selection.selectedCount > 0 ? (
+          <div className="rounded-2xl border border-brand/30 bg-brand-soft">
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
+              <p className="text-sm font-medium text-foreground">
+                {selection.selectedCount} selected
+              </p>
+              {!hasFullCompositionKnowledge ? (
+                <p className="text-xs text-muted-foreground">Actions apply only where they&apos;re valid.</p>
+              ) : null}
+              <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                {!hasFullCompositionKnowledge || checkedQuestions.some((q) => q.status !== 'published') ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isMutating}
+                    onClick={() => runBulkAction(selection.toSelectionInput(), bulkPublishQuestionsAction)}
+                  >
+                    <RocketIcon className="size-3.5" />
+                    Publish
+                  </Button>
+                ) : null}
+                {!hasFullCompositionKnowledge || checkedQuestions.some((q) => q.status === 'published') ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isMutating}
+                    onClick={() => runBulkAction(selection.toSelectionInput(), bulkUnpublishQuestionsAction)}
+                  >
+                    <RotateCcwIcon className="size-3.5" />
+                    Unpublish
+                  </Button>
+                ) : null}
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={isPending}
-                  onClick={() => restore(checkedQuestions)}
+                  disabled={isMutating}
+                  onClick={() => setArchiveSelection(selection.toSelectionInput())}
                 >
-                  <Undo2Icon className="size-3.5" />
-                  Restore
+                  <ArchiveIcon className="size-3.5" />
+                  Archive
                 </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={isPending}
-                  onClick={() => requestDelete(checkedQuestions)}
-                >
-                  <Trash2Icon className="size-3.5" />
-                  Move to trash
-                </Button>
-              )}
-              {checkedQuestions.some((q) => q.status === 'archived') ? (
+                {!hasFullCompositionKnowledge || checkedQuestions.some((q) => q.deletedAt) ? (
+                  <Button size="sm" variant="outline" disabled={isMutating} onClick={restoreBulk}>
+                    <Undo2Icon className="size-3.5" />
+                    Restore
+                  </Button>
+                ) : null}
+                {!hasFullCompositionKnowledge || checkedQuestions.some((q) => !q.deletedAt) ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isMutating}
+                    onClick={() => setTrashSelection(selection.toSelectionInput())}
+                  >
+                    <Trash2Icon className="size-3.5" />
+                    Move to trash
+                  </Button>
+                ) : null}
                 <Button
                   size="sm"
                   variant="outline"
                   className="text-destructive hover:text-destructive"
-                  disabled={isPending}
-                  onClick={() => requestHardDelete(checkedQuestions)}
+                  disabled={isMutating}
+                  onClick={() => setHardDeleteSelection(selection.toSelectionInput())}
                 >
                   <Trash2Icon className="size-3.5" />
                   Delete forever
                 </Button>
-              ) : null}
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={isExporting}
-                onClick={() => runExport(checkedQuestions.map((q) => q.id))}
-              >
-                <DownloadIcon className="size-3.5" />
-                Export selected
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setCheckedIds(new Set())}>
-                Clear
-              </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isExporting}
+                  onClick={() => runExport(selection.toSelectionInput())}
+                >
+                  <DownloadIcon className="size-3.5" />
+                  Export selected
+                </Button>
+                <Button size="sm" variant="ghost" onClick={selection.clear}>
+                  Clear
+                </Button>
+              </div>
             </div>
+            {selection.state.mode === 'explicit' && selection.headerState === 'checked' ? (
+              <SelectAllMatchingBanner
+                visibleCount={visibleIds.length}
+                totalCount={data.totalCount}
+                filters={filters}
+                onSelectAllMatching={(preview: BulkSelectionPreview) =>
+                  selection.selectAllMatching(filters, preview.cutoffTimestamp, preview.matchedCount)
+                }
+              />
+            ) : null}
           </div>
         ) : null}
 
@@ -899,11 +987,12 @@ export function QuestionBankWorkspace({
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2.5">
             <div className="flex items-center gap-3">
               <input
+                ref={headerCheckboxRef}
                 type="checkbox"
                 aria-label="Select all questions on this page"
                 className="size-4 accent-primary"
-                checked={allChecked}
-                onChange={toggleAllChecked}
+                checked={selection.headerState === 'checked'}
+                onChange={selection.toggleAll}
               />
               <p className="text-sm text-muted-foreground">
                 <span className="font-medium text-foreground">{data.totalCount}</span> question
@@ -961,19 +1050,24 @@ export function QuestionBankWorkspace({
                   key={question.id}
                   question={question}
                   isActive={question.id === previewId}
-                  isChecked={checkedIds.has(question.id)}
-                  isBusy={isPending}
-                  onSelect={() => selectQuestion(question.id)}
-                  onCheckedChange={(checked) => setChecked(question.id, checked)}
+                  isChecked={selection.isSelected(question.id)}
+                  isBusy={isMutating}
+                  onSelect={() => {
+                    setPreviewId(question.id)
+                    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) {
+                      setSheetOpen(true)
+                    }
+                  }}
+                  onCheckedChange={(checked, shiftKey) => selection.toggle(question.id, checked, shiftKey)}
                   onPublishToggle={() => publishToggle(question)}
                   onDuplicate={() => runRedirectAction(() => duplicateQuestionAction(question.id))}
                   onCreateSimilar={() =>
                     runRedirectAction(() => createSimilarQuestionAction(question.id))
                   }
-                  onArchive={() => setArchiveIds([question.id])}
-                  onDelete={() => requestDelete([question])}
-                  onRestore={() => restore([question])}
-                  onDeleteForever={() => requestHardDelete([question])}
+                  onArchive={() => setArchiveSelection({ mode: 'explicit', ids: [question.id] })}
+                  onDelete={() => setTrashSelection({ mode: 'explicit', ids: [question.id] })}
+                  onRestore={() => restoreSingle(question)}
+                  onDeleteForever={() => setHardDeleteSelection({ mode: 'explicit', ids: [question.id] })}
                 />
               ))}
             </div>
@@ -986,6 +1080,9 @@ export function QuestionBankWorkspace({
               pageCount={data.pageCount}
               totalCount={data.totalCount}
               pageSize={data.pageSize}
+              isAllPageSize={
+                filters.pageSize === ADMIN_QUESTION_ALL_PAGE_SIZE_VALUE && data.totalCount <= ADMIN_QUESTION_ALL_PAGE_SIZE_LIMIT
+              }
               itemLabel="question"
               disabled={isNavigating}
               onPageChange={goToPage}
@@ -1011,11 +1108,11 @@ export function QuestionBankWorkspace({
       </Sheet>
 
       {/* -- Archive confirmation --------------------------------------------- */}
-      <AlertDialog open={archiveIds !== null} onOpenChange={(open) => !open && setArchiveIds(null)}>
+      <AlertDialog open={archiveSelection !== null} onOpenChange={(open) => !open && setArchiveSelection(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Archive {archiveIds && archiveIds.length > 1 ? `${archiveIds.length} questions` : 'this question'}?
+              Archive {archiveCount > 1 ? `${archiveCount} questions` : 'this question'}?
             </AlertDialogTitle>
             <AlertDialogDescription>
               Archived questions are hidden from student practice, but stay in the bank for later
@@ -1030,47 +1127,51 @@ export function QuestionBankWorkspace({
       </AlertDialog>
 
       {/* -- Move to trash confirmation --------------------------------------- */}
-      <AlertDialog open={deleteIds !== null} onOpenChange={(open) => !open && setDeleteIds(null)}>
+      <AlertDialog open={trashSelection !== null} onOpenChange={(open) => !open && setTrashSelection(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Move {deleteIds && deleteIds.length > 1 ? `${deleteIds.length} questions` : 'this question'} to
-              trash?
+              Move {trashCount > 1 ? `${trashCount} questions` : 'this question'} to trash?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This will move the question to trash. It will no longer appear in student practice or normal
-              admin lists. You can restore it later.
+              Only archived questions can be trashed — anything else in this selection is skipped and
+              reported after. Trashed questions no longer appear in student practice or normal admin
+              lists. You can restore them later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>Move to trash</AlertDialogAction>
+            <AlertDialogAction onClick={confirmTrash}>Move to trash</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* -- Permanent delete confirmation ------------------------------------ */}
-      <AlertDialog open={hardDeleteIds !== null} onOpenChange={(open) => !open && setHardDeleteIds(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Permanently delete{' '}
-              {hardDeleteIds && hardDeleteIds.length > 1 ? `${hardDeleteIds.length} questions` : 'this question'}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This cannot be undone. The question and its options are removed from the bank for good.
-              Questions that have any student attempts or mock-exam history are kept safe and cannot be
-              deleted this way.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={confirmHardDelete}>
-              Delete forever
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* -- Permanent delete: server-authoritative preview + typed confirmation --- */}
+      <BulkDeleteQuestionsDialog
+        selection={hardDeleteSelection}
+        selectionDescription={
+          hardDeleteSelection ? describeSelection(hardDeleteSelection, hardDeleteSelection.mode === 'explicit' ? hardDeleteSelection.ids.length : selection.selectedCount) : ''
+        }
+        onOpenChange={(open) => !open && setHardDeleteSelection(null)}
+        onCompleted={(result) => {
+          selection.applyResult(result)
+          if (result.failed.length === 0) {
+            const message = `${result.succeededCount} question${result.succeededCount === 1 ? '' : 's'} permanently deleted.`
+            setLiveMessage(message)
+            toast.success(message)
+          } else {
+            const message = `${result.succeededCount} deleted, ${result.failed.length} kept safe.`
+            setLiveMessage(message)
+            toast.error(message)
+          }
+          if (result.warnings) {
+            for (const warning of result.warnings) {
+              toast.warning(warning.message)
+            }
+          }
+          router.refresh()
+        }}
+      />
     </div>
   )
 }

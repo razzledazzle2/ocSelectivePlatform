@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { buildDomainFilterOrExpression } from '@/lib/questions/domain-filter'
 import { getSubtopicCodesForDomain } from '@/lib/taxonomy'
 import {
+  ADMIN_QUESTION_ALL_PAGE_SIZE_LIMIT,
+  ADMIN_QUESTION_ALL_PAGE_SIZE_VALUE,
   ADMIN_QUESTION_PAGE_SIZES,
   ADMIN_QUESTION_SORTS,
   DEFAULT_ADMIN_QUESTION_PAGE_SIZE,
@@ -236,7 +238,7 @@ const ADMIN_QUESTION_LIST_SELECT = `
 `
 
 /** Asset statuses that mean "not ready to publish" (placeholder or rejected). */
-const NOT_READY_ASSET_STATUSES = new Set(['pending', 'rejected'])
+export const NOT_READY_ASSET_STATUSES = new Set(['pending', 'rejected'])
 
 /** Rolls a question's linked asset statuses into a single readiness state. */
 function deriveAssetState(
@@ -459,6 +461,25 @@ function parsePageSize(value: string | undefined): number {
     : DEFAULT_ADMIN_QUESTION_PAGE_SIZE
 }
 
+/**
+ * "All" resolves to a real numeric page size — the current filtered total,
+ * capped at ADMIN_QUESTION_ALL_PAGE_SIZE_LIMIT — rather than a special
+ * unbounded code path, so it reuses the exact same single-page query as every
+ * other page size and can never load more than the capped limit into the
+ * browser. Falls back to the default page size once the total exceeds the cap
+ * (e.g. filters widened after "All" was chosen) instead of ever fetching an
+ * unbounded number of rows.
+ */
+function resolveEffectivePageSize(requestedPageSize: string | undefined, totalCount: number): number {
+  if (requestedPageSize === ADMIN_QUESTION_ALL_PAGE_SIZE_VALUE) {
+    if (totalCount > 0 && totalCount <= ADMIN_QUESTION_ALL_PAGE_SIZE_LIMIT) {
+      return totalCount
+    }
+    return DEFAULT_ADMIN_QUESTION_PAGE_SIZE
+  }
+  return parsePageSize(requestedPageSize)
+}
+
 const STAT_SORTS = ['accuracy_asc', 'accuracy_desc', 'attempts_desc'] as const satisfies readonly AdminQuestionSort[]
 type StatSort = (typeof STAT_SORTS)[number]
 
@@ -481,17 +502,17 @@ const COLUMN_SORTS: Record<Exclude<AdminQuestionSort, StatSort>, { column: strin
 export async function getAdminQuestionsPage(filters: AdminQuestionFilters = {}): Promise<AdminQuestionsPage> {
   const supabase = await createClient()
   const sort = parseSort(filters.sort)
-  const pageSize = parsePageSize(filters.pageSize)
   const requestedPage = Math.max(1, Number(filters.page) || 1)
 
   const assetIds = await resolveAssetStateConstraint(filters)
 
   if ((STAT_SORTS as readonly AdminQuestionSort[]).includes(sort)) {
-    return getAdminQuestionsPageByStats(filters, sort, requestedPage, pageSize, assetIds)
+    return getAdminQuestionsPageByStats(filters, sort, requestedPage, assetIds)
   }
 
   // Count first so an out-of-range page (e.g. filters narrowed while on page 9)
-  // clamps to the last page instead of erroring with an unsatisfiable range.
+  // clamps to the last page instead of erroring with an unsatisfiable range,
+  // and so "All" can resolve to a real page size (the total, capped) below.
   const countQuery = applyAdminQuestionFilters(
     supabase.from('questions').select('id', { count: 'exact', head: true }),
     filters,
@@ -504,6 +525,7 @@ export async function getAdminQuestionsPage(filters: AdminQuestionFilters = {}):
   }
 
   const totalCount = count ?? 0
+  const pageSize = resolveEffectivePageSize(filters.pageSize, totalCount)
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize))
   const page = Math.min(requestedPage, pageCount)
 
@@ -542,7 +564,6 @@ async function getAdminQuestionsPageByStats(
   filters: AdminQuestionFilters,
   sort: AdminQuestionSort,
   requestedPage: number,
-  pageSize: number,
   assetIds: AssetIdConstraint | null
 ): Promise<AdminQuestionsPage> {
   const supabase = await createClient()
@@ -574,6 +595,7 @@ async function getAdminQuestionsPageByStats(
   })
 
   const totalCount = sorted.length
+  const pageSize = resolveEffectivePageSize(filters.pageSize, totalCount)
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize))
   const page = Math.min(requestedPage, pageCount)
 
@@ -1043,13 +1065,15 @@ const EXPORT_BATCH_SIZE = 1000
  */
 export async function getQuestionsForFullExport(
   filters: AdminQuestionFilters = {},
-  idConstraint: AssetIdConstraint | null = null
+  idConstraint: AssetIdConstraint | null = null,
+  options?: { cutoffTimestamp?: string; excludeIds?: string[] }
 ): Promise<FullExportQuestion[]> {
   const supabase = await createClient()
   const rows: FullExportQuestion[] = []
+  const excludeIds = options?.excludeIds?.filter(Boolean) ?? []
 
   for (let from = 0; ; from += EXPORT_BATCH_SIZE) {
-    const query = applyAdminQuestionFilters(
+    let query = applyAdminQuestionFilters(
       supabase.from('questions').select(FULL_EXPORT_SELECT),
       filters,
       idConstraint
@@ -1057,6 +1081,13 @@ export async function getQuestionsForFullExport(
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
       .range(from, from + EXPORT_BATCH_SIZE - 1)
+
+    if (options?.cutoffTimestamp) {
+      query = query.lte('created_at', options.cutoffTimestamp)
+    }
+    if (excludeIds.length > 0) {
+      query = query.not('id', 'in', `(${excludeIds.join(',')})`)
+    }
 
     const { data, error } = await query
 

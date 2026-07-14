@@ -85,7 +85,8 @@ interface QuestionListRowProps {
   isChecked: boolean
   isBusy: boolean
   onSelect: () => void
-  onCheckedChange: (checked: boolean) => void
+  /** shiftKey lets the workspace apply a spreadsheet-style range selection between the last clicked row and this one. */
+  onCheckedChange: (checked: boolean, shiftKey: boolean) => void
   onPublishToggle: () => void
   onDuplicate: () => void
   onCreateSimilar: () => void
@@ -139,7 +140,7 @@ export function QuestionListRow({
         className="mt-1 size-4 shrink-0 accent-primary"
         checked={isChecked}
         onClick={(event) => event.stopPropagation()}
-        onChange={(event) => onCheckedChange(event.target.checked)}
+        onChange={(event) => onCheckedChange(event.target.checked, (event.nativeEvent as MouseEvent).shiftKey ?? false)}
       />
 
       <div className="min-w-0 flex-1 space-y-1.5">
