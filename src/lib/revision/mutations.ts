@@ -126,9 +126,14 @@ export async function retryMistake(input: RetryMistakeInput): Promise<RevisionRe
 }
 
 /**
- * Manually mark a tracked mistake as understood (mastered), clearing its review schedule.
+ * Manually remove a tracked mistake from the review queue — an explicit,
+ * low-emphasis escape hatch for a student who is confident they no longer need
+ * to see it, distinct from the normal path to mastery (four correct retries in
+ * a row, see scheduleAfterCorrectRetry). The UI gates this behind a
+ * confirmation dialog that says so, since it stops scheduled review with no
+ * re-test.
  */
-export async function markMistakeUnderstood(studentId: string, questionId: string): Promise<void> {
+export async function removeMistakeFromReviewQueue(studentId: string, questionId: string): Promise<void> {
   const supabase = await createClient()
   const now = new Date().toISOString()
 

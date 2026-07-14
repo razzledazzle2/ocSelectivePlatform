@@ -597,26 +597,6 @@ function mapSummaryRow(row: {
 const SUMMARY_COLUMNS =
   'id, mock_type, exam_type, status, total_questions, correct_count, incorrect_count, unanswered_count, accuracy, total_time_seconds, started_at, submitted_at, created_at, subject:subjects(name), mock_test:mock_tests(title)'
 
-/** Recent mock exam attempts for the landing page. */
-export async function getRecentMockExams(
-  studentId: string,
-  limit = 8
-): Promise<MockExamSummaryRow[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('mock_exam_sessions')
-    .select(SUMMARY_COLUMNS)
-    .eq('student_id', studentId)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-
-  if (error) {
-    throw new Error('Unable to load your recent mock exams.')
-  }
-
-  return ((data ?? []) as unknown as Parameters<typeof mapSummaryRow>[0][]).map(mapSummaryRow)
-}
-
 /** Fetches a single mock exam summary row for its owner (or staff). */
 export async function getMockExamSummary(
   sessionId: string,

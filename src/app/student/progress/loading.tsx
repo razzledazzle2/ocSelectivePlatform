@@ -2,24 +2,6 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatGridSkeleton, TableSkeleton } from '@/components/ui/loading-primitives'
 
-function CalendarGridSkeleton() {
-  return (
-    <Card className="rounded-2xl shadow-sm ring-border">
-      <CardHeader>
-        <Skeleton className="h-5 w-20" />
-        <Skeleton className="h-4 w-28" />
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-7 gap-1.5">
-          {Array.from({ length: 35 }).map((_, index) => (
-            <Skeleton key={index} className="aspect-square w-full rounded-md" />
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
 function AreaCardSkeleton() {
   return (
     <Card className="rounded-2xl shadow-sm ring-border">
@@ -50,37 +32,42 @@ export default function StudentProgressLoading() {
         <Skeleton className="h-9 w-44" />
       </div>
 
-      <Card className="rounded-3xl shadow-sm ring-border">
-        <CardContent className="flex flex-wrap items-center gap-8">
-          <Skeleton className="size-[132px] shrink-0 rounded-full" />
-          <div className="grid min-w-0 flex-1 gap-4 sm:grid-cols-3">
-            <div className="space-y-1">
-              <Skeleton className="h-3 w-32" />
-              <Skeleton className="h-7 w-12" />
-            </div>
-            <div className="space-y-1">
-              <Skeleton className="h-3 w-24" />
-              <Skeleton className="h-7 w-12" />
-            </div>
-            <div className="space-y-1">
-              <Skeleton className="h-3 w-36" />
-              <Skeleton className="h-7 w-12" />
-            </div>
-          </div>
+      <Skeleton className="h-9 w-72 rounded-lg" />
+
+      <StatGridSkeleton count={4} />
+
+      <Card className="rounded-2xl shadow-sm ring-border">
+        <CardHeader>
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-4 w-64 max-w-full" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-24 w-full" />
         </CardContent>
       </Card>
 
-      <StatGridSkeleton count={4} />
+      <TableSkeleton columns={['Area', 'Attempted', 'Accuracy', 'Practise']} rows={4} title />
 
       <div className="grid gap-4 md:grid-cols-2">
         <AreaCardSkeleton />
         <AreaCardSkeleton />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <CalendarGridSkeleton />
-        <TableSkeleton columns={['Date', 'Focus', 'Questions', 'Accuracy']} rows={5} title />
-      </div>
+      <Card className="rounded-2xl shadow-sm ring-border">
+        <CardHeader>
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-4 w-28" />
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-7 gap-1.5">
+            {Array.from({ length: 35 }).map((_, index) => (
+              <Skeleton key={index} className="aspect-square w-full rounded-md" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <TableSkeleton columns={['Date', 'Focus', 'Questions', 'Accuracy']} rows={6} title />
     </div>
   )
 }

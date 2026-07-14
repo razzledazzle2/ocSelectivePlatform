@@ -1,5 +1,6 @@
 import {
   buildActivityCalendar,
+  buildRecentDayStrip,
   computeCurrentStreak,
   computeLongestStreak,
   countActiveDaysThisMonth,
@@ -20,7 +21,12 @@ import {
 } from '@/lib/dashboard/analysis'
 import { getRecentPracticeSessions } from '@/lib/practice/queries'
 import { createClient } from '@/lib/supabase/server'
-import type { RevisionDueSummary, StudentDashboardData, WeakStrongInsights } from '@/lib/types'
+import type {
+  RevisionDueSummary,
+  StudentDashboardData,
+  UnfinishedActivity,
+  WeakStrongInsights,
+} from '@/lib/types'
 
 /**
  * Dashboard reads. Counting, grouping and aggregation happen in Postgres
@@ -61,7 +67,7 @@ interface DailyActivityRpcRow {
 }
 
 /** Per-day activity + lifetime totals, grouped in Postgres. */
-async function getActivityAggregate(studentId: string): Promise<ActivityAggregate> {
+export async function getActivityAggregate(studentId: string): Promise<ActivityAggregate> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('get_student_daily_activity', {
     p_student_id: studentId,
@@ -77,6 +83,7 @@ async function getActivityAggregate(studentId: string): Promise<ActivityAggregat
     practice: Number(row.practice_count),
     revision: Number(row.revision_count),
     total: Number(row.total_count),
+    correct: Number(row.correct_count),
   }))
 
   return {
@@ -105,13 +112,18 @@ async function getActivityAggregateFallback(studentId: string): Promise<Activity
     is_correct: boolean
   }>
   const summary = summariseActivity(
-    rows.map((row) => ({ attemptedAt: row.attempted_at, isRevision: row.session_id === null }))
+    rows.map((row) => ({
+      attemptedAt: row.attempted_at,
+      isRevision: row.session_id === null,
+      isCorrect: row.is_correct,
+    }))
   )
   const dayTotals: DailyActivityRow[] = [...summary.dayActivity.entries()].map(([dayKey, day]) => ({
     dayKey,
     practice: day.practice,
     revision: day.revision,
     total: day.total,
+    correct: day.correct,
   }))
 
   return {
@@ -135,7 +147,7 @@ interface AreaStatRpcRow {
 }
 
 /** Per subject/topic/type attempt counts, grouped in Postgres. */
-async function getAreaStats(studentId: string): Promise<AreaStat[]> {
+export async function getAreaStats(studentId: string): Promise<AreaStat[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('get_student_area_stats', {
     p_student_id: studentId,
@@ -258,17 +270,60 @@ async function getRevisionDueAreasFallback(studentId: string): Promise<RevisionD
 }
 
 /* -------------------------------------------------------------------------- */
+/* Unfinished activity ("Resume" dashboard action)                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The most recent in-progress mock exam, for the dashboard's "Resume"
+ * recommendation. Practice sessions have no resume mechanic today (the runner
+ * always starts a fresh subtopic set, see `practice/session/page.tsx`), so an
+ * incomplete `practice_sessions` row is not a real, clickable "resume" —
+ * surfacing only mock exams here keeps the action honest.
+ */
+export async function getUnfinishedActivity(studentId: string): Promise<UnfinishedActivity | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('mock_exam_sessions')
+    .select('id, started_at, mock_test:mock_tests(title)')
+    .eq('student_id', studentId)
+    .eq('status', 'in_progress')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error || !data) {
+    return null
+  }
+
+  const row = data as unknown as {
+    id: string
+    started_at: string
+    mock_test: { title: string }[] | { title: string } | null
+  }
+  const mockTest = Array.isArray(row.mock_test) ? row.mock_test[0] : row.mock_test
+
+  return {
+    kind: 'mock_exam',
+    id: row.id,
+    label: mockTest?.title ?? 'Mock exam',
+    href: `/student/mock-exams/${row.id}`,
+    startedAt: row.started_at,
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* Composed reads                                                              */
 /* -------------------------------------------------------------------------- */
 
 export async function getStudentDashboardData(studentId: string): Promise<StudentDashboardData> {
   const now = new Date()
 
-  const [activity, areaStats, revisionDue, recentSessions] = await Promise.all([
+  const [activity, areaStats, revisionDue, recentSessions, unfinishedActivity] = await Promise.all([
     getActivityAggregate(studentId),
     getAreaStats(studentId),
     getRevisionDueSummary(studentId),
-    getRecentPracticeSessions(studentId),
+    getRecentPracticeSessions(studentId, 5),
+    getUnfinishedActivity(studentId),
   ])
 
   // -- Activity, streaks, calendar ----------------------------------------
@@ -310,10 +365,12 @@ export async function getStudentDashboardData(studentId: string): Promise<Studen
       questionsThisWeek,
     },
     calendar,
+    recentDayStrip: buildRecentDayStrip(activity.summary, now),
     insights,
     revisionDue,
     recentSessions,
     recommendations,
+    unfinishedActivity,
   }
 }
 

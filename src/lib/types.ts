@@ -805,10 +805,85 @@ export interface StudentDashboardData {
   metrics: DashboardMetrics
   streak: StreakSummary
   calendar: ActivityCalendar
+  recentDayStrip: ActivityCalendarDay[]
   insights: WeakStrongInsights
   revisionDue: RevisionDueSummary
   recentSessions: RecentPracticeSession[]
   recommendations: DashboardRecommendation[]
+  unfinishedActivity: UnfinishedActivity | null
+}
+
+/** An in-progress practice set or mock exam the student can resume. */
+export interface UnfinishedActivity {
+  kind: 'practice' | 'mock_exam'
+  id: string
+  label: string
+  href: string
+  startedAt: string
+}
+
+/** Accurate revision-queue bucket counts (no row-fetch cap — see get_student_revision_summary). */
+export interface RevisionSummary {
+  overdueCount: number
+  dueTodayCount: number
+  upcomingCount: number
+  almostMasteredCount: number
+  masteredCount: number
+  totalCount: number
+}
+
+export type RevisionQueueFilter = 'due_now' | 'overdue' | 'upcoming' | 'all' | 'mastered'
+
+export interface RevisionQueuePage {
+  items: StudentMistakeQuestion[]
+  total: number
+  hasMore: boolean
+}
+
+export type ProgressRange = '7d' | '30d' | 'term' | 'all'
+
+export interface RecentPracticeSessionsPage {
+  sessions: RecentPracticeSession[]
+  total: number
+  hasMore: boolean
+}
+
+export interface ProgressTrendPoint {
+  dayKey: string
+  questions: number
+  accuracy: number | null
+}
+
+export interface ProgressAreaPerformance {
+  subjectName: string
+  topicName: string | null
+  attempts: number
+  correct: number
+  accuracy: number
+}
+
+export interface ProgressPeriodComparison {
+  questionsDelta: number | null
+  accuracyDelta: number | null
+}
+
+export interface StudentProgressData {
+  range: ProgressRange
+  hasActivity: boolean
+  metrics: {
+    questionsCompleted: number
+    overallAccuracy: number | null
+    activeDays: number
+    skillsMastered: number
+  }
+  comparison: ProgressPeriodComparison
+  trend: ProgressTrendPoint[]
+  areaPerformance: ProgressAreaPerformance[]
+  hasEnoughAreaData: boolean
+  strongestAreas: AreaInsight[]
+  needsAttentionAreas: AreaInsight[]
+  calendar: ActivityCalendar
+  recentSessions: RecentPracticeSessionsPage
 }
 
 export interface AdminDashboardStats {

@@ -34,19 +34,30 @@ export function SubtopicPracticeCard({ subtopic, examType, backHref, detailHref 
   const lastPractised = formatLastPractised(subtopic.lastPractisedAt)
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card px-4 py-4 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:gap-5">
-      <div className="min-w-0 flex-1 space-y-2">
+    <div
+      className={cn(
+        'group relative flex flex-col gap-4 rounded-2xl border border-border bg-card px-4 py-4 shadow-sm transition-shadow sm:flex-row sm:items-center sm:gap-5',
+        detailHref && 'hover:shadow-md'
+      )}
+    >
+      {detailHref ? (
+        <Link
+          href={detailHref}
+          className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          aria-label={`View details for ${subtopic.subtopicLabel}`}
+        />
+      ) : null}
+
+      <div className="pointer-events-none min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          {detailHref ? (
-            <Link
-              href={detailHref}
-              className="text-sm font-semibold text-foreground hover:text-brand hover:underline"
-            >
-              {subtopic.subtopicLabel}
-            </Link>
-          ) : (
-            <span className="text-sm font-semibold text-foreground">{subtopic.subtopicLabel}</span>
-          )}
+          <span
+            className={cn(
+              'text-sm font-semibold text-foreground',
+              detailHref && 'group-hover:text-brand'
+            )}
+          >
+            {subtopic.subtopicLabel}
+          </span>
 
           {subtopic.state ? (
             <MasteryStateBadge state={subtopic.state} size="sm" />
@@ -91,7 +102,7 @@ export function SubtopicPracticeCard({ subtopic, examType, backHref, detailHref 
         </div>
       </div>
 
-      <div className="shrink-0">
+      <div className="relative z-10 shrink-0">
         {available ? (
           <PracticeSessionSheet
             subtopicCode={subtopic.subtopicCode}
@@ -108,7 +119,7 @@ export function SubtopicPracticeCard({ subtopic, examType, backHref, detailHref 
               'inline-flex h-7 items-center rounded-lg border border-dashed border-border px-3 text-xs font-medium text-muted-foreground'
             )}
           >
-            Unavailable
+            No questions available yet
           </span>
         )}
       </div>

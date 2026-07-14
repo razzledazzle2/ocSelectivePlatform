@@ -302,7 +302,7 @@ function DomainGrid({ subject }: { subject: LearnSubjectSummary }) {
       <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
         {subject.label} domains
       </h2>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         {subject.domains.map((domain) => {
           const noQuestions = domain.availableQuestions === 0
           return (

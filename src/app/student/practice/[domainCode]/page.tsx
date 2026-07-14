@@ -74,7 +74,11 @@ export default async function LearnDomainPage({ params }: DomainPageProps) {
       ) : null}
 
       <div className="space-y-3">
-        {subtopics.map((subtopic) => (
+        {/* Skills with no questions yet sink to the bottom — stable sort keeps
+            everything else in its original (taxonomy) order. */}
+        {[...subtopics]
+          .sort((a, b) => Number(a.availableQuestions === 0) - Number(b.availableQuestions === 0))
+          .map((subtopic) => (
           <SubtopicPracticeCard
             key={subtopic.subtopicCode}
             subtopic={subtopic}

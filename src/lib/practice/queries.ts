@@ -223,50 +223,40 @@ export async function getStudentPracticeQuestion(
   return question ?? null
 }
 
-export async function getRecentPracticeSessions(studentId: string): Promise<RecentPracticeSession[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('practice_sessions')
-    .select(`
-      id,
-      exam_type,
-      difficulty,
-      total_questions,
-      correct_count,
-      incorrect_count,
-      accuracy,
-      total_time_seconds,
-      completed_at,
-      created_at,
-      subject:subjects(name),
-      topic:topics(name)
-    `)
-    .eq('student_id', studentId)
-    .order('created_at', { ascending: false })
-    .limit(6)
+const RECENT_SESSION_COLUMNS = `
+  id,
+  exam_type,
+  difficulty,
+  total_questions,
+  correct_count,
+  incorrect_count,
+  accuracy,
+  total_time_seconds,
+  completed_at,
+  created_at,
+  subject:subjects(name),
+  topic:topics(name)
+`
 
-  if (error) {
-    throw new Error('Unable to load recent practice sessions.')
-  }
+type RecentSessionRow = Pick<
+  PracticeSessionRecord,
+  | 'id'
+  | 'exam_type'
+  | 'difficulty'
+  | 'total_questions'
+  | 'correct_count'
+  | 'incorrect_count'
+  | 'accuracy'
+  | 'total_time_seconds'
+  | 'completed_at'
+  | 'created_at'
+> & {
+  subject: { name: string } | null
+  topic: { name: string } | null
+}
 
-  return ((data ?? []) as unknown as Array<
-    Pick<
-      PracticeSessionRecord,
-      | 'id'
-      | 'exam_type'
-      | 'difficulty'
-      | 'total_questions'
-      | 'correct_count'
-      | 'incorrect_count'
-      | 'accuracy'
-      | 'total_time_seconds'
-      | 'completed_at'
-      | 'created_at'
-    > & {
-      subject: { name: string } | null
-      topic: { name: string } | null
-    }
-  >).map((session) => ({
+function mapRecentSession(session: RecentSessionRow): RecentPracticeSession {
+  return {
     id: session.id,
     examType: session.exam_type,
     subjectName: getRelationValue(session.subject)?.name ?? null,
@@ -279,80 +269,57 @@ export async function getRecentPracticeSessions(studentId: string): Promise<Rece
     totalTimeSeconds: session.total_time_seconds,
     completedAt: session.completed_at,
     createdAt: session.created_at,
-  }))
+  }
 }
 
-export async function getStudentMistakeQuestions(studentId: string): Promise<StudentMistakeQuestion[]> {
+/** The dashboard's compact recent-activity list — 5 most recent sessions by default. */
+export async function getRecentPracticeSessions(
+  studentId: string,
+  limit = 5
+): Promise<RecentPracticeSession[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
-    .from('student_mistake_questions')
-    .select(`
-      id,
-      student_id,
-      question_id,
-      exam_type,
-      difficulty,
-      times_incorrect,
-      times_correct_after_mistake,
-      last_incorrect_at,
-      last_attempted_at,
-      status,
-      next_review_at,
-      correct_streak,
-      last_reviewed_at,
-      mastered_at,
-      subject:subjects(name),
-      topic:topics(name),
-      question_type:question_types(name),
-      question:questions(question_text)
-    `)
+    .from('practice_sessions')
+    .select(RECENT_SESSION_COLUMNS)
     .eq('student_id', studentId)
-    .order('last_incorrect_at', { ascending: false })
-    .limit(200)
+    .order('created_at', { ascending: false })
+    .limit(limit)
 
   if (error) {
-    throw new Error('Unable to load mistake questions.')
+    throw new Error('Unable to load recent practice sessions.')
   }
 
-  return ((data ?? []) as unknown as Array<{
-    id: string
-    student_id: string
-    question_id: string
-    exam_type: StudentMistakeQuestion['examType']
-    difficulty: number | null
-    times_incorrect: number
-    times_correct_after_mistake: number
-    last_incorrect_at: string
-    last_attempted_at: string
-    status: StudentMistakeQuestion['status']
-    next_review_at: string | null
-    correct_streak: number | null
-    last_reviewed_at: string | null
-    mastered_at: string | null
-    subject: { name: string }[] | { name: string } | null
-    topic: { name: string }[] | { name: string } | null
-    question_type: { name: string }[] | { name: string } | null
-    question: { question_text: string }[] | { question_text: string } | null
-  }>).map((mistake) => ({
-    id: mistake.id,
-    studentId: mistake.student_id,
-    questionId: mistake.question_id,
-    subjectName: getRelationValue(mistake.subject)?.name ?? null,
-    topicName: getRelationValue(mistake.topic)?.name ?? null,
-    questionTypeName: getRelationValue(mistake.question_type)?.name ?? null,
-    examType: mistake.exam_type,
-    difficulty: mistake.difficulty,
-    timesIncorrect: mistake.times_incorrect,
-    timesCorrectAfterMistake: mistake.times_correct_after_mistake,
-    lastIncorrectAt: mistake.last_incorrect_at,
-    lastAttemptedAt: mistake.last_attempted_at,
-    status: mistake.status,
-    questionText: getRelationValue(mistake.question)?.question_text ?? 'Question unavailable',
-    nextReviewAt: mistake.next_review_at,
-    correctStreak: mistake.correct_streak ?? 0,
-    lastReviewedAt: mistake.last_reviewed_at,
-    masteredAt: mistake.mastered_at,
-  }))
+  return ((data ?? []) as unknown as RecentSessionRow[]).map(mapRecentSession)
+}
+
+/**
+ * The Progress page's full activity history — offset-paginated (not infinite
+ * scroll), 15 rows per page, an explicit "Load more" advances `page`. Backed by
+ * the `idx_practice_sessions_student_created` composite index.
+ */
+export async function getRecentPracticeSessionsPage(
+  studentId: string,
+  { page = 0, limit = 15 }: { page?: number; limit?: number } = {}
+): Promise<{ sessions: RecentPracticeSession[]; total: number; hasMore: boolean }> {
+  const supabase = await createClient()
+  const from = page * limit
+  const to = from + limit - 1
+
+  const { data, error, count } = await supabase
+    .from('practice_sessions')
+    .select(RECENT_SESSION_COLUMNS, { count: 'exact' })
+    .eq('student_id', studentId)
+    .order('created_at', { ascending: false })
+    .range(from, to)
+
+  if (error) {
+    throw new Error('Unable to load your activity history.')
+  }
+
+  const sessions = ((data ?? []) as unknown as RecentSessionRow[]).map(mapRecentSession)
+  const total = count ?? sessions.length
+
+  return { sessions, total, hasMore: from + sessions.length < total }
 }
 
 export async function getMistakeQuestionById(

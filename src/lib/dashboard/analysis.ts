@@ -2,6 +2,7 @@ import type {
   AreaInsight,
   DashboardRecommendation,
   RevisionDueSummary,
+  UnfinishedActivity,
   WeakStrongInsights,
 } from '@/lib/types'
 
@@ -144,6 +145,40 @@ export function summariseRevisionDue(areas: RevisionDueArea[]): RevisionDueSumma
   }
 }
 
+/**
+ * Progress page's "Strongest areas" / "Needs attention" sections — the same
+ * qualifying gate as computeWeakStrongFromAreas, but returns up to 3 areas per
+ * side instead of a single weakest/strongest pair.
+ */
+export function rankAreaInsights(
+  areas: AreaStat[],
+  totalAttempts: number
+): { strongest: AreaInsight[]; needsAttention: AreaInsight[] } {
+  const qualifying: AreaInsight[] = areas
+    .filter((area) => area.attempts >= MIN_ATTEMPTS_PER_AREA)
+    .map((area) => ({
+      subjectName: area.subjectName,
+      topicName: area.topicName,
+      questionTypeName: area.questionTypeName,
+      attempts: area.attempts,
+      correct: area.correct,
+      accuracy: Math.round((area.correct / area.attempts) * 100),
+    }))
+
+  if (totalAttempts < MIN_TOTAL_ATTEMPTS || qualifying.length === 0) {
+    return { strongest: [], needsAttention: [] }
+  }
+
+  const sorted = [...qualifying].sort((a, b) => b.accuracy - a.accuracy)
+  const strongest = sorted.slice(0, 3)
+  const needsAttention = [...sorted]
+    .reverse()
+    .slice(0, 3)
+    .filter((area) => !strongest.includes(area))
+
+  return { strongest, needsAttention }
+}
+
 export function formatAreaLabel(area: AreaInsight): string {
   const parts = [area.subjectName]
   if (area.topicName) {
@@ -222,4 +257,63 @@ export function buildRecommendations(input: RecommendationInput): DashboardRecom
   }
 
   return recommendations.slice(0, 3)
+}
+
+export interface TodaysPlanAction {
+  id: string
+  title: string
+  description: string
+  href: string
+  ctaLabel: string
+}
+
+interface TodaysPlanInput {
+  recommendations: DashboardRecommendation[]
+  revisionDueCount: number
+  unfinishedActivity: UnfinishedActivity | null
+}
+
+/**
+ * The Dashboard's "Today's plan" — up to 3 concrete next actions, distinct from
+ * the more general `recommendations` list. `buildRecommendations` already puts
+ * a revision-due item first when due > 0, so the practice slot here picks the
+ * first NON-revision recommendation to avoid showing the same action twice.
+ */
+export function buildTodaysPlan(input: TodaysPlanInput): TodaysPlanAction[] {
+  const actions: TodaysPlanAction[] = []
+
+  const practiceRec = input.recommendations.find((rec) => rec.id !== 'revise-due')
+  if (practiceRec) {
+    actions.push({
+      id: 'continue-practice',
+      title: practiceRec.title,
+      description: practiceRec.description,
+      href: practiceRec.href,
+      ctaLabel: practiceRec.ctaLabel,
+    })
+  }
+
+  if (input.revisionDueCount > 0) {
+    actions.push({
+      id: 'complete-revision',
+      title: 'Complete revision due',
+      description: `${input.revisionDueCount} question${
+        input.revisionDueCount === 1 ? '' : 's'
+      } are ready for spaced review — short, regular reviews beat cramming.`,
+      href: '/student/revision',
+      ctaLabel: 'Start revision',
+    })
+  }
+
+  if (input.unfinishedActivity) {
+    actions.push({
+      id: 'resume-activity',
+      title: 'Resume unfinished activity',
+      description: `Pick back up where you left off: ${input.unfinishedActivity.label}.`,
+      href: input.unfinishedActivity.href,
+      ctaLabel: 'Resume',
+    })
+  }
+
+  return actions.slice(0, 3)
 }

@@ -28,6 +28,7 @@ export interface AttemptActivityInput {
   attemptedAt: string
   /** Revision retries are saved with a null session id; practice attempts carry a session id. */
   isRevision: boolean
+  isCorrect: boolean
 }
 
 /**
@@ -40,12 +41,14 @@ export interface DailyActivityRow {
   practice: number
   revision: number
   total: number
+  correct: number
 }
 
 export interface DayActivity {
   total: number
   practice: number
   revision: number
+  correct: number
 }
 
 export interface ActivitySummary {
@@ -67,8 +70,27 @@ function keyFromDayNumber(dayNumber: number): string {
   return new Date(dayNumber * DAY_MS).toISOString().slice(0, 10)
 }
 
-function isDayActive(activity: DayActivity): boolean {
+export function isDayActive(activity: DayActivity): boolean {
   return activity.practice >= ACTIVE_PRACTICE_THRESHOLD || activity.revision >= 1
+}
+
+/**
+ * Start of "today" in the activity timezone, as a UTC instant — computed from
+ * the actual local wall-clock offset at `now` (correct across DST), not a
+ * fixed offset. Mirrors the day boundary used by `get_student_revision_summary`
+ * (`date_trunc('day', now() at time zone 'Australia/Sydney') at time zone ...`).
+ */
+export function startOfTodayInActivityTimezone(now: Date): Date {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: ACTIVITY_TIMEZONE,
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(now)
+  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? '0')
+  const msSinceMidnight = ((get('hour') % 24) * 60 * 60 + get('minute') * 60 + get('second')) * 1000
+  return new Date(now.getTime() - msSinceMidnight)
 }
 
 export function summariseActivity(attempts: AttemptActivityInput[]): ActivitySummary {
@@ -76,12 +98,15 @@ export function summariseActivity(attempts: AttemptActivityInput[]): ActivitySum
 
   for (const attempt of attempts) {
     const key = toDateKey(new Date(attempt.attemptedAt))
-    const existing = dayActivity.get(key) ?? { total: 0, practice: 0, revision: 0 }
+    const existing = dayActivity.get(key) ?? { total: 0, practice: 0, revision: 0, correct: 0 }
     existing.total += 1
     if (attempt.isRevision) {
       existing.revision += 1
     } else {
       existing.practice += 1
+    }
+    if (attempt.isCorrect) {
+      existing.correct += 1
     }
     dayActivity.set(key, existing)
   }
@@ -102,6 +127,7 @@ export function summariseActivityFromDays(rows: DailyActivityRow[]): ActivitySum
       total: row.total,
       practice: row.practice,
       revision: row.revision,
+      correct: row.correct,
     })
   }
   return finaliseSummary(dayActivity)
@@ -222,4 +248,26 @@ export function buildActivityCalendar(summary: ActivitySummary, now: Date): Acti
     firstWeekday,
     days,
   }
+}
+
+/**
+ * A compact trailing N-day strip (default 14) ending today, for the dashboard's
+ * lightweight activity glance — a smaller sibling of the full monthly
+ * `buildActivityCalendar`, which stays on the Progress page.
+ */
+export function buildRecentDayStrip(summary: ActivitySummary, now: Date, days = 14): ActivityCalendarDay[] {
+  const todayNumber = dayNumberFromKey(toDateKey(now))
+  const strip: ActivityCalendarDay[] = []
+
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const key = keyFromDayNumber(todayNumber - offset)
+    const activity = summary.dayActivity.get(key)
+    strip.push({
+      date: key,
+      count: activity?.total ?? 0,
+      active: summary.activeDays.has(key),
+    })
+  }
+
+  return strip
 }
