@@ -1,7 +1,9 @@
 import { findUploadedAssetFile } from '@/lib/import/asset-package'
+import { parseOptionAssetRefs } from '@/lib/import/option-asset-refs'
 import { mergeRowWithExisting } from '@/lib/import/blank-cell-merge'
 import { decideRowAction } from '@/lib/import/row-action'
 import { resolveAssetRef } from '@/lib/assets/refs'
+import { readImageDimensions } from '@/lib/assets/image-metadata'
 import { validateAssetFile } from '@/lib/assets/validate-file'
 import { parseTags } from '@/lib/questions/mutations'
 import { checkOptionCount, labelsForCount } from '@/lib/questions/option-rules'
@@ -324,6 +326,9 @@ function buildStimulusGroups(rows: QuestionImportRow[]): Map<string, StimulusGro
 
 // -- Asset ref preview classification ----------------------------------------------------------
 
+/** Cap on inlining an uploaded file as a base64 thumbnail in the preview response (keeps it light). */
+const PREVIEW_DATA_URI_MAX_BYTES = 512 * 1024
+
 function classifyAssetRef(
   ref: string,
   field: string,
@@ -338,9 +343,22 @@ function classifyAssetRef(
   if (uploaded) {
     referencedFileKeys.add(uploaded.relativePath.toLowerCase())
     const validation = validateAssetFile(uploaded)
-    return validation.ok
-      ? { ref: trimmed, field, state: 'ready' }
-      : { ref: trimmed, field, state: 'invalid', message: validation.reason }
+    if (!validation.ok) {
+      return { ref: trimmed, field, state: 'invalid', message: validation.reason, sizeBytes: uploaded.size }
+    }
+    const buffer = validation.sanitizedBuffer ?? uploaded.buffer
+    const dimensions = readImageDimensions(buffer)
+    return {
+      ref: trimmed,
+      field,
+      state: 'ready',
+      sizeBytes: uploaded.size,
+      mimeType: validation.mimeType,
+      ...(dimensions ? { width: dimensions.width, height: dimensions.height } : {}),
+      ...(buffer.length <= PREVIEW_DATA_URI_MAX_BYTES
+        ? { previewDataUri: `data:${validation.mimeType};base64,${buffer.toString('base64')}` }
+        : {}),
+    }
   }
 
   const resolved = resolveAssetRef(trimmed)
@@ -541,11 +559,18 @@ export function validateQuestionImportRows(rows: QuestionImportRow[], options: V
     }
 
     // -- Per-option asset refs / explanations (JSON keyed by label) ---------
-    const optionAssetRefsParsed = parseLabelKeyedJson(workingRow.optionAssetRefsJson)
+    const optionAssetRefsParsed = parseOptionAssetRefs(workingRow.optionAssetRefsJson)
     if (optionAssetRefsParsed.invalid) {
       errors.push({
         field: 'option_asset_refs_json',
-        message: 'option_asset_refs_json must be a JSON object keyed by option label (e.g. {"A": "a.svg"}).',
+        message:
+          'option_asset_refs_json must be a JSON object keyed by option label, e.g. {"A": "a.png"} or {"A": ["a.png"]}.',
+      })
+    }
+    if (optionAssetRefsParsed.multi.length > 0) {
+      warnings.push({
+        field: 'option_asset_refs_json',
+        message: `Option${optionAssetRefsParsed.multi.length === 1 ? '' : 's'} ${optionAssetRefsParsed.multi.join(', ')} listed multiple assets; only the first is used per option.`,
       })
     }
     const optionExplanationsParsed = parseLabelKeyedJson(workingRow.optionExplanationsJson)
@@ -934,6 +959,15 @@ export function validateQuestionImportRows(rows: QuestionImportRow[], options: V
       (sum, row) => sum + row.assetPreviews.filter((preview) => preview.state === 'missing').length,
       0
     ),
+    invalidAssetCount: validatedRows.reduce(
+      (sum, row) => sum + row.assetPreviews.filter((preview) => preview.state === 'invalid').length,
+      0
+    ),
+    resolvedAssetCount: validatedRows.reduce(
+      (sum, row) => sum + row.assetPreviews.filter((preview) => preview.state === 'ready').length,
+      0
+    ),
+    uploadedFileCount: assetFiles.size,
     unusedAssetFiles,
     rows: validatedRows,
   }

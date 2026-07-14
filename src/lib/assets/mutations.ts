@@ -22,6 +22,12 @@ export interface EnsureAssetParams {
   licenseNotes?: string | null
   /** Structured spec (from asset_spec_json) the SVG can be regenerated from. */
   spec?: Record<string, unknown> | null
+  /**
+   * File-derived metadata for uploaded rasters (checksum, width, height, size_bytes,
+   * original_filename, mime_type, source). Stored in the existing assets.metadata jsonb column
+   * so no schema change is needed. Only sent when present.
+   */
+  metadata?: Record<string, unknown> | null
   /** Explicit status from asset_status; overrides the ref-inferred default when set. */
   assetType?: AssetType | null
   status?: AssetStatus | null
@@ -84,6 +90,10 @@ export async function ensureAssetByExternalRef(
   if (params.spec) {
     payload.spec = params.spec
   }
+  // File-derived metadata (checksum/dimensions/size/…) lives in the existing metadata jsonb column.
+  if (params.metadata && Object.keys(params.metadata).length > 0) {
+    payload.metadata = params.metadata
+  }
 
   const { data: inserted, error: insertError } = await supabase
     .from('assets')
@@ -103,6 +113,19 @@ export async function ensureAssetByExternalRef(
 
   params.cache?.set(ref, inserted.id)
   return { id: inserted.id, created: true }
+}
+
+/**
+ * Deletes assets rows by id — used only during import compensation to remove brand-new, unreferenced
+ * asset rows created in a run that ultimately wrote no questions. Best-effort: FK-constrained rows
+ * (which would mean they were actually linked) are left in place rather than force-cascaded.
+ */
+export async function deleteAssetsByIds(assetIds: string[]): Promise<void> {
+  if (assetIds.length === 0) {
+    return
+  }
+  const supabase = await createClient()
+  await supabase.from('assets').delete().in('id', assetIds)
 }
 
 /** Idempotently links an asset to a question in a given role (upsert on the unique key). */

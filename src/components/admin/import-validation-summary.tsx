@@ -48,7 +48,23 @@ export function ImportValidationSummary({ result }: ImportValidationSummaryProps
             {result.missingAssetCount} missing assets
           </Badge>
         ) : null}
+        {result.invalidAssetCount > 0 ? (
+          <Badge variant="outline" className="border-transparent bg-destructive/10 text-destructive">
+            {result.invalidAssetCount} invalid assets
+          </Badge>
+        ) : null}
       </div>
+      {result.uploadedFileCount > 0 ? (
+        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+          <Badge variant="secondary">{result.uploadedFileCount} image files found</Badge>
+          <Badge variant="outline" className="border-transparent bg-success-soft text-success">
+            {result.resolvedAssetCount} references resolved
+          </Badge>
+          {result.unusedAssetFiles.length > 0 ? (
+            <Badge variant="outline">{result.unusedAssetFiles.length} unused files</Badge>
+          ) : null}
+        </div>
+      ) : null}
       {shownDigest.length > 0 ? (
         <ul className="space-y-1 rounded-xl border border-border/70 bg-muted/50 px-4 py-3 text-xs">
           {shownDigest.map((issue, index) => (

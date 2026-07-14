@@ -3,13 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
     "generate:assets": "node scripts/generate-assets.mjs",
-    "validate:assets": "node scripts/validate-assets.mjs"
+    "validate:assets": "node scripts/validate-assets.mjs",
+    "build:package": "node --experimental-strip-types scripts/build-question-package.ts",
+    "build:fixture": "node scripts/build-fixture-package.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

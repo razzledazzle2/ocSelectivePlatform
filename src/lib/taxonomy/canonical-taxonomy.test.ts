@@ -17,6 +17,8 @@ import {
   getAllDomains,
   getAllSubtopics,
   getAllSkills,
+  getSubtopicCodesForDomain,
+  resolveCanonicalDomainCode,
   getSubtopic,
   getSubtopicLabel,
   getLabelForCode,
@@ -283,6 +285,50 @@ test('dependent dropdowns narrow correctly down the hierarchy', () => {
   // Subtopic → Skill (only where defined)
   assert.equal(getSuggestedSkillsForSubtopic('area_and_perimeter').length, 8)
   assert.deepEqual(getSuggestedSkillsForSubtopic('fractions'), []) // no skills defined
+})
+
+/* ----------------- canonical domain resolution (admin↔student) ----------- */
+
+test('getSubtopicCodesForDomain lists exactly the domain\'s subtopics', () => {
+  const logic = getSubtopicCodesForDomain('logic_deduction')
+  assert.ok(logic.includes('logic_grids_and_matching_constraints'))
+  assert.ok(logic.includes('truth_and_lies'))
+  // Every returned code really belongs to that domain (no cross-domain bleed).
+  for (const code of logic) {
+    assert.equal(getSubtopic(code)?.domainCode, 'logic_deduction')
+  }
+  // Unknown domain / admin-only writing subject -> empty (no subtopics).
+  assert.deepEqual(getSubtopicCodesForDomain('writing'), [])
+  assert.deepEqual(getSubtopicCodesForDomain('nope'), [])
+})
+
+test('resolveCanonicalDomainCode: a valid subtopic always wins over the stored domain', () => {
+  // The bug case: NULL stored domain, valid subtopic -> derive the domain.
+  assert.equal(
+    resolveCanonicalDomainCode({ domainCode: null, subtopicCode: 'logic_grids_and_matching_constraints' }),
+    'logic_deduction'
+  )
+  // A stale stored domain must NOT override the subtopic's real domain.
+  assert.equal(
+    resolveCanonicalDomainCode({ domainCode: 'number_algebra', subtopicCode: 'fractions' }),
+    'number_algebra'
+  )
+  assert.equal(
+    resolveCanonicalDomainCode({ domainCode: 'arguments_evidence', subtopicCode: 'fractions' }),
+    'number_algebra' // subtopic wins even when the stored domain disagrees
+  )
+  // No usable subtopic -> fall back to the stored domain code.
+  assert.equal(resolveCanonicalDomainCode({ domainCode: 'geometry_spatial', subtopicCode: null }), 'geometry_spatial')
+  assert.equal(resolveCanonicalDomainCode({ domainCode: 'geometry_spatial', subtopicCode: 'not_real' }), 'geometry_spatial')
+  assert.equal(resolveCanonicalDomainCode({ domainCode: null, subtopicCode: null }), null)
+})
+
+test('every subtopic resolves to a domain that actually contains it (tree integrity)', () => {
+  for (const subtopic of getAllSubtopics()) {
+    const domain = resolveCanonicalDomainCode({ domainCode: null, subtopicCode: subtopic.code })
+    assert.equal(domain, subtopic.domainCode)
+    assert.ok(getSubtopicCodesForDomain(domain!).includes(subtopic.code))
+  }
 })
 
 /* --------------------------- existing-question compat -------------------- */

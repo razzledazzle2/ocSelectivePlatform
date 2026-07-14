@@ -178,6 +178,14 @@ export interface AssetRefPreview {
   field: string
   state: AssetPreviewState
   message?: string
+  /** File size in bytes (only for a file resolved from an uploaded package). */
+  sizeBytes?: number
+  /** Pixel dimensions, when the uploaded file is a readable raster. */
+  width?: number
+  height?: number
+  mimeType?: string
+  /** base64 data URI of the uploaded file, for the review-screen thumbnail (small files only). */
+  previewDataUri?: string
 }
 
 /** A file extracted from an uploaded assets ZIP (or the standalone assets ZIP). */
@@ -301,6 +309,12 @@ export interface ImportValidationResult {
   updateCount: number
   unchangedCount: number
   missingAssetCount: number
+  /** Referenced files that failed validation (bad MIME/oversize/etc.). */
+  invalidAssetCount: number
+  /** Asset references successfully resolved to a valid uploaded/generated/external file. */
+  resolvedAssetCount: number
+  /** Total files extracted from the uploaded package (0 for a plain CSV/paste import). */
+  uploadedFileCount: number
   /** Uploaded asset files never referenced by any row. */
   unusedAssetFiles: string[]
   rows: ValidatedImportRow[]
@@ -323,7 +337,15 @@ export interface ImportSummary {
   uploadedAssetCount: number
   /** Uploaded files that failed validation/sanitisation and were rejected. */
   rejectedAssetCount: number
+  /** Uploaded files whose bytes were identical to another asset and were reused (deduped). */
+  duplicateChecksumCount: number
+  /** Asset rows already present in the DB (matched on external_ref) that were reused, not re-created. */
+  reusedExistingAssetCount: number
+  /** Role-specific asset relationships written this run (question/solution/option/stimulus links). */
+  assetLinksCreated: number
   failedCount: number
+  /** Notices about staged assets that could not be fully cleaned up after a failed import. */
+  cleanupWarnings: string[]
   /** Non-blocking notices for assets that stayed pending (unsupported/no spec). */
   assetWarnings: string[]
   unusedAssetFiles: string[]

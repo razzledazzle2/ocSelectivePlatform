@@ -1,7 +1,5 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
-
 import { revalidatePath } from 'next/cache'
 
 import { requireProfile } from '@/lib/auth/require-profile'
@@ -35,8 +33,6 @@ import {
 import { getExistingStimulusExternalRefs } from '@/lib/stimuli/queries'
 import { ADMIN_PORTAL_ROLES, type ActionResult } from '@/lib/types'
 
-export type { ImportBatchRecord }
-
 /** Merge partial client settings over the forgiving defaults so old callers stay safe. */
 function resolveSettings(settings?: Partial<ImportSettings>): ImportSettings {
   return { ...DEFAULT_IMPORT_SETTINGS, ...settings }
@@ -57,6 +53,9 @@ const EMPTY_VALIDATION_RESULT: Omit<ImportValidationResult, 'format' | 'parseErr
   updateCount: 0,
   unchangedCount: 0,
   missingAssetCount: 0,
+  invalidAssetCount: 0,
+  resolvedAssetCount: 0,
+  uploadedFileCount: 0,
   unusedAssetFiles: [],
   rows: [],
 }
@@ -125,7 +124,7 @@ function buildErrorSummary(validation: ImportValidationResult, summary: ImportSu
     .filter((row) => !row.isImportable)
     .slice(0, 30)
     .map((row) => `Row ${row.rowNumber}: ${row.errors.map((issue) => issue.message).join('; ')}`)
-  return [...packageErrors, ...rowErrors, ...summary.assetWarnings.slice(0, 20)].slice(0, 50)
+  return [...packageErrors, ...rowErrors, ...summary.cleanupWarnings, ...summary.assetWarnings.slice(0, 20)].slice(0, 50)
 }
 
 function determineFinalStatus(summary: ImportSummary, hadBlockingErrors: boolean): ImportBatchFinalStatus {
@@ -155,13 +154,11 @@ async function runImport(
   const skippedDuplicateCount = validation.rows.filter((row) => row.action === 'skip_duplicate').length
   const unchangedCount = validation.rows.filter((row) => row.action === 'unchanged').length
 
-  const importBatchId = randomUUID()
   const { summary, importedQuestionIds, updatedQuestionIds } = await applyValidatedImport(
     executableRows,
     actorId,
     IMPORT_FORMAT_SOURCE[format],
-    assetFiles,
-    importBatchId
+    assetFiles
   )
   summary.skippedDuplicateCount += skippedDuplicateCount
   summary.unchangedCount += unchangedCount
@@ -198,6 +195,9 @@ async function runImport(
   if (summary.createdAssetCount > 0) parts.push(`created ${summary.createdAssetCount} asset${summary.createdAssetCount === 1 ? '' : 's'}`)
   if (summary.generatedAssetCount > 0) parts.push(`generated ${summary.generatedAssetCount} diagram${summary.generatedAssetCount === 1 ? '' : 's'}`)
   if (summary.uploadedAssetCount > 0) parts.push(`uploaded ${summary.uploadedAssetCount} asset file${summary.uploadedAssetCount === 1 ? '' : 's'}`)
+  if (summary.reusedExistingAssetCount > 0) parts.push(`reused ${summary.reusedExistingAssetCount} existing object${summary.reusedExistingAssetCount === 1 ? '' : 's'}`)
+  if (summary.duplicateChecksumCount > 0) parts.push(`reused ${summary.duplicateChecksumCount} duplicate image${summary.duplicateChecksumCount === 1 ? '' : 's'}`)
+  if (summary.assetLinksCreated > 0) parts.push(`linked ${summary.assetLinksCreated} asset${summary.assetLinksCreated === 1 ? '' : 's'}`)
   if (summary.rejectedAssetCount > 0) parts.push(`${summary.rejectedAssetCount} asset${summary.rejectedAssetCount === 1 ? '' : 's'} rejected`)
   if (summary.skippedDuplicateCount > 0) parts.push(`skipped ${summary.skippedDuplicateCount} duplicate${summary.skippedDuplicateCount === 1 ? '' : 's'}`)
   if (summary.failedCount > 0) parts.push(`${summary.failedCount} failed`)

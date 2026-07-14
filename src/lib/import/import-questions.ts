@@ -3,14 +3,16 @@ import { findUploadedAssetFile } from '@/lib/import/asset-package'
 import { normalizeQuestionText } from '@/lib/import/validation'
 import type { ImportSummary, ResolvedImportQuestion, UploadedAssetFile } from '@/lib/import/types'
 import { resolveAssetGeneration } from '@/lib/assets/generate'
-import { ensureAssetByExternalRef, linkAssetToQuestion } from '@/lib/assets/mutations'
-import { uploadQuestionAsset, validateAssetFile } from '@/lib/assets/upload'
+import { readImageDimensions, sha256Hex } from '@/lib/assets/image-metadata'
+import { deleteAssetsByIds, ensureAssetByExternalRef, linkAssetToQuestion } from '@/lib/assets/mutations'
+import { buildAssetStoragePath, removeUploadedAssets, uploadQuestionAsset, validateAssetFile } from '@/lib/assets/upload'
 import { archiveQuestion, updateQuestion } from '@/lib/questions/mutations'
 import { labelsForCount } from '@/lib/questions/option-rules'
 import { slugify } from '@/lib/questions/slug'
 import { ensureQuestionType, ensureQuestionVariant, ensureTopic } from '@/lib/questions/taxonomy-mutations'
 import { ensureStimulusByExternalRef } from '@/lib/stimuli/mutations'
 import { createClient } from '@/lib/supabase/server'
+import { getSubtopic } from '@/lib/taxonomy'
 import type { QuestionOptionRecord, QuestionSource, QuestionWriteInput } from '@/lib/types'
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
@@ -52,7 +54,12 @@ function buildQuestionPayload(
     tags: row.tags,
     skill_tags: row.skillTags,
     concept_tags: row.conceptTags,
-    domain_code: row.domainCode,
+    // Canonical placement invariant: a stored subtopic's parent domain always
+    // wins, and a subtopic present without a domain still gets one. This keeps
+    // domain_code consistent with subtopic_code for every insert path (CSV,
+    // package, promote), so the admin domain filter and the subtopic-derived
+    // student views never disagree.
+    domain_code: getSubtopic(row.subtopicCode)?.domainCode ?? row.domainCode,
     subtopic_code: row.subtopicCode,
     skill_code: row.skillCode,
     pattern_key: row.patternKey,
@@ -151,33 +158,87 @@ interface AssetCounters {
   generatedAssetCount: number
   uploadedAssetCount: number
   rejectedAssetCount: number
+  duplicateChecksumCount: number
+  reusedExistingAssetCount: number
+  assetLinksCreated: number
   assetWarnings: string[]
 }
 
+/** A storage/dedup decision recorded for one asset reference (server-side structured log only). */
+type AssetDecision = 'uploaded' | 'reused-current-import' | 'reused-existing-object' | 'generated' | 'pending' | 'rejected'
+
 /**
- * Builds the shared "ensure an asset row for this ref" helper used by both create and update
- * rows. When the ref matches a file from an uploaded ZIP package, it's validated (extension/
- * MIME/size/SVG-sanitised) and uploaded to the existing `question-media` bucket first; an
- * invalid file is recorded as a rejected asset (never blocks the question import — it stays a
- * draft with a rejected/pending asset, exactly like a hand-authored one would). Otherwise this
- * falls back to the existing deterministic-generation / pending / external / bare-key handling.
+ * Compact, non-sensitive structured log per asset reference. Deliberately omits signed URLs,
+ * buffers and credentials — only the external id, role, checksum prefix and the storage/link
+ * decision. Kept single-line so an import run is easy to grep: `[question-import:asset]`.
  */
-function createAssetEnsurer(actorId: string, assetFiles: Map<string, UploadedAssetFile>, importBatchId: string) {
+function logAssetDecision(fields: {
+  externalId: string | null
+  role: string
+  ref: string
+  decision: AssetDecision
+  checksum?: string
+  storagePath?: string
+  linked?: boolean
+}): void {
+  console.info(
+    `[question-import:asset] externalId=${fields.externalId ?? '-'} role=${fields.role} decision=${fields.decision}` +
+      `${fields.checksum ? ` checksum=${fields.checksum.slice(0, 12)}` : ''}` +
+      `${fields.storagePath ? ` storagePath=${fields.storagePath}` : ''}` +
+      `${fields.linked === undefined ? '' : ` linked=${fields.linked}`} ref=${fields.ref}`
+  )
+}
+
+/** Where an asset ref sits on a row — namespaces its deterministic storage path. */
+export interface AssetRoleContext {
+  /** stimulus | question | solution | option-a … */
+  role: string
+  /** 0-based index within a multi-asset role. */
+  index: number
+  /** True for the row's single main diagram (pairs the row-level asset_spec_json). */
+  primary?: boolean
+}
+
+/**
+ * Builds the shared "ensure an asset row for this ref" helper used by every role (stimulus,
+ * question, option, solution) on both create and update rows. When the ref matches a file from an
+ * uploaded package it is:
+ *   1. validated (extension/MIME-sniff/size/SVG-sanitised) — invalid files become a `rejected`
+ *      asset and never block the question import;
+ *   2. checksummed (SHA-256) — a byte-identical file already handled this run is reused (dedup,
+ *      recorded as a duplicate-checksum warning) instead of re-uploaded;
+ *   3. uploaded to a deterministic, content-addressed path in the private question-media bucket,
+ *      with its dimensions/size/checksum recorded in assets.metadata.
+ * Otherwise it falls back to the existing generation / pending / external / bare-key handling.
+ *
+ * Every storage object and brand-new asset row is tracked so `cleanup()` can compensate (delete
+ * both) when the run ends up writing no questions at all.
+ */
+function createAssetEnsurer(actorId: string, assetFiles: Map<string, UploadedAssetFile>) {
   const assetCache = new Map<string, string>()
-  const uploadedPathCache = new Map<string, string>()
+  // checksum → { path, assetId, ref } for identical-content dedup within one run.
+  const checksumCache = new Map<string, { path: string; assetId: string; ref: string }>()
+  const stagedPaths: string[] = []
+  const stagedAssetIds = new Set<string>()
   const counters: AssetCounters = {
     createdAssetCount: 0,
     generatedAssetCount: 0,
     uploadedAssetCount: 0,
     rejectedAssetCount: 0,
+    duplicateChecksumCount: 0,
+    reusedExistingAssetCount: 0,
+    assetLinksCreated: 0,
     assetWarnings: [],
   }
 
-  const ensureRowAsset = async (
-    row: ResolvedImportQuestion,
-    ref: string,
-    options: { primary?: boolean } = {}
-  ): Promise<string> => {
+  const trackCreated = (id: string, created: boolean) => {
+    if (created) {
+      counters.createdAssetCount += 1
+      stagedAssetIds.add(id)
+    }
+  }
+
+  const ensureRowAsset = async (row: ResolvedImportQuestion, ref: string, context: AssetRoleContext): Promise<string> => {
     const uploaded = assetFiles.size > 0 ? findUploadedAssetFile(assetFiles, ref) : null
 
     if (uploaded) {
@@ -194,50 +255,90 @@ function createAssetEnsurer(actorId: string, assetFiles: Map<string, UploadedAss
           actorId,
           cache: assetCache,
         })
-        if (created) counters.createdAssetCount += 1
+        trackCreated(id, created)
+        logAssetDecision({ externalId: row.externalId, role: context.role, ref, decision: 'rejected' })
         return id
       }
 
-      const cacheKey = uploaded.relativePath.toLowerCase()
-      let storagePath = uploadedPathCache.get(cacheKey)
-      if (!storagePath) {
-        const buffer = validation.sanitizedBuffer ?? uploaded.buffer
-        storagePath = await uploadQuestionAsset(importBatchId, uploaded.relativePath, buffer, validation.mimeType)
-        uploadedPathCache.set(cacheKey, storagePath)
-        counters.uploadedAssetCount += 1
+      const buffer = validation.sanitizedBuffer ?? uploaded.buffer
+      const checksum = sha256Hex(buffer)
+
+      // Identical bytes already uploaded this run — reuse the same asset (dedup + idempotent).
+      const duplicate = checksumCache.get(checksum)
+      if (duplicate) {
+        counters.duplicateChecksumCount += 1
+        counters.assetWarnings.push(`${ref}: identical image to ${duplicate.ref}; reusing the uploaded file.`)
+        logAssetDecision({ externalId: row.externalId, role: context.role, ref, decision: 'reused-current-import', checksum })
+        return duplicate.assetId
       }
+
+      const storagePath = buildAssetStoragePath({
+        externalId: row.externalId ?? 'question',
+        role: context.role,
+        index: context.index,
+        mimeType: validation.mimeType,
+        checksum,
+      })
+      await uploadQuestionAsset(storagePath, buffer, validation.mimeType)
+      stagedPaths.push(storagePath)
+      counters.uploadedAssetCount += 1
+
+      const dimensions = readImageDimensions(buffer)
+      const metadata: Record<string, unknown> = {
+        checksum,
+        size_bytes: buffer.length,
+        mime_type: validation.mimeType,
+        original_filename: uploaded.filename,
+        source: 'upload',
+        ...(dimensions ? { width: dimensions.width, height: dimensions.height } : {}),
+      }
+
       const { id, created } = await ensureAssetByExternalRef({
         ref: storagePath,
         altText: row.assetAltText,
         generationPrompt: row.assetGenerationPrompt,
         status: 'uploaded',
         assetType: validation.assetType,
+        metadata,
         actorId,
         cache: assetCache,
       })
-      if (created) counters.createdAssetCount += 1
+      trackCreated(id, created)
+      if (!created) {
+        // Storage object was uploaded (upsert) but the assets row already existed on a prior run.
+        counters.reusedExistingAssetCount += 1
+      }
+      checksumCache.set(checksum, { path: storagePath, assetId: id, ref })
+      logAssetDecision({
+        externalId: row.externalId,
+        role: context.role,
+        ref,
+        decision: created ? 'uploaded' : 'reused-existing-object',
+        checksum,
+        storagePath,
+      })
       return id
     }
 
     const generation = await resolveAssetGeneration({
       ref,
-      ownSpec: options.primary ? row.assetSpec : null,
+      ownSpec: context.primary ? row.assetSpec : null,
     })
-    if (!generation.generated && options.primary && generation.pendingReason) {
+    if (!generation.generated && context.primary && generation.pendingReason) {
       counters.assetWarnings.push(`${ref}: ${generation.pendingReason}`)
     }
     const { id, created } = await ensureAssetByExternalRef({
       ref: generation.generated ? generation.ref : ref,
       altText: row.assetAltText,
       generationPrompt: row.assetGenerationPrompt,
-      spec: generation.spec ?? (options.primary ? row.assetSpec : null),
+      spec: generation.spec ?? (context.primary ? row.assetSpec : null),
       status: generation.generated ? 'generated' : row.assetStatus,
       assetType: generation.generated ? generation.assetType : row.assetType,
       actorId,
       cache: assetCache,
     })
     if (created) {
-      counters.createdAssetCount += 1
+      trackCreated(id, created)
       if (generation.generated) {
         counters.generatedAssetCount += 1
       }
@@ -245,7 +346,26 @@ function createAssetEnsurer(actorId: string, assetFiles: Map<string, UploadedAss
     return id
   }
 
-  return { ensureRowAsset, counters, assetCache }
+  /**
+   * Compensation: remove every staged storage object and brand-new asset row created this run.
+   * Only safe to call when the run linked nothing (no question referenced these) — the caller
+   * guards on that. Cleanup failures are surfaced as warnings, never swallowed.
+   */
+  const cleanup = async (): Promise<string[]> => {
+    const warnings: string[] = []
+    const { failedPaths } = await removeUploadedAssets(stagedPaths)
+    if (failedPaths.length > 0) {
+      warnings.push(`Cleanup incomplete: ${failedPaths.length} staged file(s) could not be removed from storage.`)
+    }
+    try {
+      await deleteAssetsByIds([...stagedAssetIds])
+    } catch {
+      warnings.push('Cleanup incomplete: some asset records created during the failed import could not be removed.')
+    }
+    return warnings
+  }
+
+  return { ensureRowAsset, counters, assetCache, cleanup, hasStagedUploads: () => stagedPaths.length > 0 }
 }
 
 function buildOptionRecords(row: ResolvedImportQuestion, optionAssetIds: Array<string | null>): QuestionOptionRecord[] {
@@ -273,7 +393,11 @@ function emptySummary(): ImportSummary {
     generatedAssetCount: 0,
     uploadedAssetCount: 0,
     rejectedAssetCount: 0,
+    duplicateChecksumCount: 0,
+    reusedExistingAssetCount: 0,
+    assetLinksCreated: 0,
     failedCount: 0,
+    cleanupWarnings: [],
     assetWarnings: [],
     unusedAssetFiles: [],
   }
@@ -290,8 +414,7 @@ export async function applyValidatedImport(
   rows: ResolvedImportQuestion[],
   actorId: string,
   source: QuestionSource,
-  assetFiles: Map<string, UploadedAssetFile>,
-  importBatchId: string
+  assetFiles: Map<string, UploadedAssetFile>
 ): Promise<{ summary: ImportSummary; importedQuestionIds: string[]; updatedQuestionIds: string[] }> {
   const supabase = await createClient()
   const importedQuestionIds: string[] = []
@@ -325,7 +448,7 @@ export async function applyValidatedImport(
   const typeCache = new Map<string, string>()
   const variantCache = new Map<string, string>()
   const stimulusCache = new Map<string, string>()
-  const { ensureRowAsset, counters, assetCache } = createAssetEnsurer(actorId, assetFiles, importBatchId)
+  const { ensureRowAsset, counters, assetCache, cleanup, hasStagedUploads } = createAssetEnsurer(actorId, assetFiles)
   const createdTopics = new Set<string>()
   const createdTypes = new Set<string>()
   const createdVariants = new Set<string>()
@@ -333,8 +456,11 @@ export async function applyValidatedImport(
 
   const resolveOptionAssetIds = async (row: ResolvedImportQuestion): Promise<Array<string | null>> => {
     const optionAssetIds: Array<string | null> = []
-    for (const assetRef of row.optionAssetRefs) {
-      optionAssetIds.push(assetRef ? await ensureRowAsset(row, assetRef) : null)
+    const labels = labelsForCount(row.options.length)
+    for (let index = 0; index < row.optionAssetRefs.length; index += 1) {
+      const assetRef = row.optionAssetRefs[index]
+      const role = `option-${(labels[index] ?? String(index + 1)).toLowerCase()}`
+      optionAssetIds.push(assetRef ? await ensureRowAsset(row, assetRef, { role, index: 0 }) : null)
     }
     return optionAssetIds
   }
@@ -352,11 +478,16 @@ export async function applyValidatedImport(
         actorId,
         cache: stimulusCache,
         assetCache,
+        // Route stimulus assets through the shared ensurer so ZIP-uploaded stimulus images are
+        // validated, checksummed, uploaded and dedup'd exactly like question/option/solution ones.
+        ensureAsset: (ref, index) => ensureRowAsset(row, ref, { role: 'stimulus', index }),
       })
       if (ensured.created) {
         createdStimulusCount += 1
+        // Stimulus assets are linked exactly once, only when the stimulus is first created;
+        // a reused stimulus (e.g. a second row sharing the same stimulus_id) links nothing.
+        counters.assetLinksCreated += row.stimulusDefinition?.assetRefs?.length ?? 0
       }
-      counters.createdAssetCount += ensured.createdAssetCount
       return ensured.id
     }
     // Blank stimulus cell: keep the existing link ('keep' mode) or drop it ('clear' mode /
@@ -369,12 +500,18 @@ export async function applyValidatedImport(
     // it when there is exactly one question asset ref.
     const primaryQuestionAsset = row.questionAssetRefs.length === 1
     for (let index = 0; index < row.questionAssetRefs.length; index += 1) {
-      const assetId = await ensureRowAsset(row, row.questionAssetRefs[index], { primary: primaryQuestionAsset })
+      const assetId = await ensureRowAsset(row, row.questionAssetRefs[index], {
+        role: 'question',
+        index,
+        primary: primaryQuestionAsset,
+      })
       await linkAssetToQuestion(questionId, assetId, 'question', index + 1)
+      counters.assetLinksCreated += 1
     }
     for (let index = 0; index < row.solutionAssetRefs.length; index += 1) {
-      const assetId = await ensureRowAsset(row, row.solutionAssetRefs[index])
+      const assetId = await ensureRowAsset(row, row.solutionAssetRefs[index], { role: 'solution', index })
       await linkAssetToQuestion(questionId, assetId, 'solution', index + 1)
+      counters.assetLinksCreated += 1
     }
   }
 
@@ -413,6 +550,8 @@ export async function applyValidatedImport(
           summary.failedCount += 1
           continue
         }
+        // Each option that carries an asset_id is a persisted option→asset link.
+        counters.assetLinksCreated += optionAssetIds.filter(Boolean).length
       }
 
       await linkQuestionAssets(inserted.id, row)
@@ -481,6 +620,7 @@ export async function applyValidatedImport(
       }
 
       await updateQuestion(row.existingQuestionId, writeInput, actorId)
+      counters.assetLinksCreated += optionAssetIds.filter(Boolean).length
       if (row.status === 'archived') {
         await archiveQuestion(row.existingQuestionId, actorId)
       }
@@ -494,6 +634,15 @@ export async function applyValidatedImport(
     }
   }
 
+  // Compensation: if the whole run wrote no question at all but did stage storage uploads, nothing
+  // references those objects/asset rows — remove them so a failed package leaves no orphans behind.
+  const wroteNothing = summary.importedCount === 0 && summary.updatedCount === 0
+  if (wroteNothing && hasStagedUploads()) {
+    summary.cleanupWarnings = await cleanup()
+    counters.uploadedAssetCount = 0
+    counters.createdAssetCount = 0
+  }
+
   summary.createdTopicCount = createdTopics.size
   summary.createdQuestionTypeCount = createdTypes.size
   summary.createdVariantCount = createdVariants.size
@@ -502,7 +651,18 @@ export async function applyValidatedImport(
   summary.generatedAssetCount = counters.generatedAssetCount
   summary.uploadedAssetCount = counters.uploadedAssetCount
   summary.rejectedAssetCount = counters.rejectedAssetCount
+  summary.duplicateChecksumCount = counters.duplicateChecksumCount
+  summary.reusedExistingAssetCount = counters.reusedExistingAssetCount
+  summary.assetLinksCreated = counters.assetLinksCreated
   summary.assetWarnings = [...new Set(counters.assetWarnings)]
+
+  console.info(
+    '[question-import:summary] ' +
+      `imported=${summary.importedCount} updated=${summary.updatedCount} ` +
+      `newStorageObjects=${summary.uploadedAssetCount} existingObjectsReused=${summary.reusedExistingAssetCount} ` +
+      `currentImportDuplicatesReused=${summary.duplicateChecksumCount} assetRecordsCreated=${summary.createdAssetCount} ` +
+      `assetLinksCreated=${summary.assetLinksCreated} rejected=${summary.rejectedAssetCount} failed=${summary.failedCount}`
+  )
 
   return { summary, importedQuestionIds, updatedQuestionIds }
 }

@@ -70,6 +70,12 @@ export interface EnsureStimulusParams {
   cache?: Map<string, string>
   /** asset ref → asset id, shared with ensureAssetByExternalRef. */
   assetCache?: Map<string, string>
+  /**
+   * When provided, asset refs are resolved to asset ids through this callback (the import ensurer)
+   * instead of the plain ensureAssetByExternalRef — so ZIP-uploaded stimulus files go through the
+   * same validate/checksum/upload/dedup path as every other role. Receives (ref, index).
+   */
+  ensureAsset?: (ref: string, index: number) => Promise<string>
 }
 
 /**
@@ -121,15 +127,22 @@ export async function ensureStimulusByExternalRef(
   let createdAssetCount = 0
   const assetRefs = params.assetRefs ?? []
   for (let index = 0; index < assetRefs.length; index += 1) {
-    const { id: assetId, created } = await ensureAssetByExternalRef({
-      ref: assetRefs[index],
-      altText: params.assetAltText,
-      generationPrompt: params.assetGenerationPrompt,
-      actorId: params.actorId,
-      cache: params.assetCache,
-    })
-    if (created) {
-      createdAssetCount += 1
+    let assetId: string
+    if (params.ensureAsset) {
+      // The ensurer owns its own created-asset counting; don't double-count here.
+      assetId = await params.ensureAsset(assetRefs[index], index)
+    } else {
+      const { id, created } = await ensureAssetByExternalRef({
+        ref: assetRefs[index],
+        altText: params.assetAltText,
+        generationPrompt: params.assetGenerationPrompt,
+        actorId: params.actorId,
+        cache: params.assetCache,
+      })
+      assetId = id
+      if (created) {
+        createdAssetCount += 1
+      }
     }
     await linkAssetToStimulus(stimulusId, assetId, index + 1)
   }

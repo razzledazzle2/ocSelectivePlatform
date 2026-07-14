@@ -73,6 +73,57 @@ function downloadCsvTemplate() {
   URL.revokeObjectURL(url)
 }
 
+function csvCell(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}
+
+/** True when the validated import has at least one row-level or asset-level error/warning. */
+function hasReportableIssues(result: ImportValidationResult): boolean {
+  return result.rows.some(
+    (row) =>
+      row.errors.length > 0 ||
+      row.warnings.length > 0 ||
+      row.assetPreviews.some((preview) => preview.state === 'missing' || preview.state === 'invalid' || preview.state === 'rejected')
+  )
+}
+
+/**
+ * Builds and downloads a CSV error/warning report from the preview result: one line per issue,
+ * identifying the CSV row, external_id, severity, column, referenced path and explanation so an
+ * author can fix the package offline without re-running the preview.
+ */
+function downloadErrorReport(result: ImportValidationResult) {
+  const header = ['row', 'external_id', 'severity', 'field', 'referenced_path', 'message']
+  const lines = [header.join(',')]
+
+  for (const row of result.rows) {
+    const externalId = row.resolved?.externalId ?? ''
+    for (const issue of row.errors) {
+      lines.push([String(row.rowNumber), externalId, 'error', issue.field, '', issue.message].map(csvCell).join(','))
+    }
+    for (const issue of row.warnings) {
+      lines.push([String(row.rowNumber), externalId, 'warning', issue.field, '', issue.message].map(csvCell).join(','))
+    }
+    for (const preview of row.assetPreviews) {
+      if (preview.state === 'missing' || preview.state === 'invalid' || preview.state === 'rejected') {
+        lines.push(
+          [String(row.rowNumber), externalId, preview.state, preview.field, preview.ref, preview.message ?? '']
+            .map(csvCell)
+            .join(',')
+        )
+      }
+    }
+  }
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = 'import-error-report.csv'
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
 function StepIndicator({ step }: { step: WizardStep }) {
   const steps = ['Choose method', 'Preview & validate', 'Import']
 
@@ -259,6 +310,7 @@ export function QuestionImportPanel() {
   const [settings, setSettings] = useState<ImportSettings>(DEFAULT_IMPORT_SETTINGS)
   const [result, setResult] = useState<ImportValidationResult | null>(null)
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null)
+  const [dragActive, setDragActive] = useState(false)
 
   const usesPackage = format === 'csv' && (primaryIsZip || Boolean(assetsZipFile))
 
@@ -294,8 +346,7 @@ export function QuestionImportPanel() {
     setResult(null)
   }
 
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
+  async function applyPrimaryFile(file: File | null) {
     setResult(null)
     if (!file) {
       setSource('')
@@ -314,6 +365,26 @@ export function QuestionImportPanel() {
       setPrimaryFile(null)
       setSource(await file.text())
     }
+  }
+
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    await applyPrimaryFile(event.target.files?.[0] ?? null)
+  }
+
+  async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    setDragActive(false)
+    const file = event.dataTransfer.files?.[0]
+    if (!file) return
+    if (!/\.(csv|zip)$/i.test(file.name)) {
+      toast.error('Drop a .csv or .zip file.')
+      return
+    }
+    if (fileInputRef.current) {
+      // Mirror the drop into the file input so the picker and drop stay in sync.
+      fileInputRef.current.files = event.dataTransfer.files
+    }
+    await applyPrimaryFile(file)
   }
 
   function buildPackageFormData(): FormData {
@@ -440,17 +511,35 @@ export function QuestionImportPanel() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="csv-file">Upload a .csv or .zip file</Label>
-                  <input
-                    id="csv-file"
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,.zip,text/csv,application/zip"
-                    onChange={handleFileChange}
-                    className="flex w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1 file:text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  />
+                  <div
+                    onDragOver={(event) => {
+                      event.preventDefault()
+                      setDragActive(true)
+                    }}
+                    onDragLeave={() => setDragActive(false)}
+                    onDrop={handleDrop}
+                    className={cn(
+                      'rounded-xl border-2 border-dashed p-4 transition-colors',
+                      dragActive ? 'border-brand bg-brand-soft/50' : 'border-border/70 bg-muted/30'
+                    )}
+                  >
+                    <div className="flex flex-col items-center gap-2 py-2 text-center">
+                      <UploadCloudIcon className="size-6 text-muted-foreground" />
+                      <p className="text-sm text-foreground">Drag & drop a .csv or .zip package here</p>
+                      <p className="text-xs text-muted-foreground">or choose a file below</p>
+                    </div>
+                    <input
+                      id="csv-file"
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv,.zip,text/csv,application/zip"
+                      onChange={handleFileChange}
+                      className="mt-2 flex w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1 file:text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     A plain .csv works alone. A .zip may contain a root questions.csv plus an
-                    assets/ directory of referenced diagrams (SVG/PNG/JPG/WEBP).
+                    assets/ directory of referenced diagrams (PNG/JPG/WEBP/SVG) and an optional manifest.json.
                   </p>
                 </div>
                 {!primaryIsZip ? (
@@ -524,7 +613,13 @@ export function QuestionImportPanel() {
                 ) : (
                   <>
                     <ImportPreviewTable rows={result.rows} />
-                    <div className="flex justify-end">
+                    <div className="flex flex-wrap justify-end gap-3">
+                      {hasReportableIssues(result) ? (
+                        <Button type="button" variant="outline" onClick={() => downloadErrorReport(result)}>
+                          <DownloadIcon className="size-4" />
+                          Download error report
+                        </Button>
+                      ) : null}
                       <Button type="button" disabled={result.importableCount === 0} onClick={() => setStep(3)}>
                         Continue to import
                         <ArrowRightIcon className="size-4" />
@@ -552,7 +647,14 @@ export function QuestionImportPanel() {
                   {importSummary.createdQuestionTypeCount > 0
                     ? `, ${importSummary.createdQuestionTypeCount} new question types`
                     : ''}
-                  {importSummary.uploadedAssetCount > 0 ? `, ${importSummary.uploadedAssetCount} assets uploaded` : ''}
+                  {importSummary.uploadedAssetCount > 0 ? `, ${importSummary.uploadedAssetCount} new image files uploaded` : ''}
+                  {importSummary.reusedExistingAssetCount > 0
+                    ? `, ${importSummary.reusedExistingAssetCount} existing storage objects reused`
+                    : ''}
+                  {importSummary.duplicateChecksumCount > 0
+                    ? `, ${importSummary.duplicateChecksumCount} duplicate images reused`
+                    : ''}
+                  {importSummary.assetLinksCreated > 0 ? `, ${importSummary.assetLinksCreated} asset links` : ''}
                   {importSummary.rejectedAssetCount > 0 ? `, ${importSummary.rejectedAssetCount} assets rejected` : ''}
                   {importSummary.skippedDuplicateCount > 0
                     ? `, ${importSummary.skippedDuplicateCount} duplicates skipped`

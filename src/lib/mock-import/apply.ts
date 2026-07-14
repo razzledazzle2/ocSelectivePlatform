@@ -1,9 +1,8 @@
-import { randomUUID } from 'node:crypto'
-
 import { findUploadedAssetFile } from '@/lib/import/asset-package'
 import { resolveAssetGeneration } from '@/lib/assets/generate'
+import { readImageDimensions, sha256Hex } from '@/lib/assets/image-metadata'
 import { ensureAssetByExternalRef, linkAssetToQuestion } from '@/lib/assets/mutations'
-import { uploadQuestionAsset, validateAssetFile } from '@/lib/assets/upload'
+import { buildAssetStoragePath, uploadQuestionAsset, validateAssetFile } from '@/lib/assets/upload'
 import { ensureTopic } from '@/lib/questions/taxonomy-mutations'
 import { labelsForCount } from '@/lib/questions/option-rules'
 import { SECTIONED_MOCK_SECTIONS } from '@/lib/mock-exams/config'
@@ -42,7 +41,6 @@ const SECTION_ORDER: MockTestSectionKey[] = ['reading', 'mathematical_reasoning'
 async function ensureQuestionAsset(
   resolved: ResolvedMockQuestion,
   assetFiles: Map<string, UploadedAssetFile>,
-  importBatchId: string,
   actorId: string,
   cache: Map<string, string>,
   counters: { uploaded: number; pending: number; rejected: number }
@@ -66,13 +64,30 @@ async function ensureQuestionAsset(
       return id
     }
     const buffer = validation.sanitizedBuffer ?? uploaded.buffer
-    const storagePath = await uploadQuestionAsset(importBatchId, uploaded.relativePath, buffer, validation.mimeType)
+    const checksum = sha256Hex(buffer)
+    const storagePath = buildAssetStoragePath({
+      externalId: resolved.externalId || 'question',
+      role: 'question',
+      index: 0,
+      mimeType: validation.mimeType,
+      checksum,
+    })
+    await uploadQuestionAsset(storagePath, buffer, validation.mimeType)
     counters.uploaded += 1
+    const dimensions = readImageDimensions(buffer)
     const { id } = await ensureAssetByExternalRef({
       ref: storagePath,
       altText: resolved.assetAltText,
       status: 'uploaded',
       assetType: validation.assetType,
+      metadata: {
+        checksum,
+        size_bytes: buffer.length,
+        mime_type: validation.mimeType,
+        original_filename: uploaded.filename,
+        source: 'upload',
+        ...(dimensions ? { width: dimensions.width, height: dimensions.height } : {}),
+      },
       actorId,
       cache,
     })
@@ -211,7 +226,6 @@ function sectionName(sectionKey: MockTestSectionKey): string {
 export async function applyMockImport(input: ApplyMockImportInput): Promise<MockImportSummary> {
   const { validation, settings, assetFiles, actorId } = input
   const supabase = await createClient()
-  const importBatchId = randomUUID()
 
   const mockExternalId = validation.mockExternalId
   if (!mockExternalId) {
@@ -301,7 +315,7 @@ export async function applyMockImport(input: ApplyMockImportInput): Promise<Mock
         if (existedBefore) questionsUpdated += 1
         else questionsCreated += 1
         if (settings.alsoAddToBank) addedToBank += 1
-        const assetId = await ensureQuestionAsset(resolved, assetFiles, importBatchId, actorId, assetCache, counters)
+        const assetId = await ensureQuestionAsset(resolved, assetFiles, actorId, assetCache, counters)
         if (assetId) await linkAssetToQuestion(questionId, assetId, 'question', 1)
       } else {
         warnings.push(`Row ${row.rowNumber}: could not create the question (subject may be missing).`)

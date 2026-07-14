@@ -436,6 +436,29 @@ export function getSuggestedSkillsForSubtopic(subtopicCode: string | null | unde
   return getSubtopic(subtopicCode)?.skills ?? []
 }
 
+/** Subtopic codes belonging to a domain (empty for an unknown domain). */
+export function getSubtopicCodesForDomain(domainCode: string | null | undefined): string[] {
+  return getSubtopicsForDomain(domainCode).map((subtopic) => subtopic.code)
+}
+
+/**
+ * The canonical domain a question belongs to.
+ *
+ * A question's subtopic is its most specific placement, so a valid subtopic's
+ * parent domain ALWAYS wins over any separately-stored domain code. This mirrors
+ * exactly how the student mastery/coverage views place a question (they group by
+ * `subtopic_code` and read `getSubtopic(code).domainCode`). Only when there is no
+ * usable subtopic do we fall back to the stored domain code. Keeping this in one
+ * place is what guarantees admin filtering and student grouping agree.
+ */
+export function resolveCanonicalDomainCode(
+  selection: Pick<TaxonomySelection, 'domainCode' | 'subtopicCode'>
+): string | null {
+  const fromSubtopic = getSubtopic(selection.subtopicCode)?.domainCode
+  if (fromSubtopic) return fromSubtopic
+  return selection.domainCode ?? null
+}
+
 /** All domains, flat. */
 export function getAllDomains(): DomainNode[] {
   return [...domainByCode.values()]

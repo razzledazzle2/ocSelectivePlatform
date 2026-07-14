@@ -593,6 +593,8 @@ export interface PracticeQuestionItem {
   passageText: string | null
   stimulus: StudentStimulus | null
   questionAssets: StudentAssetRef[]
+  /** Solution images — rendered only after the student has answered (never before submission). */
+  solutionAssets: StudentAssetRef[]
   options: QuestionOptionRecord[]
 }
 

@@ -134,9 +134,32 @@ export function parseOptionsJson(cell: string): string[] | null {
   }
 }
 
-/** Splits a multi-ref cell ("a.svg; b.svg" or comma-separated) into clean refs. */
+/**
+ * Normalises an asset-ref cell into an array of clean refs. Accepts both shapes the spec allows:
+ *   - a JSON array of strings, e.g. `["assets/x/stimulus.png", "assets/x/extra.png"]`
+ *   - a legacy single string or a `;`/`,`-delimited list, e.g. `a.svg; b.svg`
+ * A JSON array is detected by a leading `[` and parsed first (so a path that legitimately
+ * contains a comma survives); anything else falls back to delimiter splitting.
+ */
 export function splitAssetRefs(cell: string): string[] {
-  return cell
+  const trimmed = cell.trim()
+  if (!trimmed) {
+    return []
+  }
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((entry): entry is string => typeof entry === 'string')
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+      }
+    } catch {
+      // Not valid JSON — fall through to delimiter splitting below.
+    }
+  }
+  return trimmed
     .split(/[;,]/)
     .map((ref) => ref.trim())
     .filter(Boolean)

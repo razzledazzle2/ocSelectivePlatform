@@ -2,6 +2,8 @@ import type { FullExportQuestion } from '@/lib/questions/export-full-csv'
 import { getAdminQuestionStats } from '@/lib/questions/stats'
 import { mapStimulusDetail } from '@/lib/stimuli/queries'
 import { createClient } from '@/lib/supabase/server'
+import { buildDomainFilterOrExpression } from '@/lib/questions/domain-filter'
+import { getSubtopicCodesForDomain } from '@/lib/taxonomy'
 import {
   ADMIN_QUESTION_PAGE_SIZES,
   ADMIN_QUESTION_SORTS,
@@ -285,6 +287,7 @@ interface QuestionFilterBuilder {
   in(column: string, values: readonly unknown[]): QuestionFilterBuilder
   is(column: string, value: unknown): QuestionFilterBuilder
   not(column: string, operator: string, value: unknown): QuestionFilterBuilder
+  or(filters: string): QuestionFilterBuilder
 }
 
 /**
@@ -386,9 +389,27 @@ export function applyAdminQuestionFilters<T>(
     next = next.eq('question_type_id', filters.questionTypeId)
   }
   if (filters.domainCode) {
-    next = next.eq('domain_code', filters.domainCode)
+    // A question's canonical domain is derived from its subtopic (see
+    // resolveCanonicalDomainCode) — the student mastery/coverage views group
+    // purely by subtopic_code -> domain. So the admin domain filter must match a
+    // question placed in this domain EITHER directly (domain_code) OR through its
+    // subtopic; otherwise a question that carries a subtopic but a NULL/blank
+    // domain_code is invisible here while showing correctly for students.
+    // Subtopic codes are globally unique in the taxonomy, so this `in` list can
+    // never pull in a subtopic from another domain.
+    const orExpression = buildDomainFilterOrExpression(
+      filters.domainCode,
+      getSubtopicCodesForDomain(filters.domainCode)
+    )
+    if (orExpression) {
+      next = next.or(orExpression)
+    } else {
+      next = next.eq('domain_code', filters.domainCode)
+    }
   }
   if (filters.subtopicCode) {
+    // Subtopic filtering stays an exact match: only questions carrying this exact
+    // subtopic, regardless of the (possibly stale/NULL) stored domain_code.
     next = next.eq('subtopic_code', filters.subtopicCode)
   }
   if (filters.skillCode) {

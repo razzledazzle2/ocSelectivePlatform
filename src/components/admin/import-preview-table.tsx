@@ -93,6 +93,13 @@ function AssetStateBadge({ row }: { row: ValidatedImportRow }) {
   )
 }
 
+/** Compact human-readable file size (e.g. 12 KB, 1.4 MB). */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 function RowDetails({ row }: { row: ValidatedImportRow }) {
   const changedDiffs = row.diffs.filter((diff) => diff.changed)
 
@@ -128,15 +135,31 @@ function RowDetails({ row }: { row: ValidatedImportRow }) {
       {row.assetPreviews.length > 0 ? (
         <div>
           <p className="text-xs font-medium text-foreground">Assets</p>
-          <ul className="mt-1 space-y-1">
+          <ul className="mt-1 space-y-2">
             {row.assetPreviews.map((preview, index) => (
-              <li key={`${preview.field}-${index}`} className="flex flex-wrap items-center gap-2 text-xs">
-                <Badge variant="outline" className={ASSET_STATE_CLASSES[preview.state]}>
-                  {ASSET_STATE_LABELS[preview.state]}
-                </Badge>
-                <span className="text-muted-foreground">{preview.field}:</span>
-                <span className="font-mono text-foreground">{preview.ref}</span>
-                {preview.message ? <span className="text-muted-foreground">— {preview.message}</span> : null}
+              <li key={`${preview.field}-${index}`} className="flex flex-wrap items-start gap-2 text-xs">
+                {preview.previewDataUri ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={preview.previewDataUri}
+                    alt={`${preview.field} preview`}
+                    className="h-16 w-16 shrink-0 rounded-md border border-border bg-card object-contain"
+                  />
+                ) : null}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className={ASSET_STATE_CLASSES[preview.state]}>
+                    {ASSET_STATE_LABELS[preview.state]}
+                  </Badge>
+                  <span className="text-muted-foreground">{preview.field}:</span>
+                  <span className="font-mono text-foreground">{preview.ref}</span>
+                  {preview.width && preview.height ? (
+                    <span className="text-muted-foreground">
+                      {preview.width}×{preview.height}px
+                    </span>
+                  ) : null}
+                  {preview.sizeBytes ? <span className="text-muted-foreground">{formatBytes(preview.sizeBytes)}</span> : null}
+                  {preview.message ? <span className="text-muted-foreground">— {preview.message}</span> : null}
+                </div>
               </li>
             ))}
           </ul>

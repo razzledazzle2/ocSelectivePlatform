@@ -34,7 +34,7 @@ export function shuffleArray<T>(items: T[]): T[] {
 /** A pool candidate: everything on PracticeQuestionItem except the hydrated pieces. */
 export type PracticePoolQuestion = Omit<
   PracticeQuestionItem,
-  'options' | 'stimulus' | 'questionAssets'
+  'options' | 'stimulus' | 'questionAssets' | 'solutionAssets'
 > & {
   stimulusId: string | null
 }
@@ -176,16 +176,18 @@ export async function hydratePracticeQuestions(
     .map((question) => question.stimulusId)
     .filter((stimulusId): stimulusId is string => Boolean(stimulusId))
 
-  const [optionsMap, stimuliMap, questionAssetsMap] = await Promise.all([
+  const [optionsMap, stimuliMap, questionAssetsMap, solutionAssetsMap] = await Promise.all([
     getStudentOptionsMap(questionIds),
     getStudentStimuliMap(stimulusIds),
     getStudentQuestionAssetsMap(questionIds),
+    getStudentQuestionAssetsMap(questionIds, 'solution'),
   ])
 
   return ordered.map(({ stimulusId, ...question }) => ({
     ...question,
     stimulus: stimulusId ? stimuliMap.get(stimulusId) ?? null : null,
     questionAssets: questionAssetsMap.get(question.id) ?? [],
+    solutionAssets: solutionAssetsMap.get(question.id) ?? [],
     options: optionsMap.get(question.id) ?? [],
   }))
 }

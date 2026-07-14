@@ -807,6 +807,13 @@ export function PracticeSession({
                       No solution was added for this question yet.
                     </p>
                   )}
+                  {answer.question.solutionAssets.length ? (
+                    <div className="mt-2 space-y-2">
+                      {answer.question.solutionAssets.map((asset) => (
+                        <QuestionAsset key={asset.id} asset={asset} />
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="mt-2 flex justify-end">
                     <StudentQuestionReportButton
                       questionId={answer.question.id}
@@ -925,6 +932,13 @@ export function PracticeSession({
                       No solution was added for this question yet.
                     </p>
                   )}
+                  {activeQuestion.solutionAssets.length ? (
+                    <div className="mt-2 space-y-2">
+                      {activeQuestion.solutionAssets.map((asset) => (
+                        <QuestionAsset key={asset.id} asset={asset} />
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </AlertDescription>

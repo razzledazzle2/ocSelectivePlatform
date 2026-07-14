@@ -84,7 +84,8 @@ export function QuestionAsset({ asset, className }: QuestionAssetProps) {
         <img
           src={src}
           alt={altText}
-          className="h-auto max-w-full rounded-xl border border-border bg-card"
+          loading="lazy"
+          className="h-auto max-h-[70vh] w-auto max-w-full rounded-xl border border-border bg-card object-contain"
           onError={() => setFailed(true)}
         />
       </span>
