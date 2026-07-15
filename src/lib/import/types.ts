@@ -11,8 +11,14 @@ import type {
   QuestionStatus,
   QuestionTypeRecord,
   QuestionVariantRecord,
+  SetCompletionMode,
+  SetFeedbackMode,
+  SetInteractionType,
+  SharedOptionPoolOption,
+  StimulusAttribution,
   StimulusType,
   SubjectRecord,
+  QuestionSetType,
   TopicRecord,
   WritingRubric,
 } from '@/lib/types'
@@ -132,6 +138,22 @@ export interface QuestionImportRow {
   writingForm: string
   writingPurpose: string
   writingPromptStimulus: string
+  // -- Reading question sets (all optional; a blank question_set_id = standalone)
+  questionSetId: string
+  questionSetTitle: string
+  questionSetType: string
+  questionOrderInSet: string
+  setInstructions: string
+  setFeedbackMode: string
+  setCompletionMode: string
+  interactionType: string
+  sharedOptionPoolId: string
+  stimulusTargetLabel: string
+  // -- Stimulus attribution (distinct from question source_name/source_paper) --
+  stimulusAuthor: string
+  stimulusSourceTitle: string
+  stimulusSourceUrl: string
+  stimulusAttributionText: string
 }
 
 export interface ImportRowIssue {
@@ -157,6 +179,35 @@ export interface ResolvedImportStimulus {
   stimulusType: StimulusType
   bodyMarkdown: string | null
   assetRefs: string[]
+  /** Attribution (author/source) written into stimuli.source_info. */
+  attribution: StimulusAttribution | null
+}
+
+/**
+ * A shared A–G sentence bank resolved from the rows referencing one
+ * shared_option_pool_id (merged: the first row carrying option cells defines it).
+ */
+export interface ResolvedSharedOptionPool {
+  externalRef: string
+  title: string | null
+  options: SharedOptionPoolOption[]
+}
+
+/**
+ * A reading question set resolved from rows sharing one question_set_id (merged
+ * across the group; any single row may carry the title/type/instructions).
+ */
+export interface ResolvedImportQuestionSet {
+  externalRef: string
+  title: string
+  setType: QuestionSetType
+  instructions: string | null
+  feedbackMode: SetFeedbackMode
+  completionMode: SetCompletionMode
+  interactionType: SetInteractionType | null
+  /** Links the set to its passage stimulus (by external ref), when present. */
+  stimulusExternalRef: string | null
+  sharedOptionPoolRef: string | null
 }
 
 /** One field's before/after/final value for an update row's preview diff. */
@@ -270,6 +321,19 @@ export interface ResolvedImportQuestion {
   writingForm: string | null
   writingPurpose: string | null
   writingPromptStimulus: string | null
+  // -- Reading question sets --------------------------------------------------
+  /** The set this question belongs to (null = standalone; unchanged behaviour). */
+  questionSetExternalRef: string | null
+  /** In-file set definition; attached to every member row (idempotent on insert). */
+  questionSetDefinition: ResolvedImportQuestionSet | null
+  /** 1-based order within the set (position). */
+  questionOrderInSet: number | null
+  /** The numbered gap this question fills (sentence insertion), e.g. "23". */
+  stimulusTargetLabel: string | null
+  /** Shared option-bank ref (sentence insertion); options live on the pool, not the question. */
+  sharedOptionPoolRef: string | null
+  /** In-file shared pool definition; attached to member rows (idempotent on insert). */
+  sharedOptionPoolDefinition: ResolvedSharedOptionPool | null
 }
 
 export interface ValidatedImportRow {
@@ -330,6 +394,10 @@ export interface ImportSummary {
   createdQuestionTypeCount: number
   createdVariantCount: number
   createdStimulusCount: number
+  /** New reading question sets created this run. */
+  createdQuestionSetCount: number
+  /** New shared option pools (sentence-insertion banks) created this run. */
+  createdSharedOptionPoolCount: number
   createdAssetCount: number
   /** New assets whose deterministic SVG was generated during import. */
   generatedAssetCount: number

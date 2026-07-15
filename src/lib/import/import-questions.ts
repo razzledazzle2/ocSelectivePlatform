@@ -10,6 +10,11 @@ import { archiveQuestion, updateQuestion } from '@/lib/questions/mutations'
 import { labelsForCount } from '@/lib/questions/option-rules'
 import { slugify } from '@/lib/questions/slug'
 import { ensureQuestionType, ensureQuestionVariant, ensureTopic } from '@/lib/questions/taxonomy-mutations'
+import {
+  ensureQuestionSetByExternalRef,
+  ensureSharedOptionPoolByExternalRef,
+  linkQuestionToSet,
+} from '@/lib/question-sets/mutations'
 import { ensureStimulusByExternalRef } from '@/lib/stimuli/mutations'
 import { createClient } from '@/lib/supabase/server'
 import { getSubtopic } from '@/lib/taxonomy'
@@ -389,6 +394,8 @@ function emptySummary(): ImportSummary {
     createdQuestionTypeCount: 0,
     createdVariantCount: 0,
     createdStimulusCount: 0,
+    createdQuestionSetCount: 0,
+    createdSharedOptionPoolCount: 0,
     createdAssetCount: 0,
     generatedAssetCount: 0,
     uploadedAssetCount: 0,
@@ -448,11 +455,15 @@ export async function applyValidatedImport(
   const typeCache = new Map<string, string>()
   const variantCache = new Map<string, string>()
   const stimulusCache = new Map<string, string>()
+  const questionSetCache = new Map<string, string>()
+  const sharedPoolCache = new Map<string, string>()
   const { ensureRowAsset, counters, assetCache, cleanup, hasStagedUploads } = createAssetEnsurer(actorId, assetFiles)
   const createdTopics = new Set<string>()
   const createdTypes = new Set<string>()
   const createdVariants = new Set<string>()
   let createdStimulusCount = 0
+  let createdQuestionSetCount = 0
+  let createdSharedOptionPoolCount = 0
 
   const resolveOptionAssetIds = async (row: ResolvedImportQuestion): Promise<Array<string | null>> => {
     const optionAssetIds: Array<string | null> = []
@@ -466,12 +477,24 @@ export async function applyValidatedImport(
   }
 
   const resolveStimulusId = async (row: ResolvedImportQuestion): Promise<string | null> => {
-    if (row.stimulusExternalRef) {
+    // A reading-set member without its own stimulus cell inherits the set's
+    // passage stimulus, so every child question links to the passage.
+    const stimulusRef = row.stimulusExternalRef ?? row.questionSetDefinition?.stimulusExternalRef ?? null
+    if (stimulusRef) {
+      // Passage attribution (author/source) is stored in stimuli.source_info,
+      // distinct from the question's own source_info (source_name/paper/etc).
+      const attribution = row.stimulusDefinition?.attribution
+      const sourceInfo = attribution
+        ? (Object.fromEntries(
+            Object.entries(attribution).filter(([, value]) => Boolean(value))
+          ) as Record<string, unknown>)
+        : undefined
       const ensured = await ensureStimulusByExternalRef({
-        externalRef: row.stimulusExternalRef,
-        title: row.stimulusDefinition?.title ?? row.stimulusExternalRef,
+        externalRef: stimulusRef,
+        title: row.stimulusDefinition?.title ?? stimulusRef,
         stimulusType: row.stimulusDefinition?.stimulusType ?? 'passage',
         bodyMarkdown: row.stimulusDefinition?.bodyMarkdown ?? null,
+        sourceInfo,
         assetRefs: row.stimulusDefinition?.assetRefs,
         assetAltText: row.assetAltText,
         assetGenerationPrompt: row.assetGenerationPrompt,
@@ -493,6 +516,55 @@ export async function applyValidatedImport(
     // Blank stimulus cell: keep the existing link ('keep' mode) or drop it ('clear' mode /
     // create rows, which never have one) — decided already at validation time.
     return row.existingStimulusId
+  }
+
+  // Ensures a row's reading set (and its shared option pool) exist, then links
+  // the question into the set at its position. Idempotent + cached; a re-import
+  // moves the question rather than duplicating it.
+  const linkRowToQuestionSet = async (
+    questionId: string,
+    row: ResolvedImportQuestion,
+    stimulusId: string | null,
+    position: number
+  ): Promise<void> => {
+    if (!row.questionSetExternalRef || !row.questionSetDefinition) {
+      return
+    }
+
+    let sharedOptionPoolId: string | null = null
+    if (row.sharedOptionPoolRef && row.sharedOptionPoolDefinition) {
+      const pool = await ensureSharedOptionPoolByExternalRef({
+        externalRef: row.sharedOptionPoolDefinition.externalRef,
+        title: row.sharedOptionPoolDefinition.title,
+        options: row.sharedOptionPoolDefinition.options,
+        actorId,
+        cache: sharedPoolCache,
+      })
+      if (pool.created) createdSharedOptionPoolCount += 1
+      sharedOptionPoolId = pool.id
+    }
+
+    const set = await ensureQuestionSetByExternalRef({
+      externalRef: row.questionSetDefinition.externalRef,
+      title: row.questionSetDefinition.title,
+      setType: row.questionSetDefinition.setType,
+      instructions: row.questionSetDefinition.instructions,
+      feedbackMode: row.questionSetDefinition.feedbackMode,
+      completionMode: row.questionSetDefinition.completionMode,
+      interactionType: row.questionSetDefinition.interactionType,
+      stimulusId,
+      sharedOptionPoolId,
+      actorId,
+      cache: questionSetCache,
+    })
+    if (set.created) createdQuestionSetCount += 1
+
+    await linkQuestionToSet(supabase, {
+      setId: set.id,
+      questionId,
+      position,
+      targetLabel: row.stimulusTargetLabel,
+    })
   }
 
   const linkQuestionAssets = async (questionId: string, row: ResolvedImportQuestion): Promise<void> => {
@@ -541,7 +613,10 @@ export async function applyValidatedImport(
         continue
       }
 
-      if (row.options.length > 0) {
+      // Sentence-insertion rows draw their options from the shared pool, so
+      // they store no per-question options (the A–G bank is kept once, on the
+      // pool). Every other row inserts its own options as before.
+      if (row.options.length > 0 && !row.sharedOptionPoolRef) {
         const { error: optionsError } = await supabase
           .from('question_options')
           .insert(buildOptionRecords(row, optionAssetIds).map((option) => ({ ...option, question_id: inserted.id })))
@@ -555,6 +630,7 @@ export async function applyValidatedImport(
       }
 
       await linkQuestionAssets(inserted.id, row)
+      await linkRowToQuestionSet(inserted.id, row, stimulusId, row.questionOrderInSet ?? 1)
 
       summary.importedCount += 1
       importedQuestionIds.push(inserted.id)
@@ -604,7 +680,9 @@ export async function applyValidatedImport(
         questionText: row.questionText,
         passageText: row.passageText,
         stimulusId,
-        options: buildOptionRecords(row, optionAssetIds),
+        // Shared-pool (sentence-insertion) rows keep options on the pool, not
+        // the question — pass none so the update doesn't create per-question ones.
+        options: row.sharedOptionPoolRef ? [] : buildOptionRecords(row, optionAssetIds),
         correctOptionLabel: row.correctOptionLabel,
         workedSolution: resolveSolution(row.workedSolution, row.shortExplanation),
         tags: row.tags,
@@ -626,6 +704,7 @@ export async function applyValidatedImport(
       }
 
       await linkQuestionAssets(row.existingQuestionId, row)
+      await linkRowToQuestionSet(row.existingQuestionId, row, stimulusId, row.questionOrderInSet ?? 1)
 
       summary.updatedCount += 1
       updatedQuestionIds.push(row.existingQuestionId)
@@ -647,6 +726,8 @@ export async function applyValidatedImport(
   summary.createdQuestionTypeCount = createdTypes.size
   summary.createdVariantCount = createdVariants.size
   summary.createdStimulusCount = createdStimulusCount
+  summary.createdQuestionSetCount = createdQuestionSetCount
+  summary.createdSharedOptionPoolCount = createdSharedOptionPoolCount
   summary.createdAssetCount = counters.createdAssetCount
   summary.generatedAssetCount = counters.generatedAssetCount
   summary.uploadedAssetCount = counters.uploadedAssetCount

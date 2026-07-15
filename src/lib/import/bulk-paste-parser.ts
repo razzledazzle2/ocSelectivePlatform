@@ -72,6 +72,20 @@ function emptyRow(rowNumber: number): QuestionImportRow {
     writingForm: '',
     writingPurpose: '',
     writingPromptStimulus: '',
+    questionSetId: '',
+    questionSetTitle: '',
+    questionSetType: '',
+    questionOrderInSet: '',
+    setInstructions: '',
+    setFeedbackMode: '',
+    setCompletionMode: '',
+    interactionType: '',
+    sharedOptionPoolId: '',
+    stimulusTargetLabel: '',
+    stimulusAuthor: '',
+    stimulusSourceTitle: '',
+    stimulusSourceUrl: '',
+    stimulusAttributionText: '',
   }
 }
 

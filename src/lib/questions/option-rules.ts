@@ -34,9 +34,12 @@ export const OPTION_COUNT_RULES: OptionCountRule[] = [
     preferredCount: 4,
   },
   {
+    // Reading comprehension MCQs use 4; sentence-insertion sets draw from a
+    // shared bank of up to seven sentences (A–G), so allow 4–7 here. 4 stays
+    // the nudged default for ordinary comprehension questions.
     label: 'Reading',
     keywords: ['reading'],
-    allowedCounts: [4],
+    allowedCounts: [4, 5, 6, 7],
     preferredCount: 4,
   },
   {
@@ -66,7 +69,7 @@ export const DEFAULT_OPTION_RULE: OptionCountRule = {
   preferredCount: 4,
 }
 
-/** Hard bounds regardless of subject — the DB supports labels A–E. */
+/** Hard bounds regardless of subject — the DB supports labels A–G. */
 export const MIN_OPTION_COUNT = Math.min(
   ...OPTION_COUNT_RULES.flatMap((rule) => rule.allowedCounts),
   ...DEFAULT_OPTION_RULE.allowedCounts

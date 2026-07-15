@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { QuestionPreview } from '@/components/questions/question-preview'
 import { buttonVariants } from '@/components/ui/button'
 import { getQuestionById } from '@/lib/questions/queries'
+import { getQuestionSetMembership } from '@/lib/question-sets/queries'
 import { cn } from '@/lib/utils'
 
 interface PreviewAdminQuestionPageProps {
@@ -19,6 +20,8 @@ export default async function PreviewAdminQuestionPage({ params }: PreviewAdminQ
   if (!question) {
     notFound()
   }
+
+  const setMembership = await getQuestionSetMembership(question.id)
 
   return (
     <div className="space-y-6">
@@ -38,7 +41,7 @@ export default async function PreviewAdminQuestionPage({ params }: PreviewAdminQ
         </Link>
       </div>
 
-      <QuestionPreview question={question} audience="admin" />
+      <QuestionPreview question={question} audience="admin" setMembership={setMembership} />
     </div>
   )
 }

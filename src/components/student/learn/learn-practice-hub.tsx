@@ -53,6 +53,9 @@ export function LearnPracticeHub({ data }: LearnPracticeHubProps) {
       {activeSubject ? (
         <>
           <ProgressSummary subject={activeSubject} revisionDueCount={data.revisionDueCount} />
+          {activeSubject.kind === 'practice' && activeSubject.label.toLowerCase().includes('reading') ? (
+            <ReadingPracticeCta program={data.program} />
+          ) : null}
           <DomainGrid subject={activeSubject} />
         </>
       ) : (
@@ -287,6 +290,39 @@ function ProgressSummary({
         tone="warning"
       />
     </div>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Reading passage-set practice CTA                                             */
+/* -------------------------------------------------------------------------- */
+
+function ReadingPracticeCta({ program }: { program: LearnPracticeData['program'] }) {
+  return (
+    <Card className="overflow-hidden rounded-2xl border-brand/30 bg-brand-soft/40 shadow-sm ring-border">
+      <CardContent className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-4">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand-soft text-brand">
+            <BookOpenIcon className="size-5" aria-hidden />
+          </span>
+          <div className="min-w-0 space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Whole passages
+            </p>
+            <h3 className="text-base font-semibold text-foreground">Practise full reading passage sets</h3>
+            <p className="text-sm text-muted-foreground">
+              Read a passage and answer all its questions together, then submit to see every solution at once.
+            </p>
+          </div>
+        </div>
+        <Link
+          href={`/student/practice/reading?examType=${program}`}
+          className={cn(buttonVariants(), 'shrink-0')}
+        >
+          Start passage practice
+        </Link>
+      </CardContent>
+    </Card>
   )
 }
 

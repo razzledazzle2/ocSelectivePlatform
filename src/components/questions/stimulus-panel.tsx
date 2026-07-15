@@ -41,6 +41,11 @@ interface StimulusPanelProps {
    * Admin-only: expose the internal stimulus-type badge. Students never see it.
    */
   showTypeLabel?: boolean
+  /**
+   * Whether the external source URL is shown. Kept OFF on the active test
+   * screen; turned ON in admin/review contexts.
+   */
+  showSourceUrl?: boolean
   className?: string
 }
 
@@ -56,6 +61,51 @@ function StimulusAssets({ stimulus }: { stimulus: StudentStimulus }) {
 }
 
 /**
+ * Passage attribution shown beneath the stimulus body. Author + source title +
+ * attribution text always render; the external URL only when `showSourceUrl`.
+ */
+function StimulusAttributionLine({
+  stimulus,
+  showSourceUrl,
+}: {
+  stimulus: StudentStimulus
+  showSourceUrl: boolean
+}) {
+  const attribution = stimulus.attribution
+  if (!attribution) return null
+
+  const bylineParts = [attribution.author, attribution.sourceTitle].filter(Boolean)
+  const hasByline = bylineParts.length > 0
+  const hasText = Boolean(attribution.attributionText)
+  if (!hasByline && !hasText && !(showSourceUrl && attribution.sourceUrl)) {
+    return null
+  }
+
+  return (
+    <figcaption className="border-t border-border/60 pt-2 text-xs leading-5 text-muted-foreground">
+      {hasByline ? (
+        <span>
+          {attribution.author ? <span className="font-medium text-foreground/70">{attribution.author}</span> : null}
+          {attribution.author && attribution.sourceTitle ? ', ' : null}
+          {attribution.sourceTitle ? <cite className="not-italic">{attribution.sourceTitle}</cite> : null}
+        </span>
+      ) : null}
+      {hasText ? <span className={cn(hasByline && 'block')}>{attribution.attributionText}</span> : null}
+      {showSourceUrl && attribution.sourceUrl ? (
+        <a
+          href={attribution.sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block truncate text-brand underline underline-offset-2"
+        >
+          {attribution.sourceUrl}
+        </a>
+      ) : null}
+    </figcaption>
+  )
+}
+
+/**
  * Shared stimulus renderer. Reading passages get long-form passage styling;
  * Thinking Skills / Maths supporting content gets a plain, high-contrast,
  * untinted block (or renders inline when it is only a sentence or two). No
@@ -66,6 +116,7 @@ export function StimulusPanel({
   variant,
   subjectName,
   showTypeLabel = false,
+  showSourceUrl = false,
   className,
 }: StimulusPanelProps) {
   const resolvedVariant = variant ?? resolveStimulusVariant(subjectName)
@@ -84,19 +135,21 @@ export function StimulusPanel({
         </div>
         <QuestionMarkdown text={stimulus.bodyMarkdown} className="text-sm leading-7 text-foreground/80" />
         <StimulusAssets stimulus={stimulus} />
+        <StimulusAttributionLine stimulus={stimulus} showSourceUrl={showSourceUrl} />
       </div>
     )
   }
 
   if (resolvedVariant === 'reading') {
     return (
-      <div className={cn('space-y-3 rounded-2xl border border-border bg-card px-5 py-5', className)}>
+      <figure className={cn('space-y-3 rounded-2xl border border-border bg-card px-5 py-5', className)}>
         {showTitle ? (
           <h3 className="font-heading text-lg font-semibold text-foreground">{stimulus.title}</h3>
         ) : null}
         <QuestionMarkdown text={stimulus.bodyMarkdown} className="text-base leading-8 text-foreground" />
         <StimulusAssets stimulus={stimulus} />
-      </div>
+        <StimulusAttributionLine stimulus={stimulus} showSourceUrl={showSourceUrl} />
+      </figure>
     )
   }
 
@@ -120,6 +173,7 @@ export function StimulusPanel({
       ) : null}
       <QuestionMarkdown text={stimulus.bodyMarkdown} className="text-base leading-7 text-foreground" />
       <StimulusAssets stimulus={stimulus} />
+      <StimulusAttributionLine stimulus={stimulus} showSourceUrl={showSourceUrl} />
     </div>
   )
 }

@@ -10,6 +10,11 @@ import { checkOptionCount, labelsForCount } from '@/lib/questions/option-rules'
 import type { ExistingQuestionSnapshot } from '@/lib/questions/queries'
 import { parseWritingRubric } from '@/lib/questions/rubric'
 import {
+  correctAnswerStatus,
+  mergeQuestionSetGroups,
+  mergeSharedOptionPoolGroups,
+} from '@/lib/question-sets/core'
+import {
   getDomain,
   getSkill,
   getSubtopic,
@@ -23,7 +28,11 @@ import {
   ASSET_TYPES,
   EXAM_TYPES,
   QUESTION_OPTION_LABELS,
+  QUESTION_SET_TYPES,
   QUESTION_STATUSES,
+  SET_COMPLETION_MODES,
+  SET_FEEDBACK_MODES,
+  SET_INTERACTION_TYPES,
   STIMULUS_TYPES,
   type AnswerFormat,
   type AssetStatus,
@@ -31,8 +40,14 @@ import {
   type ExamType,
   type QuestionOptionLabel,
   type QuestionPresentation,
+  type QuestionSetType,
   type QuestionSourceInfo,
   type QuestionStatus,
+  type SetCompletionMode,
+  type SetFeedbackMode,
+  type SetInteractionType,
+  type SharedOptionPoolOption,
+  type StimulusAttribution,
   type StimulusType,
 } from '@/lib/types'
 import type {
@@ -47,7 +62,9 @@ import type {
   ImportValidationResult,
   QuestionImportRow,
   ResolvedImportQuestion,
+  ResolvedImportQuestionSet,
   ResolvedImportStimulus,
+  ResolvedSharedOptionPool,
   UploadedAssetFile,
   ValidatedImportRow,
 } from '@/lib/import/types'
@@ -199,6 +216,26 @@ function normalizeStimulusType(value: string): StimulusType | null {
   return match ?? null
 }
 
+function normalizeSetType(value: string): QuestionSetType | null {
+  const match = QUESTION_SET_TYPES.find((type) => type === value.trim().toLowerCase())
+  return match ?? null
+}
+
+function normalizeFeedbackMode(value: string): SetFeedbackMode | null {
+  const match = SET_FEEDBACK_MODES.find((mode) => mode === value.trim().toLowerCase())
+  return match ?? null
+}
+
+function normalizeCompletionMode(value: string): SetCompletionMode | null {
+  const match = SET_COMPLETION_MODES.find((mode) => mode === value.trim().toLowerCase())
+  return match ?? null
+}
+
+function normalizeInteractionType(value: string): SetInteractionType | null {
+  const match = SET_INTERACTION_TYPES.find((type) => type === value.trim().toLowerCase())
+  return match ?? null
+}
+
 /**
  * Parses a JSON cell keyed by option label ({"A": "...", "B": "..."}).
  * Returns null for an empty cell, and an error flag for anything that is not
@@ -288,6 +325,7 @@ interface StimulusGroup {
   bodyMarkdown: string
   assetRefs: string[]
   hasDefinition: boolean
+  attribution: StimulusAttribution | null
 }
 
 /**
@@ -307,6 +345,7 @@ function buildStimulusGroups(rows: QuestionImportRow[]): Map<string, StimulusGro
       bodyMarkdown: '',
       assetRefs: [],
       hasDefinition: false,
+      attribution: null,
     }
     if (!group.title && row.stimulusTitle.trim()) group.title = row.stimulusTitle.trim()
     if (!group.stimulusType && row.stimulusType.trim()) group.stimulusType = row.stimulusType.trim()
@@ -316,6 +355,11 @@ function buildStimulusGroups(rows: QuestionImportRow[]): Map<string, StimulusGro
         group.assetRefs.push(assetRef)
       }
     }
+    // First non-blank attribution across the group wins (definition-anywhere).
+    if (!group.attribution) {
+      const attribution = buildStimulusAttribution(row)
+      if (attribution) group.attribution = attribution
+    }
     group.hasDefinition =
       group.hasDefinition || Boolean(group.title || group.stimulusType || group.bodyMarkdown)
     groups.set(ref, group)
@@ -323,6 +367,19 @@ function buildStimulusGroups(rows: QuestionImportRow[]): Map<string, StimulusGro
 
   return groups
 }
+
+/** Builds a StimulusAttribution from a row's attribution cells, or null when all blank. */
+function buildStimulusAttribution(row: QuestionImportRow): StimulusAttribution | null {
+  const clean = (value: string): string | undefined => value.trim() || undefined
+  const attribution: StimulusAttribution = {
+    author: clean(row.stimulusAuthor),
+    sourceTitle: clean(row.stimulusSourceTitle),
+    sourceUrl: clean(row.stimulusSourceUrl),
+    attributionText: clean(row.stimulusAttributionText),
+  }
+  return Object.values(attribution).some(Boolean) ? attribution : null
+}
+
 
 // -- Asset ref preview classification ----------------------------------------------------------
 
@@ -398,6 +455,8 @@ export function validateQuestionImportRows(rows: QuestionImportRow[], options: V
   const { settings, assetFiles } = options
   const maps = buildReferenceMaps(options.reference)
   const stimulusGroups = buildStimulusGroups(rows)
+  const questionSetGroups = mergeQuestionSetGroups(rows)
+  const sharedOptionPoolGroups = mergeSharedOptionPoolGroups(rows)
   const existingTextSet = new Set(options.existingQuestionTexts.map(normalizeQuestionText))
   const seenInFile = new Set<string>()
   const seenExternalIds = new Set<string>()
@@ -638,14 +697,15 @@ export function validateQuestionImportRows(rows: QuestionImportRow[], options: V
     const correctOptionLabel = workingRow.correctAnswer.trim().toUpperCase()
     if (isSingleChoice) {
       const optionLabels = labelsForCount(optionTexts.length)
-      if (!correctOptionLabel) {
+      const status = correctAnswerStatus(optionTexts, correctOptionLabel, QUESTION_OPTION_LABELS)
+      if (status === 'missing') {
         errors.push({ field: 'correct_answer', message: 'Correct answer is required.' })
-      } else if (!QUESTION_OPTION_LABELS.includes(correctOptionLabel as QuestionOptionLabel)) {
+      } else if (status === 'not_a_label') {
         errors.push({
           field: 'correct_answer',
           message: `Correct answer must be one of ${QUESTION_OPTION_LABELS.join(', ')}.`,
         })
-      } else if (optionTexts.length > 0 && !optionLabels.includes(correctOptionLabel as QuestionOptionLabel)) {
+      } else if (status === 'out_of_range') {
         errors.push({
           field: 'correct_answer',
           message: `Correct answer is ${correctOptionLabel} but only ${optionLabels[0]}–${
@@ -761,6 +821,7 @@ export function validateQuestionImportRows(rows: QuestionImportRow[], options: V
             stimulusType,
             bodyMarkdown: group.bodyMarkdown || null,
             assetRefs: group.assetRefs,
+            attribution: group.attribution,
           }
         }
       } else if (!existsInDb) {
@@ -770,6 +831,101 @@ export function validateQuestionImportRows(rows: QuestionImportRow[], options: V
         })
       }
     }
+
+    // -- Reading question set (grouped by question_set_id; optional) ---------
+    const questionSetExternalRef = workingRow.questionSetId.trim() || null
+    let questionSetDefinition: ResolvedImportQuestionSet | null = null
+    let questionOrderInSet: number | null = null
+    if (questionSetExternalRef) {
+      const setGroup = questionSetGroups.get(questionSetExternalRef)
+
+      // question_order_in_set: optional, but must be a positive integer if given.
+      if (workingRow.questionOrderInSet.trim()) {
+        const parsedOrder = Number(workingRow.questionOrderInSet)
+        if (!Number.isInteger(parsedOrder) || parsedOrder < 1) {
+          errors.push({
+            field: 'question_order_in_set',
+            message: 'question_order_in_set must be a positive whole number.',
+          })
+        } else {
+          questionOrderInSet = parsedOrder
+        }
+      }
+
+      const setType = normalizeSetType(setGroup?.setType ?? '')
+      if (setGroup?.setType && !setType) {
+        errors.push({
+          field: 'question_set_type',
+          message: `question_set_type "${setGroup.setType}" must be one of ${QUESTION_SET_TYPES.join(', ')}.`,
+        })
+      }
+      const feedbackMode = normalizeFeedbackMode(setGroup?.feedbackMode ?? '')
+      if (setGroup?.feedbackMode && !feedbackMode) {
+        errors.push({
+          field: 'set_feedback_mode',
+          message: `set_feedback_mode "${setGroup.feedbackMode}" must be one of ${SET_FEEDBACK_MODES.join(', ')}.`,
+        })
+      }
+      const completionMode = normalizeCompletionMode(setGroup?.completionMode ?? '')
+      if (setGroup?.completionMode && !completionMode) {
+        errors.push({
+          field: 'set_completion_mode',
+          message: `set_completion_mode "${setGroup.completionMode}" must be one of ${SET_COMPLETION_MODES.join(', ')}.`,
+        })
+      }
+      const interactionType = normalizeInteractionType(setGroup?.interactionType ?? '')
+      if (setGroup?.interactionType && !interactionType) {
+        errors.push({
+          field: 'interaction_type',
+          message: `interaction_type "${setGroup.interactionType}" must be one of ${SET_INTERACTION_TYPES.join(', ')}.`,
+        })
+      }
+
+      questionSetDefinition = {
+        externalRef: questionSetExternalRef,
+        title: setGroup?.title || questionSetExternalRef,
+        setType: setType ?? 'reading_passage',
+        instructions: setGroup?.instructions || null,
+        // Reading sets default to after_set (delayed) feedback.
+        feedbackMode: feedbackMode ?? 'after_set',
+        completionMode: completionMode ?? 'free_navigation',
+        interactionType: interactionType ?? null,
+        stimulusExternalRef: setGroup?.stimulusExternalRef || stimulusExternalRef,
+        sharedOptionPoolRef: setGroup?.sharedOptionPoolRef || (workingRow.sharedOptionPoolId.trim() || null),
+      }
+    } else if (workingRow.questionOrderInSet.trim() || workingRow.sharedOptionPoolId.trim()) {
+      warnings.push({
+        field: 'question_set_id',
+        message:
+          'question_order_in_set / shared_option_pool_id were given without a question_set_id — they will be ignored.',
+      })
+    }
+
+    // -- Shared option pool (sentence insertion; optional) ------------------
+    const sharedOptionPoolRef = workingRow.sharedOptionPoolId.trim() || null
+    let sharedOptionPoolDefinition: ResolvedSharedOptionPool | null = null
+    if (sharedOptionPoolRef) {
+      const poolGroup = sharedOptionPoolGroups.get(sharedOptionPoolRef)
+      const poolTexts = poolGroup?.optionTexts ?? []
+      if (poolTexts.filter(Boolean).length === 0) {
+        errors.push({
+          field: 'shared_option_pool_id',
+          message: `Shared option pool "${sharedOptionPoolRef}" has no options — add option_a…option_g on one of its rows.`,
+        })
+      } else {
+        const poolLabels = labelsForCount(poolTexts.length)
+        const poolOptions: SharedOptionPoolOption[] = poolTexts.map((text, index) => ({
+          label: poolLabels[index] as QuestionOptionLabel,
+          text,
+        }))
+        sharedOptionPoolDefinition = {
+          externalRef: sharedOptionPoolRef,
+          title: poolGroup?.title || null,
+          options: poolOptions,
+        }
+      }
+    }
+    const stimulusTargetLabel = workingRow.stimulusTargetLabel.trim() || null
 
     // -- Presentation hints ---------------------------------------------------
     const presentation: QuestionPresentation = {}
@@ -893,6 +1049,12 @@ export function validateQuestionImportRows(rows: QuestionImportRow[], options: V
             conceptTags,
             status: resolvedStatus,
             ...taxonomy,
+            questionSetExternalRef,
+            questionSetDefinition,
+            questionOrderInSet,
+            stimulusTargetLabel,
+            sharedOptionPoolRef,
+            sharedOptionPoolDefinition,
           }
         : null
 

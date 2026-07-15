@@ -75,6 +75,22 @@ const HEADER_ALIASES: Record<ScalarColumnKey, string[]> = {
   writingForm: ['writing_form'],
   writingPurpose: ['writing_purpose'],
   writingPromptStimulus: ['writing_prompt_stimulus'],
+  // Reading question sets (all optional).
+  questionSetId: ['question_set_id', 'set_id'],
+  questionSetTitle: ['question_set_title', 'set_title'],
+  questionSetType: ['question_set_type', 'set_type'],
+  questionOrderInSet: ['question_order_in_set', 'order_in_set', 'set_position'],
+  setInstructions: ['set_instructions'],
+  setFeedbackMode: ['set_feedback_mode'],
+  setCompletionMode: ['set_completion_mode'],
+  interactionType: ['interaction_type'],
+  sharedOptionPoolId: ['shared_option_pool_id'],
+  stimulusTargetLabel: ['stimulus_target_label'],
+  // Stimulus attribution (distinct from source_name/source_paper).
+  stimulusAuthor: ['stimulus_author'],
+  stimulusSourceTitle: ['stimulus_source_title'],
+  stimulusSourceUrl: ['stimulus_source_url'],
+  stimulusAttributionText: ['stimulus_attribution_text'],
 }
 
 const MULTI_REF_ALIASES: Record<MultiRefColumnKey, string[]> = {
@@ -299,6 +315,20 @@ export function parseCsvQuestions(text: string): CsvParseResult {
       writingForm: get('writingForm'),
       writingPurpose: get('writingPurpose'),
       writingPromptStimulus: get('writingPromptStimulus'),
+      questionSetId: get('questionSetId'),
+      questionSetTitle: get('questionSetTitle'),
+      questionSetType: get('questionSetType'),
+      questionOrderInSet: get('questionOrderInSet'),
+      setInstructions: get('setInstructions'),
+      setFeedbackMode: get('setFeedbackMode'),
+      setCompletionMode: get('setCompletionMode'),
+      interactionType: get('interactionType'),
+      sharedOptionPoolId: get('sharedOptionPoolId'),
+      stimulusTargetLabel: get('stimulusTargetLabel'),
+      stimulusAuthor: get('stimulusAuthor'),
+      stimulusSourceTitle: get('stimulusSourceTitle'),
+      stimulusSourceUrl: get('stimulusSourceUrl'),
+      stimulusAttributionText: get('stimulusAttributionText'),
     })
   }
 

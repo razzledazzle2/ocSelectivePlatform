@@ -75,6 +75,23 @@ export const FULL_EXPORT_CSV_HEADERS = [
   // Asset metadata (append-only, mirrors the import template).
   'asset_type',
   'asset_required',
+  // Reading question sets (append-only, mirrors the import template).
+  'option_f',
+  'option_g',
+  'question_set_id',
+  'question_set_title',
+  'question_set_type',
+  'question_order_in_set',
+  'set_instructions',
+  'set_feedback_mode',
+  'set_completion_mode',
+  'interaction_type',
+  'shared_option_pool_id',
+  'stimulus_target_label',
+  'stimulus_author',
+  'stimulus_source_title',
+  'stimulus_source_url',
+  'stimulus_attribution_text',
 ] as const
 
 export interface FullExportOption {
@@ -91,6 +108,25 @@ export interface FullExportStimulus {
   stimulusType: string
   bodyMarkdown: string | null
   assetRefs: string[]
+  /** Attribution stored in stimuli.source_info (optional; round-trips). */
+  author?: string | null
+  sourceTitle?: string | null
+  sourceUrl?: string | null
+  attributionText?: string | null
+}
+
+/** A question's reading-set membership, for round-trip export (optional). */
+export interface FullExportQuestionSet {
+  externalRef: string | null
+  title: string | null
+  setType: string | null
+  orderInSet: number | null
+  instructions: string | null
+  feedbackMode: string | null
+  completionMode: string | null
+  interactionType: string | null
+  sharedOptionPoolRef: string | null
+  targetLabel: string | null
 }
 
 export interface FullExportQuestion {
@@ -140,6 +176,8 @@ export interface FullExportQuestion {
   writingForm: string | null
   writingPurpose: string | null
   writingPromptStimulus: string | null
+  /** Reading-set membership; null/absent for standalone questions. */
+  questionSet?: FullExportQuestionSet | null
 }
 
 function escapeCsvCell(value: string): string {
@@ -165,6 +203,7 @@ export function stimulusExportRef(stimulus: FullExportStimulus): string {
 
 export function buildFullExportCsv(rows: FullExportQuestion[]): string {
   const emittedStimulusIds = new Set<string>()
+  const emittedSetRefs = new Set<string>()
 
   const lines = [
     FULL_EXPORT_CSV_HEADERS.join(','),
@@ -175,6 +214,15 @@ export function buildFullExportCsv(rows: FullExportQuestion[]): string {
       const isFirstOfGroup = Boolean(stimulus) && !emittedStimulusIds.has(stimulus!.id)
       if (stimulus && isFirstOfGroup) {
         emittedStimulusIds.add(stimulus.id)
+      }
+
+      // Reading-set definition columns are emitted once per set, on the first
+      // row seen for that set; later member rows carry only the ref + order.
+      const set = row.questionSet ?? null
+      const setRef = set?.externalRef ?? null
+      const isFirstOfSet = Boolean(setRef) && !emittedSetRefs.has(setRef!)
+      if (setRef && isFirstOfSet) {
+        emittedSetRefs.add(setRef)
       }
 
       const cells: string[] = [
@@ -237,6 +285,22 @@ export function buildFullExportCsv(rows: FullExportQuestion[]): string {
         row.writingPromptStimulus ?? '',
         row.assetType ?? '',
         row.assetRequired === null ? '' : String(row.assetRequired),
+        optionByLabel(row.options, 'F')?.text ?? '',
+        optionByLabel(row.options, 'G')?.text ?? '',
+        setRef ?? '',
+        set && isFirstOfSet ? set.title ?? '' : '',
+        set && isFirstOfSet ? set.setType ?? '' : '',
+        set?.orderInSet === null || set?.orderInSet === undefined ? '' : String(set.orderInSet),
+        set && isFirstOfSet ? set.instructions ?? '' : '',
+        set && isFirstOfSet ? set.feedbackMode ?? '' : '',
+        set && isFirstOfSet ? set.completionMode ?? '' : '',
+        set?.interactionType ?? '',
+        set?.sharedOptionPoolRef ?? '',
+        set?.targetLabel ?? '',
+        stimulus && isFirstOfGroup ? stimulus.author ?? '' : '',
+        stimulus && isFirstOfGroup ? stimulus.sourceTitle ?? '' : '',
+        stimulus && isFirstOfGroup ? stimulus.sourceUrl ?? '' : '',
+        stimulus && isFirstOfGroup ? stimulus.attributionText ?? '' : '',
       ]
 
       return cells.map(escapeCsvCell).join(',')

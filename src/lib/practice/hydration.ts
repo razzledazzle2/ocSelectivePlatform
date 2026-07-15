@@ -1,11 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
-import type {
-  AssetStatus,
-  AssetType,
-  QuestionOptionRecord,
-  StimulusType,
-  StudentAssetRef,
-  StudentStimulus,
+import {
+  readStimulusAttribution,
+  type AssetStatus,
+  type AssetType,
+  type QuestionOptionRecord,
+  type StimulusType,
+  type StudentAssetRef,
+  type StudentStimulus,
 } from '@/lib/types'
 
 /**
@@ -115,7 +116,7 @@ export async function getStudentStimuliMap(
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('stimuli')
-    .select(`id, title, stimulus_type, body_markdown, stimulus_assets(sort_order, asset:assets(${STUDENT_ASSET_COLUMNS}))`)
+    .select(`id, title, stimulus_type, body_markdown, source_info, stimulus_assets(sort_order, asset:assets(${STUDENT_ASSET_COLUMNS}))`)
     .in('id', uniqueIds)
 
   if (error) {
@@ -127,6 +128,7 @@ export async function getStudentStimuliMap(
     title: string
     stimulus_type: StimulusType
     body_markdown: string | null
+    source_info: Record<string, unknown> | null
     stimulus_assets:
       | Array<{ sort_order: number; asset: RawStudentAssetRow | RawStudentAssetRow[] | null }>
       | null
@@ -146,6 +148,7 @@ export async function getStudentStimuliMap(
       stimulusType: row.stimulus_type,
       bodyMarkdown: row.body_markdown,
       assets,
+      attribution: readStimulusAttribution(row.source_info),
     })
   }
 

@@ -9,7 +9,12 @@ export const QUESTION_STATUSES = ['draft', 'reviewed', 'published', 'archived'] 
 //   validated   → content confirmed correct and usable
 //   needs_fixes → reviewed and found wanting; do not treat as usable
 export const VALIDATION_STATUSES = ['unreviewed', 'validated', 'needs_fixes'] as const
-export const QUESTION_OPTION_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
+// The answer-option label domain. Widened A–E → A–G for reading sets (sentence
+// insertion uses a shared bank of up to seven options). This is THE app-side
+// source of truth; the DB CHECK constraints are widened in the
+// reading_question_sets migration to match. Existing 4/5-option questions are
+// unaffected — labels are always allocated contiguously from A.
+export const QUESTION_OPTION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'] as const
 export const QUESTION_SOURCES = ['manual', 'csv', 'bulk_paste'] as const
 export const PRACTICE_MODES = ['practice'] as const
 export const ATTEMPT_MODES = ['practice', 'revision', 'mock'] as const
@@ -60,7 +65,23 @@ export const WRITING_TEXT_TYPES = [
   'hybrid',
 ] as const
 
+// -- Reading question sets: grouped multi-question passage/insertion sets -------
+// A question_set groups ordered child questions that share one stimulus
+// (passage) and are graded together. Kept optional and additive: a question in
+// no set behaves exactly as a standalone question always has.
+export const QUESTION_SET_TYPES = ['reading_passage', 'sentence_insertion', 'generic'] as const
+// after_set: correctness is hidden until the whole set is submitted (the reading
+// default). immediate: behaves like ordinary standalone questions.
+export const SET_FEEDBACK_MODES = ['immediate', 'after_set'] as const
+export const SET_COMPLETION_MODES = ['free_navigation', 'sequential', 'all_required'] as const
+// How a set's child questions interact with the option pool.
+export const SET_INTERACTION_TYPES = ['independent_single_choice', 'shared_option_single_choice'] as const
+
 export type AnswerFormat = (typeof ANSWER_FORMATS)[number]
+export type QuestionSetType = (typeof QUESTION_SET_TYPES)[number]
+export type SetFeedbackMode = (typeof SET_FEEDBACK_MODES)[number]
+export type SetCompletionMode = (typeof SET_COMPLETION_MODES)[number]
+export type SetInteractionType = (typeof SET_INTERACTION_TYPES)[number]
 export type StimulusType = (typeof STIMULUS_TYPES)[number]
 export type StimulusStatus = (typeof STIMULUS_STATUSES)[number]
 export type AssetType = (typeof ASSET_TYPES)[number]
@@ -182,6 +203,40 @@ export interface StudentAssetRef {
   status: AssetStatus
 }
 
+/**
+ * Attribution for a stimulus (passage/poem/extract). Stored inside
+ * `stimuli.source_info` — distinct from the question's own provenance
+ * (QuestionSourceInfo / source_name…). Author + title are shown under the
+ * passage; the source URL is kept out of the active test screen but surfaced in
+ * admin/review contexts.
+ */
+export interface StimulusAttribution {
+  author?: string
+  sourceTitle?: string
+  sourceUrl?: string
+  attributionText?: string
+}
+
+/** Reads the typed attribution fields out of a stimulus's freeform source_info. */
+export function readStimulusAttribution(
+  sourceInfo: Record<string, unknown> | null | undefined
+): StimulusAttribution | null {
+  if (!sourceInfo) {
+    return null
+  }
+  const pick = (key: string): string | undefined => {
+    const value = sourceInfo[key]
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined
+  }
+  const attribution: StimulusAttribution = {
+    author: pick('author'),
+    sourceTitle: pick('sourceTitle') ?? pick('source_title'),
+    sourceUrl: pick('sourceUrl') ?? pick('source_url'),
+    attributionText: pick('attributionText') ?? pick('attribution_text'),
+  }
+  return Object.values(attribution).some(Boolean) ? attribution : null
+}
+
 /** Lightweight stimulus shape hydrated into student-facing question payloads. */
 export interface StudentStimulus {
   id: string
@@ -189,6 +244,8 @@ export interface StudentStimulus {
   stimulusType: StimulusType
   bodyMarkdown: string | null
   assets: StudentAssetRef[]
+  /** Passage attribution (author/source), when present. */
+  attribution?: StimulusAttribution | null
 }
 
 export type AppRole = (typeof APP_ROLES)[number]
@@ -602,6 +659,144 @@ export interface PracticeStartResult {
   sessionId: string
   startedAt: string
   questions: PracticeQuestionItem[]
+}
+
+// -- Reading question sets -----------------------------------------------------
+
+export const QUESTION_SET_TYPE_LABELS: Record<QuestionSetType, string> = {
+  reading_passage: 'Reading passage set',
+  sentence_insertion: 'Sentence insertion',
+  generic: 'Question set',
+}
+
+export const SET_FEEDBACK_MODE_LABELS: Record<SetFeedbackMode, string> = {
+  immediate: 'Immediate feedback',
+  after_set: 'Feedback after set',
+}
+
+/** One entry in a shared A–G sentence bank. */
+export interface SharedOptionPoolOption {
+  label: QuestionOptionLabel
+  text: string
+}
+
+export interface SharedOptionPool {
+  id: string
+  externalRef: string | null
+  title: string | null
+  options: SharedOptionPoolOption[]
+}
+
+/** Full question_sets row (admin/authoring shape). */
+export interface QuestionSetRecord {
+  id: string
+  external_ref: string | null
+  title: string
+  set_type: QuestionSetType
+  instructions: string | null
+  feedback_mode: SetFeedbackMode
+  completion_mode: SetCompletionMode
+  interaction_type: SetInteractionType | null
+  stimulus_id: string | null
+  shared_option_pool_id: string | null
+  source_info: Record<string, unknown>
+  created_at?: string
+  updated_at?: string
+}
+
+/**
+ * A question's membership in a set, attached to the admin preview. `position`
+ * is 1-based; `targetLabel` is the numbered gap for sentence-insertion.
+ */
+export interface QuestionSetMembership {
+  setId: string
+  externalRef: string | null
+  title: string
+  setType: QuestionSetType
+  feedbackMode: SetFeedbackMode
+  completionMode: SetCompletionMode
+  interactionType: SetInteractionType | null
+  position: number
+  totalItems: number
+  targetLabel: string | null
+  sharedOptionPool: SharedOptionPool | null
+}
+
+/** One child question inside a reading set, in the student runner shape. */
+export interface ReadingSetItem {
+  position: number
+  targetLabel: string | null
+  question: PracticeQuestionItem
+  /** The student's saved answer (autosaved), or null if unanswered. */
+  savedAnswer: QuestionOptionLabel | null
+  /** True once the parent set has been submitted and graded. */
+  isSubmitted: boolean
+  /** Correctness — only meaningful (and only populated) after submission. */
+  isCorrect: boolean | null
+  /** Correct label + worked solution — revealed ONLY after submission. */
+  correctOptionLabel: QuestionOptionLabel | null
+  workedSolution: string | null
+}
+
+/** A reading set hydrated for the student runner. */
+export interface ReadingSet {
+  id: string
+  externalRef: string | null
+  title: string
+  setType: QuestionSetType
+  instructions: string | null
+  feedbackMode: SetFeedbackMode
+  completionMode: SetCompletionMode
+  interactionType: SetInteractionType | null
+  stimulus: StudentStimulus | null
+  /** Present for sentence-insertion; the persistent A–G sentence bank. */
+  sharedOptions: SharedOptionPool | null
+  items: ReadingSetItem[]
+  /** True when every child question has been graded (set submitted). */
+  isSubmitted: boolean
+}
+
+/** The full state of an in-progress or completed reading practice session. */
+export interface ReadingSessionData {
+  sessionId: string
+  examType: ExamType
+  subjectId: string
+  subjectName: string
+  completedAt: string | null
+  sets: ReadingSet[]
+}
+
+/** Per-question outcome returned when a reading set is submitted. */
+export interface ReadingSetQuestionResult {
+  questionId: string
+  selectedOptionLabel: QuestionOptionLabel | null
+  correctOptionLabel: QuestionOptionLabel
+  isCorrect: boolean
+  workedSolution: string
+}
+
+export interface ReadingSetSubmitResult {
+  setId: string
+  correctCount: number
+  totalQuestions: number
+  results: ReadingSetQuestionResult[]
+}
+
+/** A reading set available to be practised (selection screen). */
+export interface AvailableReadingSet {
+  id: string
+  title: string
+  setType: QuestionSetType
+  questionCount: number
+}
+
+/** A "1 set / 2 sets / full" choice on the reading practice setup screen. */
+export interface ReadingPracticeChoice {
+  key: string
+  label: string
+  setCount: number | 'all'
+  estimatedQuestions: number
+  estimatedMinutes: number
 }
 
 export interface AttemptFeedback {

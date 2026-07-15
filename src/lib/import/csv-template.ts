@@ -73,6 +73,28 @@ export const CSV_TEMPLATE_HEADERS = [
   // Asset metadata (optional; append-only). asset_required defaults to true when blank.
   'asset_type',
   'asset_required',
+  // Reading question sets (optional; a blank question_set_id keeps the row
+  // standalone and behaving exactly as before). Rows sharing a question_set_id
+  // form one ordered set; the set title/type/instructions need appear on only
+  // one row of the group. option_f / option_g extend answers to A–G.
+  'option_f',
+  'option_g',
+  'question_set_id',
+  'question_set_title',
+  'question_set_type',
+  'question_order_in_set',
+  'set_instructions',
+  'set_feedback_mode',
+  'set_completion_mode',
+  'interaction_type',
+  'shared_option_pool_id',
+  'stimulus_target_label',
+  // Passage attribution (distinct from source_name/source_paper, which describe
+  // the question's source).
+  'stimulus_author',
+  'stimulus_source_title',
+  'stimulus_source_url',
+  'stimulus_attribution_text',
 ] as const
 
 const EXAMPLE_ROWS: string[][] = [
@@ -261,14 +283,149 @@ const EXAMPLE_ROWS: string[][] = [
   ],
 ]
 
+/** Builds a full-width row from a sparse header→value record (blank elsewhere). */
+function rowFromRecord(record: Record<string, string>): string[] {
+  return CSV_TEMPLATE_HEADERS.map((header) => record[header] ?? '')
+}
+
+// Two questions sharing one reading passage set — graded together, feedback
+// after the set. Only the first row needs the set/stimulus definition.
+const READING_SET_ROWS: string[][] = [
+  rowFromRecord({
+    external_id: 'rd-set-lighthouse-01',
+    subject: 'Reading',
+    topic: 'Comprehension',
+    essential_question_type: 'Main idea',
+    exam_type: 'Selective',
+    year_level: '6',
+    difficulty: '3',
+    answer_format: 'single_choice',
+    question_text: 'What is the main reason the keeper stays on the island?',
+    option_a: 'He is paid very well.',
+    option_b: 'He feels responsible for passing ships.',
+    option_c: 'He dislikes the mainland.',
+    option_d: 'He is waiting for a letter.',
+    correct_answer: 'B',
+    worked_solution: 'The passage stresses his duty to ships, not pay or dislike.',
+    stimulus_id: 'stim-lighthouse',
+    stimulus_title: 'The Lighthouse Keeper',
+    stimulus_type: 'passage',
+    stimulus_text: 'For thirty years Aldo climbed the spiral stair each dusk...',
+    stimulus_author: 'M. Carrow',
+    stimulus_source_title: 'Coastal Stories',
+    stimulus_source_url: 'https://example.org/coastal-stories',
+    stimulus_attribution_text: 'Adapted from Coastal Stories (2019).',
+    question_set_id: 'set-lighthouse',
+    question_set_title: 'The Lighthouse Keeper',
+    question_set_type: 'reading_passage',
+    question_order_in_set: '1',
+    set_instructions: 'Read the passage, then answer all questions before submitting.',
+    set_feedback_mode: 'after_set',
+    status: 'draft',
+  }),
+  rowFromRecord({
+    external_id: 'rd-set-lighthouse-02',
+    subject: 'Reading',
+    topic: 'Comprehension',
+    essential_question_type: 'Vocabulary in context',
+    exam_type: 'Selective',
+    year_level: '6',
+    difficulty: '3',
+    answer_format: 'single_choice',
+    question_text: 'In the passage, "vigil" most nearly means:',
+    option_a: 'a long celebration',
+    option_b: 'a watchful staying-awake',
+    option_c: 'a difficult climb',
+    option_d: 'a quiet argument',
+    correct_answer: 'B',
+    worked_solution: '"Vigil" describes keeping watch through the night.',
+    question_set_id: 'set-lighthouse',
+    question_order_in_set: '2',
+    status: 'draft',
+  }),
+]
+
+// Sentence insertion: numbered gaps drawing from ONE shared A–G sentence bank.
+const SENTENCE_INSERTION_ROWS: string[][] = [
+  rowFromRecord({
+    external_id: 'rd-insert-23',
+    subject: 'Reading',
+    topic: 'Cohesion',
+    essential_question_type: 'Sentence insertion',
+    exam_type: 'Selective',
+    year_level: '6',
+    difficulty: '4',
+    answer_format: 'single_choice',
+    question_text: 'Choose the sentence that best fills gap 23.',
+    option_a: 'However, the results were inconclusive.',
+    option_b: 'This began a decade of careful study.',
+    option_c: 'Few noticed at the time.',
+    option_d: 'The tide, meanwhile, kept its schedule.',
+    option_e: 'Others disagreed entirely.',
+    option_f: 'It was, in short, a beginning.',
+    option_g: 'No record survives of that winter.',
+    correct_answer: 'B',
+    worked_solution: 'Gap 23 needs a sentence that opens a period of study.',
+    stimulus_id: 'stim-insertion-tides',
+    stimulus_title: 'Reading the Tides',
+    stimulus_type: 'cloze_passage',
+    stimulus_text: 'The observations at gap [23] ... continued until [24] ... and only later [25].',
+    question_set_id: 'set-insertion-tides',
+    question_set_title: 'Reading the Tides',
+    question_set_type: 'sentence_insertion',
+    question_order_in_set: '1',
+    interaction_type: 'shared_option_single_choice',
+    shared_option_pool_id: 'pool-tides',
+    stimulus_target_label: '23',
+    set_feedback_mode: 'after_set',
+    status: 'draft',
+  }),
+  rowFromRecord({
+    external_id: 'rd-insert-24',
+    subject: 'Reading',
+    topic: 'Cohesion',
+    essential_question_type: 'Sentence insertion',
+    exam_type: 'Selective',
+    year_level: '6',
+    difficulty: '4',
+    answer_format: 'single_choice',
+    question_text: 'Choose the sentence that best fills gap 24.',
+    option_a: 'However, the results were inconclusive.',
+    option_b: 'This began a decade of careful study.',
+    option_c: 'Few noticed at the time.',
+    option_d: 'The tide, meanwhile, kept its schedule.',
+    option_e: 'Others disagreed entirely.',
+    option_f: 'It was, in short, a beginning.',
+    option_g: 'No record survives of that winter.',
+    correct_answer: 'D',
+    worked_solution: 'Gap 24 continues the passage of time.',
+    question_set_id: 'set-insertion-tides',
+    question_order_in_set: '2',
+    interaction_type: 'shared_option_single_choice',
+    shared_option_pool_id: 'pool-tides',
+    stimulus_target_label: '24',
+    status: 'draft',
+  }),
+]
+
 function escapeCsvCell(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
 }
 
+/** Pads (or trims) a row to the header width so appended columns never misalign. */
+function normalizeRow(row: string[]): string[] {
+  const cells = [...row]
+  while (cells.length < CSV_TEMPLATE_HEADERS.length) {
+    cells.push('')
+  }
+  return cells.slice(0, CSV_TEMPLATE_HEADERS.length)
+}
+
 export function buildCsvTemplate(): string {
+  const rows = [...EXAMPLE_ROWS, ...READING_SET_ROWS, ...SENTENCE_INSERTION_ROWS]
   const lines = [
     CSV_TEMPLATE_HEADERS.join(','),
-    ...EXAMPLE_ROWS.map((row) => row.map(escapeCsvCell).join(',')),
+    ...rows.map((row) => normalizeRow(row).map(escapeCsvCell).join(',')),
   ]
   return `${lines.join('\n')}\n`
 }

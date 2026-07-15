@@ -128,7 +128,40 @@ export async function getPracticeQuestionPool(
     throw new Error('Unable to load practice questions.')
   }
 
-  return ((data ?? []) as unknown as StudentQuestionRow[]).map(mapPoolQuestion)
+  const candidates = ((data ?? []) as unknown as StudentQuestionRow[]).map(mapPoolQuestion)
+  // Questions that belong to a reading set are practised only as complete sets,
+  // never pulled individually into an ordinary N-question practice selection.
+  return excludeReadingSetMembers(candidates)
+}
+
+/**
+ * Drops any candidate that belongs to a reading question set. A set is always
+ * practised whole (see the reading practice flow), so it must never be split by
+ * a normal question-count selection.
+ */
+async function excludeReadingSetMembers(
+  candidates: PracticePoolQuestion[]
+): Promise<PracticePoolQuestion[]> {
+  if (candidates.length === 0) {
+    return candidates
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('question_set_items')
+    .select('question_id')
+    .in(
+      'question_id',
+      candidates.map((question) => question.id)
+    )
+
+  if (error) {
+    // Never hard-fail practice because the set lookup failed — just don't filter.
+    return candidates
+  }
+
+  const memberIds = new Set(((data ?? []) as Array<{ question_id: string }>).map((row) => row.question_id))
+  return candidates.filter((question) => !memberIds.has(question.id))
 }
 
 /**

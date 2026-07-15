@@ -12,14 +12,19 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import type {
-  AnswerFormat,
-  AssetRecord,
-  MistakeQuestionDetail,
-  QuestionDetail,
-  StudentAssetRef,
-  StudentStimulus,
-  WritingRubric,
+import {
+  QUESTION_SET_TYPE_LABELS,
+  SET_FEEDBACK_MODE_LABELS,
+  readStimulusAttribution,
+  type AnswerFormat,
+  type AssetRecord,
+  type MistakeQuestionDetail,
+  type QuestionDetail,
+  type QuestionOptionRecord,
+  type QuestionSetMembership,
+  type StudentAssetRef,
+  type StudentStimulus,
+  type WritingRubric,
 } from '@/lib/types'
 
 interface QuestionPreviewProps {
@@ -35,6 +40,8 @@ interface QuestionPreviewProps {
    * mirrors the student experience and hides it. Defaults to `student`.
    */
   audience?: 'admin' | 'student'
+  /** Reading-set membership shown in the admin preview (never for students). */
+  setMembership?: QuestionSetMembership | null
 }
 
 function getDifficultyLabel(difficulty: number | null | undefined): string {
@@ -121,7 +128,26 @@ function getStimulus(question: QuestionDetail | MistakeQuestionDetail): StudentS
     stimulusType: question.stimulus.stimulus_type,
     bodyMarkdown: question.stimulus.body_markdown,
     assets: [],
+    attribution: readStimulusAttribution(question.stimulus.source_info),
   }
+}
+
+/** Question-level provenance (source_name/paper/…) for the admin preview. */
+function getQuestionSourceInfo(
+  question: QuestionDetail | MistakeQuestionDetail
+): Record<string, string> {
+  if (isMistakeQuestion(question)) {
+    return {}
+  }
+  const info = question.source_info ?? {}
+  const entries: Array<[string, string]> = [
+    ['Source', info.sourceName ?? ''],
+    ['Paper', info.sourcePaper ?? ''],
+    ['Section', info.sourceSection ?? ''],
+    ['Question no.', info.sourceQuestionNumber ?? ''],
+    ['Licence', info.licenseNotes ?? ''],
+  ]
+  return Object.fromEntries(entries.filter(([, value]) => value.trim())) as Record<string, string>
 }
 
 function getAssetsByRole(
@@ -217,7 +243,9 @@ export function QuestionPreview({
   showInstruction = false,
   showMeta = true,
   audience = 'student',
+  setMembership = null,
 }: QuestionPreviewProps) {
+  const isAdmin = audience === 'admin'
   const answerFormat = getAnswerFormat(question)
   const isWritingPrompt = answerFormat === 'extended_response'
   const stimulus = getStimulus(question)
@@ -226,6 +254,21 @@ export function QuestionPreview({
   const questionAssets = getAssetsByRole(question, 'question')
   const solutionAssets = getAssetsByRole(question, 'solution')
   const rubric = getRubric(question)
+  const sourceInfo = isAdmin ? getQuestionSourceInfo(question) : {}
+  const sourceEntries = Object.entries(sourceInfo)
+  // A sentence-insertion child keeps its options on the shared pool, so fall back
+  // to the pool's options (with the correct one flagged) when the row has none.
+  const displayOptions: QuestionOptionRecord[] =
+    question.options.length > 0
+      ? question.options
+      : setMembership?.sharedOptionPool
+        ? setMembership.sharedOptionPool.options.map((option, index) => ({
+            label: option.label,
+            option_text: option.text,
+            sort_order: index + 1,
+            asset: null,
+          }))
+        : []
   // Worked solution is the single authoritative explanation; fall back to any
   // legacy short explanation so pre-migration content is not lost.
   const solution = getWorkedSolution(question) || getShortExplanation(question)
@@ -246,6 +289,12 @@ export function QuestionPreview({
             {'status' in question && showStatus ? (
               <Badge variant={question.status === 'published' ? 'default' : 'outline'}>{question.status}</Badge>
             ) : null}
+            {isAdmin && setMembership ? (
+              <Badge variant="secondary">
+                {QUESTION_SET_TYPE_LABELS[setMembership.setType]} · Q{setMembership.position}/
+                {setMembership.totalItems}
+              </Badge>
+            ) : null}
           </div>
         ) : null}
         <div className="space-y-3">
@@ -254,7 +303,8 @@ export function QuestionPreview({
             <StimulusPanel
               stimulus={stimulus}
               subjectName={subjectName}
-              showTypeLabel={audience === 'admin'}
+              showTypeLabel={isAdmin}
+              showSourceUrl={isAdmin}
             />
           ) : getPassageText(question) ? (
             <QuestionMarkdown
@@ -297,9 +347,13 @@ export function QuestionPreview({
           </div>
         ) : (
           <div className="space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-brand">Options</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-brand">
+              {setMembership?.sharedOptionPool && question.options.length === 0
+                ? 'Shared option bank'
+                : 'Options'}
+            </h2>
             <div className="grid gap-3">
-              {question.options.map((option) => {
+              {displayOptions.map((option) => {
                 const correctLabel = getCorrectOptionLabel(question)
                 const isCorrect = correctLabel !== null && option.label === correctLabel
 
@@ -347,6 +401,42 @@ export function QuestionPreview({
           ) : null}
         </div>
 
+        {isAdmin && setMembership ? (
+          <div className="rounded-2xl border border-border bg-muted/40 px-4 py-4">
+            <h3 className="text-sm font-semibold text-foreground">Reading set</h3>
+            <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+              <SetDetail label="Set title" value={setMembership.title} />
+              <SetDetail label="Set ID" value={setMembership.externalRef ?? '—'} />
+              <SetDetail label="Type" value={QUESTION_SET_TYPE_LABELS[setMembership.setType]} />
+              <SetDetail label="Feedback" value={SET_FEEDBACK_MODE_LABELS[setMembership.feedbackMode]} />
+              <SetDetail
+                label="Position"
+                value={`${setMembership.position} of ${setMembership.totalItems}`}
+              />
+              {setMembership.targetLabel ? (
+                <SetDetail label="Target gap" value={setMembership.targetLabel} />
+              ) : null}
+              {setMembership.sharedOptionPool ? (
+                <SetDetail
+                  label="Shared option pool"
+                  value={`${setMembership.sharedOptionPool.externalRef ?? setMembership.sharedOptionPool.id} · ${setMembership.sharedOptionPool.options.length} options`}
+                />
+              ) : null}
+            </dl>
+          </div>
+        ) : null}
+
+        {isAdmin && sourceEntries.length ? (
+          <div className="rounded-2xl border border-border bg-muted/40 px-4 py-4">
+            <h3 className="text-sm font-semibold text-foreground">Question source</h3>
+            <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+              {sourceEntries.map(([label, value]) => (
+                <SetDetail key={label} label={label} value={value} />
+              ))}
+            </dl>
+          </div>
+        ) : null}
+
         {showMistakeSummary && isMistakeQuestion(question) ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
             <h3 className="text-sm font-semibold text-amber-950">Mistake history</h3>
@@ -359,5 +449,14 @@ export function QuestionPreview({
         ) : null}
       </CardContent>
     </Card>
+  )
+}
+
+function SetDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <dt className="shrink-0 text-muted-foreground">{label}:</dt>
+      <dd className="min-w-0 break-words font-medium text-foreground">{value}</dd>
+    </div>
   )
 }
