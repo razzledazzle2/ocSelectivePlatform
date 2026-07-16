@@ -110,7 +110,7 @@ export function MockCoveragePanel({ coverage }: { coverage: MockCoverage }) {
         ))}
       </div>
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="border-b border-border/70">
           <CardTitle>Coverage warnings</CardTitle>
           <CardDescription>
@@ -122,7 +122,7 @@ export function MockCoveragePanel({ coverage }: { coverage: MockCoverage }) {
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="border-b border-border/70">
           <CardTitle>Distribution</CardTitle>
           <CardDescription>How the {totalQuestions} questions spread across the bank taxonomy.</CardDescription>

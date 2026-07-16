@@ -13,7 +13,7 @@ export default function AdminBlueprintDetailLoading() {
         <PageHeaderSkeleton />
       </div>
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="border-b border-border/70">
           <Skeleton className="h-5 w-36" />
           <Skeleton className="h-4 w-96 max-w-full" />
@@ -34,7 +34,7 @@ export default function AdminBlueprintDetailLoading() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="border-b border-border/70">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="space-y-2">

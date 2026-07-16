@@ -12,7 +12,7 @@ export default function LearnSubtopicLoading() {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Card key={index} className="rounded-2xl shadow-sm ring-border">
+          <Card key={index} className="rounded-2xl border border-border shadow-card">
             <CardContent className="space-y-2">
               <Skeleton className="h-3 w-24" />
               <Skeleton className="h-8 w-14" />

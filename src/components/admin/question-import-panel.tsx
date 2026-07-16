@@ -455,7 +455,7 @@ export function QuestionImportPanel() {
   }
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="space-y-4 border-b border-border/70">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

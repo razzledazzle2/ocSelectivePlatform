@@ -7,7 +7,7 @@ export default function StudentRevisionLoading() {
     <div className="space-y-6">
       <PageHeaderSkeleton />
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
@@ -21,7 +21,7 @@ export default function StudentRevisionLoading() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardContent className="space-y-4 pt-5">
           <div className="flex flex-wrap gap-2">
             <Skeleton className="h-5 w-20 rounded-full" />

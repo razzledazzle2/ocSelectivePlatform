@@ -162,7 +162,7 @@ interface HeroCardProps {
 
 function HeroCard({ icon: Icon, tone, eyebrow, title, body, meta, action }: HeroCardProps) {
   return (
-    <Card className="overflow-hidden rounded-2xl shadow-sm ring-border">
+    <Card className="overflow-hidden rounded-2xl border border-border shadow-card">
       <CardContent className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-4">
           <span className={cn('flex size-11 shrink-0 items-center justify-center rounded-2xl', tone)}>
@@ -299,7 +299,7 @@ function ProgressSummary({
 
 function ReadingPracticeCta({ program }: { program: LearnPracticeData['program'] }) {
   return (
-    <Card className="overflow-hidden rounded-2xl border-brand/30 bg-brand-soft/40 shadow-sm ring-border">
+    <Card className="overflow-hidden rounded-2xl border-brand/30 bg-brand-soft/40 shadow-card">
       <CardContent className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-4">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand-soft text-brand">
@@ -347,7 +347,7 @@ function DomainGrid({ subject }: { subject: LearnSubjectSummary }) {
               href={`/student/practice/${domain.domainCode}`}
               className="group rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
-              <Card className="h-full rounded-2xl shadow-sm ring-border transition-shadow group-hover:shadow-md">
+              <Card className="h-full rounded-2xl border border-border shadow-card transition-shadow group-hover:shadow-md">
                 <CardContent className="flex h-full flex-col gap-3 pt-5">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-base font-semibold text-foreground">{domain.domainLabel}</h3>

@@ -75,7 +75,7 @@ export function AdminDashboardOverview({ stats }: AdminDashboardOverviewProps) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card className="rounded-2xl shadow-sm ring-border">
+        <Card className="rounded-2xl border border-border shadow-card">
           <CardHeader className="border-b border-border/70">
             <CardTitle>Recent students</CardTitle>
             <CardDescription>
@@ -117,7 +117,7 @@ export function AdminDashboardOverview({ stats }: AdminDashboardOverviewProps) {
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl shadow-sm ring-border">
+        <Card className="rounded-2xl border border-border shadow-card">
           <CardHeader className="border-b border-border/70">
             <CardTitle>Publishing snapshot</CardTitle>
             <CardDescription>

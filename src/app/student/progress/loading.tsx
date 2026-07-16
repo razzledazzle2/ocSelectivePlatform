@@ -4,7 +4,7 @@ import { StatGridSkeleton, TableSkeleton } from '@/components/ui/loading-primiti
 
 function AreaCardSkeleton() {
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader>
         <Skeleton className="h-5 w-32" />
       </CardHeader>
@@ -36,7 +36,7 @@ export default function StudentProgressLoading() {
 
       <StatGridSkeleton count={4} />
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader>
           <Skeleton className="h-5 w-32" />
           <Skeleton className="h-4 w-64 max-w-full" />
@@ -53,7 +53,7 @@ export default function StudentProgressLoading() {
         <AreaCardSkeleton />
       </div>
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader>
           <Skeleton className="h-5 w-20" />
           <Skeleton className="h-4 w-28" />

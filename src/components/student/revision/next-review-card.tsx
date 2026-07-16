@@ -25,7 +25,7 @@ export function NextReviewCard({ mistake }: NextReviewCardProps) {
   const due = formatDueStatus(mistake.status, mistake.nextReviewAt, now)
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Next review

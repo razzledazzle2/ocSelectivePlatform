@@ -19,7 +19,7 @@ interface DashboardCardProps {
 
 export function DashboardCard({ icon: Icon, label, value, detail }: DashboardCardProps) {
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader>
         <div>
           <CardDescription>{label}</CardDescription>

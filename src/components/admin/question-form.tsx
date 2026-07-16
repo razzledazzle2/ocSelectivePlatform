@@ -426,7 +426,7 @@ export function QuestionForm({
   const fieldErrors = result.fieldErrors ?? {}
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="space-y-4 border-b border-border/70">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{mode === 'create' ? 'New question' : 'Edit question'}</Badge>

@@ -10,7 +10,7 @@ export default function CustomPracticeLoading() {
 
       <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr]">
         {Array.from({ length: 2 }).map((_, index) => (
-          <Card key={index} className="rounded-2xl shadow-sm ring-border">
+          <Card key={index} className="rounded-2xl border border-border shadow-card">
             <CardHeader className="border-b border-border/70">
               <Skeleton className="h-5 w-40" />
               <Skeleton className="h-4 w-64 max-w-full" />

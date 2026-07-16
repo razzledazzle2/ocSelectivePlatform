@@ -7,7 +7,7 @@ export default function StudentRevisionSessionLoading() {
     <div className="space-y-6">
       <PageHeaderSkeleton />
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="space-y-4 border-b border-border/70">
           <div className="flex flex-wrap gap-2">
             <Skeleton className="h-5 w-20 rounded-full" />

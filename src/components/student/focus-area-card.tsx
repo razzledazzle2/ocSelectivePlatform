@@ -19,7 +19,7 @@ interface FocusAreaCardProps {
  */
 export function FocusAreaCard({ insights }: FocusAreaCardProps) {
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
           <span className="flex size-7 items-center justify-center rounded-lg bg-warning-soft text-warning">

@@ -23,7 +23,7 @@ export default function MockExamResultsLoading() {
         <Skeleton className="h-9 w-40" />
       </div>
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="border-b border-border/70">
           <Skeleton className="h-5 w-32" />
         </CardHeader>
@@ -41,7 +41,7 @@ export default function MockExamResultsLoading() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="border-b border-border/70">
           <Skeleton className="h-5 w-36" />
         </CardHeader>
@@ -68,7 +68,7 @@ export default function MockExamResultsLoading() {
         <Skeleton className="h-9 w-36" />
       </div>
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="border-b border-border/70">
           <Skeleton className="h-5 w-56" />
         </CardHeader>

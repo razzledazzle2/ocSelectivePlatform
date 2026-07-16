@@ -12,7 +12,7 @@ export default function MockExamRunnerLoading() {
         </p>
       </div>
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b border-border/70">
           <div className="flex flex-wrap items-center gap-2">
             <Skeleton className="h-5 w-16 rounded-full" />

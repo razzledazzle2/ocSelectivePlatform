@@ -12,7 +12,7 @@ import type { ExamType } from '@/lib/types'
 interface ProgramSwitcherProps {
   current: ExamType
   programs: ExamType[]
-  /** 'sidebar' renders on the navy shell; 'header' is a compact light control. */
+  /** 'sidebar' renders in the sidebar shell; 'header' is a compact light control. */
   variant?: 'sidebar' | 'header'
   className?: string
 }
@@ -92,7 +92,7 @@ export function ProgramSwitcher({ current, programs, variant = 'header', classNa
                   ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
                   : 'bg-card text-foreground shadow-sm ring-1 ring-border'
                 : onSidebar
-                  ? 'text-sidebar-foreground/70 hover:text-white'
+                  ? 'text-sidebar-foreground hover:text-sidebar-accent-foreground'
                   : 'text-muted-foreground hover:text-foreground'
             )}
           >

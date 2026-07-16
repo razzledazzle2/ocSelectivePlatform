@@ -270,7 +270,7 @@ export function TaxonomyManager({
           <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
             <div className="min-w-0 space-y-6">
               {/* -- Topics/categories -------------------------------------- */}
-              <Card className="rounded-2xl shadow-sm ring-border">
+              <Card className="rounded-2xl border border-border shadow-card">
                 <CardHeader className="border-b border-border/70">
                   <div className="flex flex-wrap items-end justify-between gap-3">
                     <div>
@@ -395,7 +395,7 @@ export function TaxonomyManager({
               </Card>
 
               {/* -- Question types ------------------------------------------ */}
-              <Card className="rounded-2xl shadow-sm ring-border">
+              <Card className="rounded-2xl border border-border shadow-card">
                 <CardHeader className="border-b border-border/70">
                   <div className="flex flex-wrap items-end justify-between gap-3">
                     <div>
@@ -529,7 +529,7 @@ export function TaxonomyManager({
 
             {/* -- Right rail: subject meta + tags ------------------------------ */}
             <div className="space-y-6">
-              <Card className="rounded-2xl shadow-sm ring-border">
+              <Card className="rounded-2xl border border-border shadow-card">
                 <CardHeader className="border-b border-border/70">
                   <CardTitle className="flex items-center gap-2">
                     <TagIcon className="size-4 text-muted-foreground" />
@@ -586,7 +586,7 @@ export function TaxonomyManager({
                 </CardContent>
               </Card>
 
-              <Card className="rounded-2xl shadow-sm ring-border">
+              <Card className="rounded-2xl border border-border shadow-card">
                 <CardHeader className="border-b border-border/70">
                   <CardTitle>Subject settings</CardTitle>
                 </CardHeader>
@@ -644,7 +644,7 @@ export function TaxonomyManager({
 
       {/* -- Option rules (read-only, code-configured) ---------------------- */}
       <TabsContent value="rules" className="pt-5">
-        <Card className="rounded-2xl shadow-sm ring-border">
+        <Card className="rounded-2xl border border-border shadow-card">
           <CardHeader className="border-b border-border/70">
             <CardTitle>Option count rules</CardTitle>
             <CardDescription>

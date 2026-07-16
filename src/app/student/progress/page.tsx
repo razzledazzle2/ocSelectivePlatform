@@ -61,7 +61,7 @@ export default async function StudentProgressPage({ searchParams }: StudentProgr
 
           <ProgressKpiGrid metrics={data.metrics} comparison={data.comparison} range={range} />
 
-          <Card className="rounded-2xl shadow-sm ring-border">
+          <Card className="rounded-2xl border border-border shadow-card">
             <CardHeader>
               <CardTitle>Performance trend</CardTitle>
               <CardDescription>Questions answered and accuracy over the selected period.</CardDescription>

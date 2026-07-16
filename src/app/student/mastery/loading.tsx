@@ -13,7 +13,7 @@ export default function StudentMasteryLoading() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,20rem)_1fr]">
-        <Card className="rounded-2xl shadow-sm ring-border">
+        <Card className="rounded-2xl border border-border shadow-card">
           <CardContent className="flex flex-col items-center gap-4 py-6 text-center">
             <Skeleton className="size-[120px] rounded-full" />
             <div className="w-full space-y-2">
@@ -26,7 +26,7 @@ export default function StudentMasteryLoading() {
 
         <div className="grid gap-3 sm:grid-cols-2">
           {Array.from({ length: 4 }).map((_, index) => (
-            <Card key={index} className="rounded-2xl shadow-sm ring-border">
+            <Card key={index} className="rounded-2xl border border-border shadow-card">
               <CardContent className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1 space-y-2">
                   <Skeleton className="h-3 w-24" />
@@ -44,7 +44,7 @@ export default function StudentMasteryLoading() {
         <Skeleton className="h-4 w-56" />
         <div className="grid gap-3 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, index) => (
-            <Card key={index} className="rounded-2xl shadow-sm ring-border">
+            <Card key={index} className="rounded-2xl border border-border shadow-card">
               <CardContent className="space-y-3 pt-5">
                 <Skeleton className="h-5 w-20 rounded-full" />
                 <Skeleton className="h-4 w-40" />
@@ -64,7 +64,7 @@ export default function StudentMasteryLoading() {
         <Skeleton className="h-4 w-24" />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, index) => (
-            <Card key={index} className="rounded-2xl shadow-sm ring-border">
+            <Card key={index} className="rounded-2xl border border-border shadow-card">
               <CardContent className="space-y-3 pt-5">
                 <div className="flex items-start justify-between gap-2">
                   <Skeleton className="h-4 w-32" />

@@ -23,7 +23,7 @@ function intensityClass(day: ActivityCalendarDay): string {
  */
 export function WeeklyActivityStrip({ days }: WeeklyActivityStripProps) {
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader>
         <CardTitle>Last 14 days</CardTitle>
         <CardDescription>A quick glance at your recent consistency.</CardDescription>
@@ -41,7 +41,7 @@ export function WeeklyActivityStrip({ days }: WeeklyActivityStripProps) {
                 <span
                   title={title}
                   className={cn(
-                    'flex aspect-square w-full items-center justify-center rounded-md text-[0.7rem] font-medium tabular-nums',
+                    'flex aspect-square w-full items-center justify-center rounded-xl text-[0.7rem] font-semibold tabular-nums transition-transform hover:scale-105',
                     intensityClass(day)
                   )}
                 >

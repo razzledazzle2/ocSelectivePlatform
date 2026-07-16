@@ -21,7 +21,7 @@ export function ActivityCalendar({ calendar }: ActivityCalendarProps) {
   const leadingCells = Array.from({ length: calendar.firstWeekday })
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader>
         <CardTitle>Activity</CardTitle>
         <CardDescription>{calendar.monthLabel}</CardDescription>

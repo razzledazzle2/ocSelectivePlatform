@@ -111,7 +111,7 @@ export function ReportFilters({ filters, subjects, topics, questionTypes, review
   }
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="border-b border-border/70">
         <CardTitle className="text-base">Filters</CardTitle>
       </CardHeader>

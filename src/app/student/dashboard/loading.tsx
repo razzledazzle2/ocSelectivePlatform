@@ -13,7 +13,7 @@ export default function StudentDashboardLoading() {
         <Skeleton className="h-8 w-28" />
       </div>
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader>
           <Skeleton className="h-5 w-28" />
           <Skeleton className="h-4 w-48 max-w-full" />
@@ -29,7 +29,7 @@ export default function StudentDashboardLoading() {
 
       <div className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
         <div className="space-y-6">
-          <Card className="rounded-2xl shadow-sm ring-border">
+          <Card className="rounded-2xl border border-border shadow-card">
             <CardHeader>
               <Skeleton className="h-5 w-24" />
               <Skeleton className="h-4 w-48 max-w-full" />
@@ -46,7 +46,7 @@ export default function StudentDashboardLoading() {
           <TableSkeleton columns={['Date', 'Focus', 'Questions', 'Accuracy']} rows={5} title />
         </div>
 
-        <Card className="rounded-2xl shadow-sm ring-border">
+        <Card className="rounded-2xl border border-border shadow-card">
           <CardHeader>
             <Skeleton className="h-5 w-24" />
             <Skeleton className="h-4 w-40 max-w-full" />

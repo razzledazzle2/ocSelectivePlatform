@@ -29,7 +29,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-AU', {
 
 export function RecentActivityList({ sessions, viewAllHref }: RecentActivityListProps) {
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="flex items-start justify-between gap-3">
         <div>
           <CardTitle>Recent activity</CardTitle>

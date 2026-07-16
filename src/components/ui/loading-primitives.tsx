@@ -27,7 +27,7 @@ export function PageHeaderSkeleton({ withActions = false }: { withActions?: bool
 /** Mirrors StatCard: label / big value / hint with a tinted icon chip. */
 export function StatCardSkeleton() {
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardContent className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-2">
           <Skeleton className="h-3 w-20" />
@@ -61,7 +61,7 @@ interface TableSkeletonProps {
 /** Table with real headers preserved and skeleton cells in place of row data. */
 export function TableSkeleton({ columns, rows = 6, title = false }: TableSkeletonProps) {
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       {title ? (
         <CardHeader className="border-b border-border/70">
           <Skeleton className="h-5 w-48" />
@@ -121,7 +121,7 @@ export function AvatarListSkeleton({ count = 5, className }: { count?: number; c
 /** Generic bordered card body, for freeform panels (question rows, mock cards, etc). */
 export function CardSkeleton({ className, lines = 3 }: { className?: string; lines?: number }) {
   return (
-    <Card className={cn('rounded-2xl shadow-sm ring-border', className)}>
+    <Card className={cn('rounded-2xl border border-border shadow-card', className)}>
       <CardContent className="space-y-2">
         {Array.from({ length: lines }).map((_, index) => (
           <Skeleton key={index} className={cn('h-4', index === 0 ? 'w-2/3' : 'w-full')} />
@@ -134,7 +134,7 @@ export function CardSkeleton({ className, lines = 3 }: { className?: string; lin
 /** Placeholder for a chart/graph area, reserving its final aspect ratio. */
 export function ChartSkeleton({ className, height = 'h-64' }: { className?: string; height?: string }) {
   return (
-    <Card className={cn('rounded-2xl shadow-sm ring-border', className)}>
+    <Card className={cn('rounded-2xl border border-border shadow-card', className)}>
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between">
           <Skeleton className="h-4 w-32" />

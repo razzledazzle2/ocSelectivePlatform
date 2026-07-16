@@ -55,21 +55,21 @@ interface ShellNavProps {
 
 function ShellNav({ navigation, pathname, profile, portalLabel, accessory }: ShellNavProps) {
   return (
-    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+    <div className="flex h-full flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       {/* Brand */}
       <div className="flex items-center gap-3 px-5 pb-6 pt-6">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand to-plum text-white shadow-sm">
           <GraduationCapIcon className="size-5" />
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold tracking-wide text-white">MINERVA</p>
-          <p className="text-[0.7rem] font-medium uppercase tracking-[0.22em] text-sidebar-foreground/60">
+          <p className="truncate text-sm font-bold tracking-wide text-foreground">MINERVA</p>
+          <p className="text-[0.7rem] font-medium uppercase tracking-[0.22em] text-muted-foreground">
             Education
           </p>
         </div>
       </div>
 
-      <p className="px-5 pb-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-sidebar-foreground/50">
+      <p className="px-5 pb-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
         {portalLabel}
       </p>
 
@@ -89,14 +89,19 @@ function ShellNav({ navigation, pathname, profile, portalLabel, accessory }: She
               className={cn(
                 'group relative flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
-                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground'
+                  ? 'bg-sidebar-accent font-semibold text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
               )}
             >
               {isActive ? (
                 <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary" />
               ) : null}
-              <Icon className={cn('size-4 shrink-0', isActive && 'text-sidebar-primary')} />
+              <Icon
+                className={cn(
+                  'size-[1.1rem] shrink-0 transition-colors',
+                  isActive ? 'text-sidebar-primary' : 'text-muted-foreground group-hover:text-sidebar-accent-foreground'
+                )}
+              />
               {item.label}
             </Link>
           )
@@ -105,8 +110,8 @@ function ShellNav({ navigation, pathname, profile, portalLabel, accessory }: She
 
       {/* Signed-in user */}
       <div className="space-y-3 border-t border-sidebar-border px-4 py-4">
-        <div className="flex items-center gap-3 rounded-xl bg-sidebar-accent/50 px-3 py-2.5">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
+        <div className="flex items-center gap-3 rounded-xl bg-muted/60 px-3 py-2.5">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-plum text-xs font-semibold text-white">
             {(profile.full_name || profile.email || 'U')
               .split(' ')
               .filter(Boolean)
@@ -115,17 +120,17 @@ function ShellNav({ navigation, pathname, profile, portalLabel, accessory }: She
               .join('')}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-white">
+            <p className="truncate text-sm font-medium text-foreground">
               {profile.full_name || 'Signed-in user'}
             </p>
-            <p className="truncate text-xs capitalize text-sidebar-foreground/60">
+            <p className="truncate text-xs capitalize text-muted-foreground">
               {profile.role.replace('_', ' ')}
             </p>
           </div>
         </div>
         <SignOutButton
           variant="ghost"
-          buttonClassName="text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-white"
+          buttonClassName="text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
         />
       </div>
     </div>

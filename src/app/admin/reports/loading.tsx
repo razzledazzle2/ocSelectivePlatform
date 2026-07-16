@@ -9,7 +9,7 @@ export default function AdminReportsLoading() {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Card key={index} className="rounded-2xl shadow-sm ring-border">
+          <Card key={index} className="rounded-2xl border border-border shadow-card">
             <CardContent className="px-4 py-4">
               <Skeleton className="h-3 w-16" />
               <Skeleton className="mt-2 h-8 w-10" />
@@ -18,7 +18,7 @@ export default function AdminReportsLoading() {
         ))}
       </div>
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="border-b border-border/70">
           <Skeleton className="h-5 w-16" />
         </CardHeader>

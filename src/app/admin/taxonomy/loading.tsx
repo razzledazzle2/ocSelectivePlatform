@@ -14,7 +14,7 @@ export default function AdminTaxonomyLoading() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 3 }).map((_, index) => (
-          <Card key={index} className="rounded-2xl shadow-sm ring-border">
+          <Card key={index} className="rounded-2xl border border-border shadow-card">
             <CardContent className="space-y-2 p-4">
               <Skeleton className="h-4 w-24" />
               <Skeleton className="h-7 w-20" />
@@ -38,7 +38,7 @@ export default function AdminTaxonomyLoading() {
         </div>
 
         <div className="space-y-6">
-          <Card className="rounded-2xl shadow-sm ring-border">
+          <Card className="rounded-2xl border border-border shadow-card">
             <CardHeader className="space-y-2 border-b border-border/70">
               <Skeleton className="h-5 w-32" />
               <Skeleton className="h-4 w-full" />
@@ -50,7 +50,7 @@ export default function AdminTaxonomyLoading() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm ring-border">
+          <Card className="rounded-2xl border border-border shadow-card">
             <CardHeader className="border-b border-border/70">
               <Skeleton className="h-5 w-36" />
             </CardHeader>

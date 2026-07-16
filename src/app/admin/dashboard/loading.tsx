@@ -14,7 +14,7 @@ export default function AdminDashboardLoading() {
       <StatGridSkeleton count={4} className="md:grid-cols-2 xl:grid-cols-4" />
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card className="rounded-2xl shadow-sm ring-border">
+        <Card className="rounded-2xl border border-border shadow-card">
           <CardHeader className="border-b border-border/70">
             <Skeleton className="h-5 w-36" />
             <Skeleton className="h-4 w-64 max-w-full" />
@@ -24,7 +24,7 @@ export default function AdminDashboardLoading() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl shadow-sm ring-border">
+        <Card className="rounded-2xl border border-border shadow-card">
           <CardHeader className="border-b border-border/70">
             <Skeleton className="h-5 w-44" />
             <Skeleton className="h-4 w-56 max-w-full" />

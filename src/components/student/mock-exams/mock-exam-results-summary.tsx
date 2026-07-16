@@ -36,7 +36,7 @@ export function MockExamResultsSummary({ results }: MockExamResultsSummaryProps)
   ]
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="border-b border-border/70">
         <CardTitle>Overall result</CardTitle>
       </CardHeader>

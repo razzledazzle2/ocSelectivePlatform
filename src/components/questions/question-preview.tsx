@@ -274,7 +274,7 @@ export function QuestionPreview({
   const solution = getWorkedSolution(question) || getShortExplanation(question)
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="space-y-4 border-b border-border/70">
         {showMeta ? (
           <div className="flex flex-wrap gap-2">

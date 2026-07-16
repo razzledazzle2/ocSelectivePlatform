@@ -87,7 +87,7 @@ function SectionStepper({
   mockName: string
 }) {
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
         <div className="flex flex-wrap items-center gap-2">
           <Badge>{examType}</Badge>
@@ -176,7 +176,7 @@ function BreakScreen({
   }, [breakEndsMs, startNext])
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardContent className="flex flex-col items-center gap-5 py-14 text-center">
         <span className="flex size-14 items-center justify-center rounded-2xl bg-gold-soft text-gold-foreground">
           <CoffeeIcon className="size-6" />
@@ -297,7 +297,7 @@ function McqSection({
   if (!currentQuestion) {
     // A section with no questions (bank shortfall) is submitted straight through.
     return (
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
           <p className="text-sm text-muted-foreground">
             No questions are available for {section.name} yet.
@@ -335,7 +335,7 @@ function McqSection({
 
   return (
     <>
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b border-border/70">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{section.name}</Badge>
@@ -491,7 +491,7 @@ function WritingSection({
   const wordCount = response.trim() ? response.trim().split(/\s+/).length : 0
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b border-border/70">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">Writing</Badge>

@@ -21,7 +21,7 @@ export function RevisionSummaryStrip({ summary }: RevisionSummaryStripProps) {
   const dueNow = summary.overdueCount + summary.dueTodayCount
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <dl className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
           {TILES.map((tile) => (

@@ -38,7 +38,7 @@ export function AdminReportsTable({ reports, reviewers }: AdminReportsTableProps
   }
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardContent className="p-0">
         <Table>
           <TableHeader>

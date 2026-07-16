@@ -86,7 +86,7 @@ export function RevisionSessionRunner({ items, totalDue }: RevisionSessionRunner
     const remainingDue = Math.max(0, totalDue - completed.length)
 
     return (
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
           <span className="flex size-14 items-center justify-center rounded-2xl bg-success-soft text-success">
             <PartyPopperIcon className="size-6" />
@@ -138,7 +138,7 @@ export function RevisionSessionRunner({ items, totalDue }: RevisionSessionRunner
 
   // -- Active review ----------------------------------------------------------
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="space-y-4 border-b border-border/70">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{current.question.subjectName}</Badge>

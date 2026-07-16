@@ -10,7 +10,7 @@ export default function LearnDomainLoading() {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Card key={index} className="rounded-2xl shadow-sm ring-border">
+          <Card key={index} className="rounded-2xl border border-border shadow-card">
             <CardContent className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1 space-y-2">
                 <Skeleton className="h-3 w-24" />

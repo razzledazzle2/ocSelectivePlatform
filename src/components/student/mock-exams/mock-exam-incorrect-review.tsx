@@ -16,7 +16,7 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
 
   if (!missed.length) {
     return (
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardContent className="flex items-center gap-3 py-6">
           <CheckCircle2Icon className="size-5 text-emerald-600" />
           <div>
@@ -31,7 +31,7 @@ export function MockExamIncorrectReview({ questions }: MockExamIncorrectReviewPr
   }
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="border-b border-border/70">
         <CardTitle>Review incorrect questions</CardTitle>
         <CardDescription>

@@ -111,7 +111,7 @@ export function MockExamLanding({ subjects, recentExams, defaultExamType }: Mock
 
   return (
     <div className="space-y-6">
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="border-b border-border/70">
           <CardTitle>Choose your exam</CardTitle>
           <CardDescription>
@@ -161,7 +161,7 @@ export function MockExamLanding({ subjects, recentExams, defaultExamType }: Mock
       </div>
 
       {recentExams.length > 0 ? (
-        <Card className="rounded-2xl shadow-sm ring-border">
+        <Card className="rounded-2xl border border-border shadow-card">
           <CardHeader className="border-b border-border/70">
             <CardTitle>Recent mock exams</CardTitle>
             <CardDescription>Resume an exam in progress or review a completed one.</CardDescription>

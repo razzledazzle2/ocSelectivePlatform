@@ -21,7 +21,7 @@ function accuracyTone(accuracy: number): 'default' | 'secondary' | 'destructive'
 
 export function AreaPerformanceTable({ areas }: AreaPerformanceTableProps) {
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader>
         <CardTitle>Subject & topic performance</CardTitle>
         <CardDescription>Lifetime accuracy by area — mastery reflects skill, not just this period.</CardDescription>

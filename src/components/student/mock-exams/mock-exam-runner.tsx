@@ -134,7 +134,7 @@ export function MockExamRunner({ data }: MockExamRunnerProps) {
 
   return (
     <div className="space-y-5">
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b border-border/70">
           <div className="flex flex-wrap items-center gap-2">
             <Badge>{data.examType}</Badge>

@@ -43,7 +43,7 @@ export function MockExamTypeCard({
   return (
     <Card
       className={cn(
-        'flex h-full flex-col rounded-2xl shadow-sm ring-border transition-shadow hover:shadow-md'
+        'flex h-full flex-col rounded-2xl border border-border shadow-card transition-shadow hover:shadow-md'
       )}
     >
       <CardHeader className="space-y-3 border-b border-border/70">

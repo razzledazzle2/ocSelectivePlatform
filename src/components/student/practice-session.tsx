@@ -333,7 +333,7 @@ export function PracticeSession({
     if (autoStart) {
       if (emptyResult) {
         return (
-          <Card className="mx-auto max-w-lg rounded-2xl shadow-sm ring-border">
+          <Card className="mx-auto max-w-lg rounded-2xl border border-border shadow-card">
             <CardHeader>
               <CardTitle>No questions ready</CardTitle>
               <CardDescription>
@@ -349,7 +349,7 @@ export function PracticeSession({
         )
       }
       return (
-        <Card className="mx-auto max-w-lg rounded-2xl shadow-sm ring-border">
+        <Card className="mx-auto max-w-lg rounded-2xl border border-border shadow-card">
           <CardHeader>
             <CardTitle>{subtopicFocus ? `Building your ${subtopicFocus.label} set…` : 'Building your set…'}</CardTitle>
             <CardDescription>Picking a varied set and holding back anything you have just seen.</CardDescription>
@@ -395,7 +395,7 @@ export function PracticeSession({
 
         <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr]">
           {/* -- Recommended Today ---------------------------------------- */}
-          <Card className="rounded-2xl shadow-sm ring-border">
+          <Card className="rounded-2xl border border-border shadow-card">
             <CardHeader className="border-b border-border/70">
               <div className="flex items-center gap-2">
                 <SparklesIcon className="size-4 text-brand" />
@@ -451,7 +451,7 @@ export function PracticeSession({
           </Card>
 
           {/* -- Quick Practice -------------------------------------------- */}
-          <Card className="rounded-2xl shadow-sm ring-border">
+          <Card className="rounded-2xl border border-border shadow-card">
             <CardHeader className="border-b border-border/70">
               <CardTitle>{subtopicFocus ? 'Focused practice' : 'Quick practice'}</CardTitle>
               <CardDescription>
@@ -643,7 +643,7 @@ export function PracticeSession({
 
         {/* -- Weak areas / Revision due / Mock exams ----------------------- */}
         <div className="grid gap-5 md:grid-cols-3">
-          <Card className="rounded-2xl shadow-sm ring-border">
+          <Card className="rounded-2xl border border-border shadow-card">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <TrendingUpIcon className="size-4 text-brand" />
@@ -676,7 +676,7 @@ export function PracticeSession({
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm ring-border">
+          <Card className="rounded-2xl border border-border shadow-card">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <BrainIcon className="size-4 text-brand" />
@@ -699,7 +699,7 @@ export function PracticeSession({
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm ring-border">
+          <Card className="rounded-2xl border border-border shadow-card">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <TimerIcon className="size-4 text-brand" />
@@ -732,7 +732,7 @@ export function PracticeSession({
 
     return (
       <div className="space-y-6">
-        <Card className="rounded-2xl shadow-sm ring-border">
+        <Card className="rounded-2xl border border-border shadow-card">
           <CardHeader className="border-b border-border/70">
             <CardTitle>Practice results</CardTitle>
             <CardDescription>Your answers were saved. Here is how this set went.</CardDescription>
@@ -775,7 +775,7 @@ export function PracticeSession({
         </Card>
 
         {incorrectAnswers.length > 0 ? (
-          <Card className="rounded-2xl shadow-sm ring-border">
+          <Card className="rounded-2xl border border-border shadow-card">
             <CardHeader className="border-b border-border/70">
               <CardTitle>Questions to review</CardTitle>
               <CardDescription>
@@ -842,7 +842,7 @@ export function PracticeSession({
   }
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="space-y-4 border-b border-border/70">
         <div className="flex flex-wrap items-center gap-2">
           <Badge>{activeQuestion.examType}</Badge>

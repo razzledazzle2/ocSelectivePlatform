@@ -45,7 +45,7 @@ export function HistorySection({ initialPage }: HistorySectionProps) {
   }
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader>
         <CardTitle>Full activity history</CardTitle>
         <CardDescription>Every practice session you have completed.</CardDescription>

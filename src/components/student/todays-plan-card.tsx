@@ -21,7 +21,7 @@ export function TodaysPlanCard({ actions }: TodaysPlanCardProps) {
   }
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader>
         <CardTitle>Today&apos;s plan</CardTitle>
         <CardDescription>Your highest-value next steps, in order.</CardDescription>

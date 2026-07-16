@@ -18,7 +18,7 @@ export function MockExamRecommendationCard({
   }
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="border-b border-border/70">
         <CardTitle className="flex items-center gap-2">
           <LightbulbIcon className="size-4 text-amber-500" />

@@ -38,7 +38,7 @@ function AreaList({ areas, icon: Icon, tone }: { areas: AreaInsight[]; icon: Luc
 export function StrengthSections({ hasEnoughData, strongest, needsAttention }: StrengthSectionsProps) {
   if (!hasEnoughData) {
     return (
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader>
           <CardTitle>Strengths & focus areas</CardTitle>
           <CardDescription>
@@ -51,7 +51,7 @@ export function StrengthSections({ hasEnoughData, strongest, needsAttention }: S
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader>
           <CardTitle>Strongest areas</CardTitle>
           <CardDescription>Your highest-accuracy topics.</CardDescription>
@@ -60,7 +60,7 @@ export function StrengthSections({ hasEnoughData, strongest, needsAttention }: S
           <AreaList areas={strongest} icon={TrendingUpIcon} tone="strong" />
         </CardContent>
       </Card>
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader>
           <CardTitle>Needs attention</CardTitle>
           <CardDescription>Your lowest-accuracy topics.</CardDescription>

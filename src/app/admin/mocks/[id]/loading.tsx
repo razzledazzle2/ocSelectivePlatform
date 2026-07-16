@@ -4,7 +4,7 @@ import { PageHeaderSkeleton } from '@/components/ui/loading-primitives'
 
 function SectionCardSkeleton() {
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="border-b border-border/70">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-1.5">
@@ -70,7 +70,7 @@ export default function AdminMockDetailLoading() {
         ))}
       </div>
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="border-b border-border/70">
           <Skeleton className="h-5 w-20" />
         </CardHeader>
@@ -94,7 +94,7 @@ export default function AdminMockDetailLoading() {
         <SectionCardSkeleton key={index} />
       ))}
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="border-b border-border/70">
           <Skeleton className="h-5 w-40" />
         </CardHeader>

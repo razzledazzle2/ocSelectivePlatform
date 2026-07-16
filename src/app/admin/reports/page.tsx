@@ -23,7 +23,7 @@ function getParam(
 
 function CountTile({ label, value, accent }: { label: string; value: number; accent: string }) {
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardContent className="px-4 py-4">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
         <p className={`mt-1 text-2xl font-semibold ${accent}`}>{value}</p>

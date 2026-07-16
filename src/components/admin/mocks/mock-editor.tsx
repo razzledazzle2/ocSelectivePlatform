@@ -262,7 +262,7 @@ export function MockEditor({ detail, stats, coverage, subjects, topics, tags }: 
         {/* ================= Builder ================= */}
         <TabsContent value="builder" className="space-y-6 pt-5">
           {/* Metadata */}
-          <Card className="rounded-2xl shadow-sm ring-border">
+          <Card className="rounded-2xl border border-border shadow-card">
             <CardHeader className="border-b border-border/70">
               <CardTitle>Details</CardTitle>
             </CardHeader>
@@ -352,7 +352,7 @@ export function MockEditor({ detail, stats, coverage, subjects, topics, tags }: 
           {/* Sections */}
           {detail.sections.map((section, index) => (
             <div key={section.id} className="space-y-3">
-              <Card className="rounded-2xl shadow-sm ring-border">
+              <Card className="rounded-2xl border border-border shadow-card">
                 <CardHeader className="border-b border-border/70">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -493,7 +493,7 @@ export function MockEditor({ detail, stats, coverage, subjects, topics, tags }: 
           {detail.sections
             .filter((section) => section.questions.length > 0)
             .map((section) => (
-              <Card key={section.id} className="rounded-2xl shadow-sm ring-border">
+              <Card key={section.id} className="rounded-2xl border border-border shadow-card">
                 <CardHeader className="border-b border-border/70">
                   <CardTitle>{section.name} — answer key</CardTitle>
                   <CardDescription>
@@ -612,7 +612,7 @@ export function MockEditor({ detail, stats, coverage, subjects, topics, tags }: 
               {detail.sections
                 .filter((section) => section.questions.length > 0)
                 .map((section) => (
-                  <Card key={section.id} className="rounded-2xl shadow-sm ring-border">
+                  <Card key={section.id} className="rounded-2xl border border-border shadow-card">
                     <CardHeader className="border-b border-border/70">
                       <CardTitle>{section.name} — question performance</CardTitle>
                     </CardHeader>

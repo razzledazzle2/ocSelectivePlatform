@@ -20,7 +20,7 @@ function ComparisonCard({ results }: { results: MockExamResults }) {
   const accuracy = results.session.accuracy ?? 0
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="border-b border-border/70">
         <CardTitle className="flex items-center gap-2 text-base">
           <UsersIcon className="size-4 text-brand" />
@@ -97,7 +97,7 @@ function WritingStatusCard({ results }: { results: MockExamResults }) {
   }
 
   return (
-    <Card className="rounded-2xl shadow-sm ring-border">
+    <Card className="rounded-2xl border border-border shadow-card">
       <CardHeader className="border-b border-border/70">
         <CardTitle className="flex items-center gap-2 text-base">
           <PenLineIcon className="size-4 text-brand" />
@@ -152,7 +152,7 @@ export function MockExamResultsView({ results }: MockExamResultsViewProps) {
 
       <MockExamRecommendationCard recommendations={results.recommendations} />
 
-      <Card className="rounded-2xl shadow-sm ring-border">
+      <Card className="rounded-2xl border border-border shadow-card">
         <CardHeader className="border-b border-border/70">
           <CardTitle>Performance breakdown</CardTitle>
         </CardHeader>
