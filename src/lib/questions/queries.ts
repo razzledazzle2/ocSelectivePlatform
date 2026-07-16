@@ -662,18 +662,7 @@ export async function getQuestionStatusCounts(): Promise<QuestionStatusCounts> {
   }
 }
 
-export async function getExistingQuestionTexts(): Promise<string[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('questions').select('question_text')
-
-  if (error) {
-    throw new Error('Unable to load existing questions for duplicate detection.')
-  }
-
-  return ((data ?? []) as Array<{ question_text: string }>).map((row) => row.question_text)
-}
-
-/** External ids already used in the bank — powers import duplicate detection. */
+/** External ids already used in the bank — the sole identity key for import de-duplication. */
 export async function getExistingQuestionExternalIds(): Promise<string[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('questions').select('external_id').not('external_id', 'is', null)

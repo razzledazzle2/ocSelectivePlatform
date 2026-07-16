@@ -1,6 +1,6 @@
 import { resolveSolution } from '@/lib/content/solution'
 import { findUploadedAssetFile } from '@/lib/import/asset-package'
-import { normalizeQuestionText } from '@/lib/import/validation'
+import { createRowExternalIdCollides } from '@/lib/import/create-identity'
 import type { ImportSummary, ResolvedImportQuestion, UploadedAssetFile } from '@/lib/import/types'
 import { resolveAssetGeneration } from '@/lib/assets/generate'
 import { readImageDimensions, sha256Hex } from '@/lib/assets/image-metadata'
@@ -435,16 +435,18 @@ export async function applyValidatedImport(
   const createRows = rows.filter((row) => row.action === 'create')
   const updateRows = rows.filter((row) => row.action === 'update')
 
-  const [{ data: existing, error: existingError }, { data: existingIds, error: existingIdsError }] = await Promise.all([
-    supabase.from('questions').select('question_text'),
-    supabase.from('questions').select('external_id').not('external_id', 'is', null),
-  ])
-  if (existingError || existingIdsError) {
+  // A question's identity is its explicit external_id ONLY — never its wording, options,
+  // answer or stimulus text. We load existing external_ids purely as an idempotency/race
+  // guard so a create-mode re-import of the same external_id doesn't fight the DB's unique
+  // index. Two rows with identical text but different external_ids are two distinct
+  // questions and both are inserted (see create-identity.ts).
+  const { data: existingIds, error: existingIdsError } = await supabase
+    .from('questions')
+    .select('external_id')
+    .not('external_id', 'is', null)
+  if (existingIdsError) {
     throw new Error('Unable to verify existing questions before import.')
   }
-  const existingKeys = new Set(
-    ((existing ?? []) as Array<{ question_text: string }>).map((row) => normalizeQuestionText(row.question_text))
-  )
   const existingExternalIds = new Set(
     ((existingIds ?? []) as Array<{ external_id: string | null }>)
       .map((row) => row.external_id)
@@ -588,9 +590,9 @@ export async function applyValidatedImport(
   }
 
   for (const row of createRows) {
-    const key = normalizeQuestionText(row.questionText)
-    if (existingKeys.has(key) || (row.externalId && existingExternalIds.has(row.externalId))) {
-      // Guards against inserting the SAME text or external id twice within one run.
+    if (createRowExternalIdCollides(row, existingExternalIds)) {
+      // Identity is external_id only: skip solely when this exact external_id already
+      // exists (idempotent re-import / race guard). Matching question wording never skips.
       summary.skippedDuplicateCount += 1
       continue
     }
@@ -634,7 +636,6 @@ export async function applyValidatedImport(
 
       summary.importedCount += 1
       importedQuestionIds.push(inserted.id)
-      existingKeys.add(key)
       if (row.externalId) {
         existingExternalIds.add(row.externalId)
       }

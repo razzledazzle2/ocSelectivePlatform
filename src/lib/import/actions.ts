@@ -22,7 +22,6 @@ import {
 } from '@/lib/import/types'
 import {
   getExistingQuestionExternalIds,
-  getExistingQuestionTexts,
   getExistingTags,
   getQuestionSnapshotsByExternalIds,
   getQuestionTypes,
@@ -73,7 +72,6 @@ async function buildValidationFromRows(
     topics,
     questionTypes,
     questionVariants,
-    existingQuestionTexts,
     existingTags,
     existingStimulusRefs,
     existingExternalIds,
@@ -83,7 +81,6 @@ async function buildValidationFromRows(
     getTopicsBySubject(),
     getQuestionTypes(),
     getQuestionVariants(),
-    getExistingQuestionTexts(),
     getExistingTags(),
     getExistingStimulusExternalRefs(),
     getExistingQuestionExternalIds(),
@@ -102,7 +99,6 @@ async function buildValidationFromRows(
       existingExternalIds,
       existingByExternalId,
     },
-    existingQuestionTexts,
     settings,
     assetFiles,
   })

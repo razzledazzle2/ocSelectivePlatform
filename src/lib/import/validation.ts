@@ -453,7 +453,6 @@ function classifyAssetRef(
 interface ValidateOptions {
   format: ImportFormat
   reference: ImportReference
-  existingQuestionTexts: string[]
   settings: ImportSettings
   /** Files extracted from an uploaded assets ZIP/package — empty map for a plain CSV/paste import. */
   assetFiles: Map<string, UploadedAssetFile>
@@ -465,8 +464,6 @@ export function validateQuestionImportRows(rows: QuestionImportRow[], options: V
   const stimulusGroups = buildStimulusGroups(rows)
   const questionSetGroups = mergeQuestionSetGroups(rows)
   const sharedOptionPoolGroups = mergeSharedOptionPoolGroups(rows)
-  const existingTextSet = new Set(options.existingQuestionTexts.map(normalizeQuestionText))
-  const seenInFile = new Set<string>()
   const seenExternalIds = new Set<string>()
   const referencedFileKeys = new Set<string>()
   const validatedRows: ValidatedImportRow[] = []
@@ -988,20 +985,9 @@ export function validateQuestionImportRows(rows: QuestionImportRow[], options: V
         ? (rawStatus as QuestionStatus)
         : settings.importStatus
 
-    // -- Duplicate detection (question text) ---------------------------------
-    const normalizedText = normalizeQuestionText(workingRow.questionText)
-    if (normalizedText) {
-      if (seenInFile.has(normalizedText)) {
-        // Flag but never block: the same question text can legitimately recur with a
-        // different stimulus/passage. Surface it as a heads-up and still import the row.
-        warnings.push({ field: 'question_text', message: 'This question text is duplicated within the import.' })
-      } else {
-        seenInFile.add(normalizedText)
-      }
-      if (existingTextSet.has(normalizedText) && rowAction === 'create') {
-        warnings.push({ field: 'question_text', message: 'A very similar question already exists in the bank.' })
-      }
-    }
+    // Question wording is intentionally NOT checked for duplication. Identical text with a
+    // different external_id (e.g. the same prompt asked of a different passage) is a distinct
+    // question and must import. Identity is external_id only — enforced above and by the DB.
 
     const isImportable = errors.length === 0
 
