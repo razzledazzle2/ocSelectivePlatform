@@ -25,7 +25,40 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import { getDomainLabel, getSubtopicLabel } from '@/lib/taxonomy'
 import { OPTION_STATS_MIN_ATTEMPTS, type AdminQuestionListItem } from '@/lib/types'
+
+/**
+ * Compact canonical-taxonomy line: a category (domain) badge with the subtopic
+ * label beside it, so an admin can read a question's classification without
+ * opening it. Renders nothing until a category is set. Labels wrap; raw codes are
+ * never shown — an unknown code falls back to nothing rather than a slug.
+ */
+function QuestionRowTaxonomy({
+  domainCode,
+  subtopicCode,
+}: {
+  domainCode: string | null
+  subtopicCode: string | null
+}) {
+  const categoryLabel = getDomainLabel(domainCode)
+  if (!categoryLabel) {
+    return null
+  }
+  const subtopicLabel = getSubtopicLabel(subtopicCode)
+  return (
+    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+      <Badge variant="outline" className="h-4 border-brand/40 px-1.5 text-[0.65rem] text-brand">
+        {categoryLabel}
+      </Badge>
+      {subtopicLabel ? (
+        <span className="min-w-0 break-words text-muted-foreground">{subtopicLabel}</span>
+      ) : (
+        <span className="italic text-muted-foreground/70">No subtopic</span>
+      )}
+    </div>
+  )
+}
 
 const rowDateFormatter = new Intl.DateTimeFormat('en-AU', {
   day: 'numeric',
@@ -182,6 +215,8 @@ export function QuestionListRow({
             Ans <span className="font-semibold text-foreground/80">{question.correctOptionLabel}</span>
           </span>
         </div>
+
+        <QuestionRowTaxonomy domainCode={question.domainCode} subtopicCode={question.subtopicCode} />
 
         <QuestionRowStats stats={question.stats} />
       </div>

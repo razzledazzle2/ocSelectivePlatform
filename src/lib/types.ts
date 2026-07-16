@@ -513,6 +513,9 @@ export interface AdminQuestionListItem {
   difficulty: number
   status: QuestionStatus
   answerFormat: AnswerFormat
+  /** Canonical taxonomy codes (v1) — null when unset. Category = domain. */
+  domainCode: string | null
+  subtopicCode: string | null
   hasStimulus: boolean
   hasAssets: boolean
   /** Readiness of linked assets: 'none' (no assets), 'pending' (needs work), 'ready'. */

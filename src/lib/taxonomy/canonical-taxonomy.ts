@@ -475,6 +475,55 @@ export function getAllSkills(): SkillNode[] {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Label-or-code resolution (import tolerance)                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Build a normalized lookup so a taxonomy value supplied as EITHER the stable
+ * code (`comprehension_comparison`) OR the human label ("Comprehension and
+ * Comparison") resolves to the canonical code. Labels are indexed first and
+ * codes second so an exact code always wins a normalization collision. This is
+ * what lets a CSV/ZIP import carry readable category/subtopic labels — or a
+ * different case/spacing — without the value being dropped.
+ */
+function buildLabelCodeIndex(nodes: Iterable<TaxonomyNodeBase>): Map<string, string> {
+  const list = [...nodes]
+  const index = new Map<string, string>()
+  for (const node of list) {
+    index.set(normalizeLegacyKey(node.label), node.code)
+  }
+  for (const node of list) {
+    index.set(normalizeLegacyKey(node.code), node.code)
+  }
+  return index
+}
+
+const domainLabelOrCodeIndex = buildLabelCodeIndex(domainByCode.values())
+const subtopicLabelOrCodeIndex = buildLabelCodeIndex(subtopicByCode.values())
+const skillLabelOrCodeIndex = buildLabelCodeIndex(skillByCode.values())
+
+/** Resolve a domain given its canonical code OR its display label (case/space tolerant). */
+export function resolveDomainCode(value: string | null | undefined): string | null {
+  const raw = (value ?? '').trim()
+  if (!raw) return null
+  return domainLabelOrCodeIndex.get(normalizeLegacyKey(raw)) ?? null
+}
+
+/** Resolve a subtopic given its canonical code OR its display label (case/space tolerant). */
+export function resolveSubtopicCode(value: string | null | undefined): string | null {
+  const raw = (value ?? '').trim()
+  if (!raw) return null
+  return subtopicLabelOrCodeIndex.get(normalizeLegacyKey(raw)) ?? null
+}
+
+/** Resolve a skill given its canonical code OR its display label (case/space tolerant). */
+export function resolveSkillCode(value: string | null | undefined): string | null {
+  const raw = (value ?? '').trim()
+  if (!raw) return null
+  return skillLabelOrCodeIndex.get(normalizeLegacyKey(raw)) ?? null
+}
+
+/* -------------------------------------------------------------------------- */
 /* Display labels                                                              */
 /* -------------------------------------------------------------------------- */
 

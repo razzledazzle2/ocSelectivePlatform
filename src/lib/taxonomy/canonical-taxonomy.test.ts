@@ -39,6 +39,11 @@ import {
   WRITING_FORMS,
   WRITING_PURPOSES,
   WRITING_PROMPT_STIMULI,
+  getSubject,
+  getDomainLabel,
+  resolveDomainCode,
+  resolveSubtopicCode,
+  resolveSkillCode,
 } from './canonical-taxonomy.ts'
 
 /* ------------------------------- unique codes ---------------------------- */
@@ -339,4 +344,129 @@ test('existing-question compatibility: legacy slug + label both resolve identica
   assert.equal(bySlug.mapping?.subtopicCode, 'area_and_perimeter')
   assert.equal(byLabel.mapping?.subtopicCode, 'area_and_perimeter')
   assert.equal(getSubtopicLabel('area_and_perimeter'), 'Area and perimeter')
+})
+
+/* --------------------------- Reading canonical taxonomy ------------------ */
+
+const READING_CATEGORIES = {
+  comprehension_comparison: [
+    'Single extract comprehension',
+    'Paired extract comparison',
+    'Multiple extract matching',
+    'Main idea and theme',
+    'Character, setting and events',
+    'Author purpose and audience',
+    'Tone, attitude and viewpoint',
+    'Language techniques',
+    'Inference and drawing conclusions',
+    'Vocabulary in context',
+    'Evidence and information retrieval',
+  ],
+  cloze_language: [
+    'Vocabulary and precise word choice',
+    'Grammar and usage',
+    'Connectives and cohesion',
+    'Collocations and common expressions',
+    'Meaning from context',
+  ],
+  poetry: [
+    'Meaning and theme',
+    'Imagery and figurative language',
+    'Tone and mood',
+    'Speaker and perspective',
+    'Structure and form',
+    'Sound and rhythm',
+  ],
+  text_structure_cohesion: [
+    'Sentence insertion',
+    'Paragraph heading matching',
+    'Paragraph summarisation',
+    'Sequencing and organisation',
+    'Cohesion across a text',
+  ],
+} as const
+
+test('Reading has exactly the four canonical categories, in order', () => {
+  const domains = getDomainsForSubject('reading')
+  assert.deepEqual(
+    domains.map((d) => d.code),
+    ['comprehension_comparison', 'cloze_language', 'poetry', 'text_structure_cohesion']
+  )
+  assert.deepEqual(domains.map((d) => d.label), [
+    'Comprehension and Comparison',
+    'Cloze and Language',
+    'Poetry',
+    'Text Structure and Cohesion',
+  ])
+})
+
+test('each Reading category contains exactly its canonical subtopics (by label)', () => {
+  for (const [category, labels] of Object.entries(READING_CATEGORIES)) {
+    const subtopics = getSubtopicsForDomain(category)
+    assert.deepEqual(
+      subtopics.map((s) => s.label),
+      labels,
+      `subtopics mismatch for ${category}`
+    )
+  }
+})
+
+test('no duplicate Reading categories or subtopics; every subtopic maps back to its category', () => {
+  const reading = getSubject('reading')
+  assert.ok(reading, 'reading subject exists')
+  const domainCodes = reading!.domains.map((d) => d.code)
+  assert.equal(new Set(domainCodes).size, domainCodes.length, 'duplicate category codes')
+  for (const domain of reading!.domains) {
+    const subCodes = domain.subtopics.map((s) => s.code)
+    assert.equal(new Set(subCodes).size, subCodes.length, `duplicate subtopics in ${domain.code}`)
+    for (const subtopic of domain.subtopics) {
+      assert.equal(getSubtopic(subtopic.code)!.domainCode, domain.code)
+    }
+  }
+})
+
+test('Reading is student- and admin-visible', () => {
+  const reading = getSubject('reading')!
+  assert.equal(reading.studentVisible, true)
+  assert.equal(reading.adminVisible, true)
+})
+
+/* ------------------- label-or-code resolvers (import tolerance) ---------- */
+
+test('resolveDomainCode accepts the canonical code, the label, and case/space variants', () => {
+  assert.equal(resolveDomainCode('comprehension_comparison'), 'comprehension_comparison')
+  assert.equal(resolveDomainCode('Comprehension and Comparison'), 'comprehension_comparison')
+  assert.equal(resolveDomainCode('  comprehension and comparison  '), 'comprehension_comparison')
+  assert.equal(resolveDomainCode('Cloze and Language'), 'cloze_language')
+  assert.equal(resolveDomainCode('nonsense-category'), null)
+  assert.equal(resolveDomainCode(''), null)
+  assert.equal(resolveDomainCode(null), null)
+})
+
+test('resolveSubtopicCode accepts code or label for Reading subtopics', () => {
+  assert.equal(
+    resolveSubtopicCode('Inference and drawing conclusions'),
+    'inference_and_drawing_conclusions'
+  )
+  assert.equal(
+    resolveSubtopicCode('inference_and_drawing_conclusions'),
+    'inference_and_drawing_conclusions'
+  )
+  // Comma / punctuation in the label is tolerated.
+  assert.equal(resolveSubtopicCode('Character, setting and events'), 'character_setting_and_events')
+  assert.equal(resolveSubtopicCode('Sentence insertion'), 'sentence_insertion')
+  assert.equal(resolveSubtopicCode('not a real subtopic'), null)
+})
+
+test('resolveSkillCode returns null for a non-skill and resolves a real skill', () => {
+  assert.equal(resolveSkillCode('Rectangle area'), 'rectangle_area')
+  assert.equal(resolveSkillCode('rectangle_area'), 'rectangle_area')
+  assert.equal(resolveSkillCode('definitely not a skill'), null)
+})
+
+test('label resolvers do not cross categories: a subtopic label never resolves as a domain', () => {
+  // A subtopic label must not be accepted by resolveDomainCode.
+  assert.equal(resolveDomainCode('Sentence insertion'), null)
+  // Reading labels round-trip through their own resolver + display label.
+  assert.equal(getDomainLabel(resolveDomainCode('Poetry')!), 'Poetry')
 })

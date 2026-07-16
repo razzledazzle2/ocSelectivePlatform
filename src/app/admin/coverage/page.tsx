@@ -38,7 +38,7 @@ export default async function CoverageOverviewPage() {
       <PageHeader
         eyebrow="Question bank health"
         title="Coverage"
-        description="Usable-question coverage for Mathematical Reasoning and Thinking Skills. A question is “usable” only when it is validated, published and asset-ready — many questions sharing one pattern is not strong coverage."
+        description="Usable-question coverage for Mathematical Reasoning, Thinking Skills and Reading. A question is “usable” only when it is validated, published and asset-ready — many questions sharing one pattern is not strong coverage."
         actions={<BlankTemplateButton />}
       />
 

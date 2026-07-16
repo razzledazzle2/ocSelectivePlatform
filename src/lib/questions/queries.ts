@@ -197,6 +197,8 @@ type AdminQuestionRawRow = Pick<
   | 'answer_format'
   | 'stimulus_id'
   | 'correct_option_label'
+  | 'domain_code'
+  | 'subtopic_code'
   | 'created_at'
   | 'updated_at'
   | 'published_at'
@@ -222,6 +224,8 @@ const ADMIN_QUESTION_LIST_SELECT = `
   answer_format,
   stimulus_id,
   correct_option_label,
+  domain_code,
+  subtopic_code,
   tags,
   created_at,
   updated_at,
@@ -264,6 +268,8 @@ function mapAdminQuestionRow(question: AdminQuestionRawRow): AdminQuestionListIt
     difficulty: question.difficulty,
     status: question.status,
     answerFormat: question.answer_format,
+    domainCode: question.domain_code ?? null,
+    subtopicCode: question.subtopic_code ?? null,
     hasStimulus: question.stimulus_id !== null,
     hasAssets: (question.question_assets ?? []).length > 0,
     assetState: deriveAssetState(question.question_assets),

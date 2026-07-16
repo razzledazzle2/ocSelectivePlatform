@@ -32,8 +32,8 @@ import type {
 // questions.difficulty is an integer 1–5 (CHECK constraint). The bank has no
 // existing Easy/Medium/Hard mapping, so this is the canonical one.
 
-/** The two canonical subjects this dashboard covers. */
-export const COVERAGE_SUBJECT_CODES = ['mathematical_reasoning', 'thinking_skills'] as const
+/** The canonical subjects this dashboard covers. */
+export const COVERAGE_SUBJECT_CODES = ['mathematical_reasoning', 'thinking_skills', 'reading'] as const
 
 /** A question counts as "recently used in a mock" if used within this window. */
 export const RECENT_MOCK_WINDOW_DAYS = 30

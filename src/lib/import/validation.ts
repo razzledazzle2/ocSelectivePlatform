@@ -15,11 +15,13 @@ import {
   mergeSharedOptionPoolGroups,
 } from '@/lib/question-sets/core'
 import {
-  getDomain,
   getSkill,
   getSubtopic,
   isValidDimensionValue,
+  resolveDomainCode,
   resolveLegacyTaxonomy,
+  resolveSkillCode,
+  resolveSubtopicCode,
   type DimensionName,
 } from '@/lib/taxonomy'
 import {
@@ -93,10 +95,28 @@ interface ResolvedImportTaxonomy {
 function resolveImportTaxonomy(row: QuestionImportRow, warnings: ImportRowIssue[]): ResolvedImportTaxonomy {
   const clean = (value: string): string | null => value.trim() || null
 
-  let domainCode = clean(row.domainCode)
-  let subtopicCode = clean(row.subtopicCode)
-  let skillCode = clean(row.skillCode)
+  // Accept EITHER the stable code or the human label for category/subtopic/skill,
+  // tolerant of case and spacing (e.g. "Comprehension and Comparison" resolves to
+  // `comprehension_comparison`). Keep the raw value so a genuinely unknown taxonomy
+  // string is surfaced as a row warning rather than silently dropped.
+  const rawDomain = clean(row.domainCode)
+  const rawSubtopic = clean(row.subtopicCode)
+  const rawSkill = clean(row.skillCode)
   let stimulusGenre = clean(row.stimulusGenre)
+
+  let domainCode = resolveDomainCode(rawDomain)
+  let subtopicCode = resolveSubtopicCode(rawSubtopic)
+  let skillCode = resolveSkillCode(rawSkill)
+
+  if (rawDomain && !domainCode) {
+    warnings.push({ field: 'domain_code', message: `Unknown category "${rawDomain}" ignored.` })
+  }
+  if (rawSubtopic && !subtopicCode) {
+    warnings.push({ field: 'subtopic_code', message: `Unknown subtopic "${rawSubtopic}" ignored.` })
+  }
+  if (rawSkill && !skillCode) {
+    warnings.push({ field: 'skill_code', message: `Unknown skill "${rawSkill}" ignored.` })
+  }
 
   // Legacy fallback: derive from the raw topic so re-imported legacy files that
   // predate canonical codes still classify.
@@ -113,18 +133,6 @@ function resolveImportTaxonomy(row: QuestionImportRow, warnings: ImportRowIssue[
   if (skillCode && !subtopicCode) subtopicCode = getSkill(skillCode)?.subtopicCode ?? subtopicCode
   if (subtopicCode && !domainCode) domainCode = getSubtopic(subtopicCode)?.domainCode ?? domainCode
 
-  if (domainCode && !getDomain(domainCode)) {
-    warnings.push({ field: 'domain_code', message: `Unknown domain code "${domainCode}" ignored.` })
-    domainCode = null
-  }
-  if (subtopicCode && !getSubtopic(subtopicCode)) {
-    warnings.push({ field: 'subtopic_code', message: `Unknown subtopic code "${subtopicCode}" ignored.` })
-    subtopicCode = null
-  }
-  if (skillCode && !getSkill(skillCode)) {
-    warnings.push({ field: 'skill_code', message: `Unknown skill code "${skillCode}" ignored.` })
-    skillCode = null
-  }
   if (subtopicCode && domainCode && getSubtopic(subtopicCode)?.domainCode !== domainCode) {
     warnings.push({
       field: 'subtopic_code',
@@ -984,7 +992,9 @@ export function validateQuestionImportRows(rows: QuestionImportRow[], options: V
     const normalizedText = normalizeQuestionText(workingRow.questionText)
     if (normalizedText) {
       if (seenInFile.has(normalizedText)) {
-        errors.push({ field: 'question_text', message: 'This question is duplicated within the import.' })
+        // Flag but never block: the same question text can legitimately recur with a
+        // different stimulus/passage. Surface it as a heads-up and still import the row.
+        warnings.push({ field: 'question_text', message: 'This question text is duplicated within the import.' })
       } else {
         seenInFile.add(normalizedText)
       }
